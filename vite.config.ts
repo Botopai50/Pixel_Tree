@@ -5,6 +5,9 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    // Relative asset paths, so the build works wherever it is served from -
+    // including a GitHub Pages project site under /Pixel_Tree/.
+    base: './',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
