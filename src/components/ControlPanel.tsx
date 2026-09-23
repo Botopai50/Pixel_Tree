@@ -538,6 +538,29 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     />
                   </div>
 
+                  {/* Snow Cover (pines) */}
+                  {treeConfig.species.startsWith('hebra_pine') && (
+                    <div>
+                      <div className="flex justify-between text-stone-300 mb-1">
+                        <span>Cobertura de Neve (Hebra)</span>
+                        <span className="font-mono text-sky-300 font-semibold">
+                          {Math.round((treeConfig.snowCover ?? 0) * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={treeConfig.snowCover ?? 0}
+                        onChange={(e) =>
+                          onUpdateTreeConfig((prev) => ({ ...prev, snowCover: parseFloat(e.target.value) }))
+                        }
+                        className="w-full accent-sky-400 cursor-pointer"
+                      />
+                    </div>
+                  )}
+
                   {/* Swamp Stilt Roots Controls (Raízes para Fora) */}
                   {(treeConfig.species === 'swamp_mangrove' || treeConfig.barkStyle === 'swamp') && (
                     <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/40 space-y-3">

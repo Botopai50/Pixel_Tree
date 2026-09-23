@@ -12,10 +12,13 @@ export class LeafParticleSystem {
   private rotations: Float32Array;
   private scales: Float32Array;
   private treeBoundsY: { min: number; max: number };
+  private snowy = false;
 
   constructor(config: TreeConfig) {
     this.group = new THREE.Group();
     this.particleCount = config.showFallingLeaves ? config.fallingLeafCount : 0;
+    // A snowy tree drops snowflakes instead of leaves.
+    this.snowy = (config.snowCover ?? 0) > 0.05;
     this.treeBoundsY = { min: 0.1, max: config.trunkHeight + 3 };
 
     this.positions = new Float32Array(this.particleCount * 3);
@@ -31,13 +34,13 @@ export class LeafParticleSystem {
     this.geometry.setAttribute('aScale', new THREE.BufferAttribute(this.scales, 1));
 
     // Stylized BotW leaf/petal particle texture generated procedurally
-    const particleTexture = this.createLeafTexture(config.species);
+    const particleTexture = this.createLeafTexture(config.species, this.snowy);
 
     this.material = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
         uTexture: { value: particleTexture },
-        uColor: { value: new THREE.Color(config.foliageColorTop) },
+        uColor: { value: new THREE.Color(this.snowy ? '#f4f8ff' : config.foliageColorTop) },
         uWindSpeed: { value: config.windSpeed },
         uWindStrength: { value: config.windStrength },
       },
@@ -102,15 +105,21 @@ export class LeafParticleSystem {
 
       // Velocities
       this.velocities[idx] = (Math.random() - 0.5) * 0.02; // x drift
-      this.velocities[idx + 1] = -(0.015 + Math.random() * 0.025); // y fall
+      this.velocities[idx + 1] = this.snowy
+        ? -(0.006 + Math.random() * 0.01) // snow drifts down slowly
+        : -(0.015 + Math.random() * 0.025); // y fall
       this.velocities[idx + 2] = (Math.random() - 0.5) * 0.02; // z drift
 
       this.rotations[i] = Math.random() * Math.PI * 2;
-      this.scales[i] = 0.6 + Math.random() * 0.8;
+      // flakes stay small, and smaller still around a sapling, where the
+      // camera sits close
+      this.scales[i] = this.snowy
+        ? (0.22 + Math.random() * 0.22) * THREE.MathUtils.clamp(config.trunkHeight / 6, 0.3, 1)
+        : 0.6 + Math.random() * 0.8;
     }
   }
 
-  private createLeafTexture(species: string): THREE.Texture {
+  private createLeafTexture(species: string, snowy = false): THREE.Texture {
     const canvas = document.createElement('canvas');
     canvas.width = 64;
     canvas.height = 64;
@@ -118,7 +127,14 @@ export class LeafParticleSystem {
 
     ctx.clearRect(0, 0, 64, 64);
 
-    if (species === 'satori_sakura') {
+    if (snowy) {
+      // A pixel snowflake: a small plus on an 8 x 8 grid, kept crisp by
+      // nearest filtering (set below).
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(24, 16, 16, 32);
+      ctx.fillRect(16, 24, 32, 16);
+    } else if (species === 'satori_sakura') {
       // Oval delicate Sakura petal with notch
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
@@ -141,8 +157,8 @@ export class LeafParticleSystem {
     }
 
     const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = snowy ? THREE.NearestFilter : THREE.LinearFilter;
+    texture.magFilter = snowy ? THREE.NearestFilter : THREE.LinearFilter;
     return texture;
   }
 

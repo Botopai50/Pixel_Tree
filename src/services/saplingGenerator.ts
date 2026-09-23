@@ -613,6 +613,8 @@ export function buildProceduralSapling(
   // Pixel art path: stems, petioles and buds share the tree's bark palette,
   // and every leaf is a per-species pixel sprite in the tree's foliage palette.
   const usePixelSapling = config.pixelTextureEnabled !== false;
+  // Snow lying on the sapling and its mound (the snowy pine variant).
+  const isSnowy = (config.snowCover ?? 0) > 0.05;
 
   // NPR Stem / Bark Material
   const stemMaterial = usePixelSapling
@@ -695,6 +697,7 @@ export function buildProceduralSapling(
       uLeafTexture: { value: leafTexture },
       uAlphaTest: { value: 0.35 },
       uRimIntensity: { value: config.rimLightIntensity || 1.1 },
+      uSnow: { value: THREE.MathUtils.clamp(config.snowCover ?? 0, 0, 1) },
     },
     vertexShader: `
       uniform float uTime;
@@ -723,11 +726,23 @@ export function buildProceduralSapling(
       uniform float uAlphaTest;
       uniform vec3 uLightDir;
       uniform float uRimIntensity;
+      uniform float uSnow;
       varying vec3 vNormal;
       varying vec3 vWorldPos;
       varying vec2 vUv;
 
       void main() {
+        // snow heaped on the middle of the sky-facing side, over the gaps too
+        vec3 Ns = normalize(vNormal);
+        if (!gl_FrontFacing) Ns = -Ns;
+        if (uSnow > 0.001 && Ns.y > 0.2) {
+          float f = (1.0 - abs(vUv.x - 0.5) * 3.2)
+                  * smoothstep(0.08, 0.22, vUv.y) * (1.0 - smoothstep(0.55, 0.82, vUv.y));
+          if (f > 1.0 - uSnow * 0.8) {
+            gl_FragColor = vec4(dot(Ns, normalize(uLightDir)) > 0.3 ? vec3(0.97, 0.99, 1.0) : vec3(0.78, 0.85, 0.94), 1.0);
+            return;
+          }
+        }
         vec4 texColor = texture2D(uLeafTexture, vUv);
 
         // Alpha Cutout: Discards transparent pixels so the quad bounding box vanishes completely!
@@ -770,7 +785,9 @@ export function buildProceduralSapling(
   // -------------------------------------------------------------
   const moundR = 0.85;
   const moundGeo = new THREE.CylinderGeometry(moundR * 0.85, moundR * 1.1, 0.22, 24);
-  const moundColor = isMangrove
+  const moundColor = isSnowy
+    ? 0xe4edf6 // snow
+    : isMangrove
     ? 0x2e271f // swamp mud
     : isPalm || isCactus
     ? 0xc2a66e // sand
@@ -790,7 +807,7 @@ export function buildProceduralSapling(
   group.add(mound);
 
   // Subtle grassy rim on the mound
-  if (!isCactus) {
+  if (!isCactus && !isSnowy) {
     const tuftShape = new THREE.Shape();
     tuftShape.moveTo(-0.025, 0);
     tuftShape.lineTo(0.025, 0);
@@ -1151,7 +1168,7 @@ export function buildProceduralSapling(
     });
     materialsToDispose.push(snowMat);
 
-    for (let sn = 0; sn < 4; sn++) {
+    for (let sn = 0; sn < (isSnowy ? 0 : 4); sn++) {
       const snAngle = sn * 1.55 + 0.35;
       const snDist = 0.38 + (sn % 2) * 0.16;
       const snowPatch = new THREE.Mesh(snowGeo, snowMat);
@@ -1211,7 +1228,7 @@ export function buildProceduralSapling(
         const branchGroup = new THREE.Group();
         branchGroup.position.copy(stemPt);
         branchGroup.rotation.y = branchAngle;
-        branchGroup.rotation.z = -whorl.pitch;
+        branchGroup.rotation.z = -(whorl.pitch + (isSnowy ? 0.42 : 0));
 
         // Wooden twig (branchlet) starting 0.015 inside the trunk for seamless continuous connection
         const twigGeo = new THREE.CylinderGeometry(0.005 * whorl.scale, 0.009 * whorl.scale, whorl.twigLen + 0.02, 5);
@@ -1230,6 +1247,10 @@ export function buildProceduralSapling(
         const fanMesh = new THREE.Mesh(pineFanGeo, leafMaterial);
         fanMesh.scale.set(whorl.scale, whorl.scale, whorl.scale);
         fanMesh.rotation.z = (b % 2 === 0 ? 0.12 : -0.12); // slight natural roll
+        // Snowy variant: the spray is turned flat, a shelf that snow can rest
+        // on (as modelled it stands edge-up along the twig), and its twig
+        // sags further under the weight (see the pitch above).
+        if (isSnowy) fanMesh.rotation.y = Math.PI / 2;
         fanMesh.castShadow = true;
         fanBladeGroup.add(fanMesh);
         branchGroup.add(fanBladeGroup);
@@ -1251,7 +1272,7 @@ export function buildProceduralSapling(
       const crownGroup = new THREE.Group();
       crownGroup.position.copy(apexPt);
       crownGroup.rotation.y = crownAngle;
-      crownGroup.rotation.z = -0.32; // steeply upright (~20 degrees from vertical)
+      crownGroup.rotation.z = isSnowy ? -0.5 : -0.32; // steeply upright (~20 degrees from vertical)
 
       // Short apical twig
       const crownTwigGeo = new THREE.CylinderGeometry(0.004, 0.007, 0.05, 5);
@@ -1267,6 +1288,7 @@ export function buildProceduralSapling(
 
       const fanMesh = new THREE.Mesh(pineFanGeo, leafMaterial);
       fanMesh.scale.set(0.78, 0.78, 0.78);
+      if (isSnowy) fanMesh.rotation.y = Math.PI / 2; // laid flat, holding snow
       fanMesh.castShadow = true;
       crownBladeGroup.add(fanMesh);
       crownGroup.add(crownBladeGroup);

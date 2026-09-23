@@ -211,7 +211,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
           >
             <TreePine className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Árvores</span>
-            <span className="text-[10px] opacity-75">8</span>
+            <span className="text-[10px] opacity-75">{adultPresets.length}</span>
           </button>
 
           <button
@@ -226,7 +226,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
           >
             <Sprout className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Mudas</span>
-            <span className="text-[10px] opacity-75">8</span>
+            <span className="text-[10px] opacity-75">{saplingPresets.length}</span>
           </button>
         </div>
 
@@ -322,6 +322,7 @@ function formatShortName(fullName: string, stage: 'adult' | 'sapling'): string {
       .replace('Muda de Carvalho de Hyrule', 'Muda Carvalho')
       .replace('Muda de Cerejeira de Satori', 'Muda Cerejeira')
       .replace('Muda de Bétula de Akkala', 'Muda Bétula')
+      .replace('Muda de Pinheiro Nevado de Hebra', 'Muda Pinheiro Nevado')
       .replace('Muda de Pinheiro de Hebra', 'Muda Pinheiro')
       .replace('Broto de Palmeira de Faron', 'Broto Palmeira')
       .replace('Broto da Árvore Ancestral Korok', 'Broto Korok')
@@ -334,6 +335,7 @@ function formatShortName(fullName: string, stage: 'adult' | 'sapling'): string {
     .replace('Carvalho de Hyrule', 'Carvalho')
     .replace('Cerejeira de Satori', 'Cerejeira')
     .replace('Bétula Dourada de Akkala', 'Bétula Dourada')
+    .replace('Pinheiro Nevado de Hebra', 'Pinheiro Nevado')
     .replace('Pinheiro de Hebra', 'Pinheiro')
     .replace('Palmeira de Faron', 'Palmeira')
     .replace('Árvore Ancestral Korok', 'Árvore Ancestral')

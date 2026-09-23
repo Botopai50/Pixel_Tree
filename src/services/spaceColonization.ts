@@ -108,7 +108,7 @@ export function runSpaceColonization(config: TreeConfig): SCATreeData {
 
   // Crown and Trunk Dimensions
   const trunkHeight = config.trunkHeight;
-  const isPineSpecies = config.species === 'hebra_pine' || crownShape === 'conical';
+  const isPineSpecies = config.species.startsWith('hebra_pine') || crownShape === 'conical';
   const isCactusSpecies = config.species === 'gerudo_cactus' || crownShape === 'candelabra';
   const isSwampSpecies = config.species === 'swamp_mangrove' || crownShape === 'swamp_vault';
   const minBranchH = isPineSpecies ? 0.22 : (isCactusSpecies ? 0.30 : (isSwampSpecies ? 0.44 : 0.35));

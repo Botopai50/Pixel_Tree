@@ -423,6 +423,7 @@ export function buildProceduralConifer(
       uRimColor: { value: new THREE.Color(0xdffff0) },
       uTreeHeight: { value: config.trunkHeight },
       uRimIntensity: { value: config.rimLightIntensity },
+      uSnow: { value: THREE.MathUtils.clamp(config.snowCover ?? 0, 0, 1) },
     },
     side: THREE.DoubleSide,
     vertexShader: `
@@ -459,6 +460,7 @@ export function buildProceduralConifer(
       uniform vec3 uRimColor;
       uniform float uTreeHeight;
       uniform float uRimIntensity;
+      uniform float uSnow;
       varying vec2 vUv;
       varying vec3 vNormal;
       varying vec3 vWorldPos;
@@ -480,6 +482,12 @@ export function buildProceduralConifer(
         vec3 viewDirection = normalize(cameraPosition - vWorldPos);
         float rim = pow(1.0 - max(dot(viewDirection, N), 0.0), 4.0) * uRimIntensity;
         color += uRimColor * rim * 0.12;
+        // snow on the top of each spray, heaped along its spine
+        if (uSnow > 0.001 && N.y > 0.05) {
+          vec2 c = fract(vUv * vec2(4.0, 2.0));
+          float f = (1.0 - abs(c.x - 0.5) * 2.6) * (1.0 - smoothstep(0.5, 0.88, c.y)) + (texColor.g - 0.5) * 0.3;
+          if (f > 1.0 - uSnow * 0.8) color = cel > 0.9 ? vec3(0.97, 0.99, 1.0) : vec3(0.72, 0.8, 0.9);
+        }
         gl_FragColor = vec4(color, 1.0);
       }
     `,

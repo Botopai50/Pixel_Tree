@@ -2,8 +2,9 @@ export type TreeSpecies =
   | 'hyrule_oak' 
   | 'satori_sakura' 
   | 'akkala_birch' 
-  | 'hebra_pine' 
-  | 'faron_palm' 
+  | 'hebra_pine'
+  | 'hebra_pine_snowy'
+  | 'faron_palm'
   | 'korok_ancient'
   | 'gerudo_cactus'
   | 'swamp_mangrove'
@@ -12,6 +13,7 @@ export type TreeSpecies =
   | 'satori_sakura_sapling'
   | 'akkala_birch_sapling'
   | 'hebra_pine_sapling'
+  | 'hebra_pine_snowy_sapling'
   | 'faron_palm_sapling'
   | 'korok_ancient_sapling'
   | 'gerudo_cactus_sapling'
@@ -115,6 +117,10 @@ export interface TreeConfig {
   barkRoughness: number;     // 0.4 to 1.0
   barkStyle: 'oak' | 'birch' | 'pine' | 'ancient' | 'cactus' | 'swamp' | 'deadwood';
   mossAmount: number;        // 0 to 1
+  /** Snow lying on the tree and its ground, 0 (none) .. 1 (heavy). Drawn by
+   *  the conifers, adult and sapling: needle tops, upward-facing wood, the
+   *  ground mound; the falling particles turn into snowflakes. */
+  snowCover?: number;
   
   // Swamp Tree / Mangrove Features (Stilt Roots, Vines, Water)
   aerialRootCount?: number;      // 6 to 18 (number of massive arching stilt roots)

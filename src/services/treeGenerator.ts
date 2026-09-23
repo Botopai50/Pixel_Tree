@@ -852,7 +852,11 @@ export function createTree(config: TreeConfig): TreeInstance {
   const moundRadius = Math.max(config.rootSpread * 3.8 + config.trunkRadiusBase + 2.5, 5.0);
   const moundGeo = new THREE.CylinderGeometry(moundRadius, moundRadius * 1.15, 1.2, 32);
   
-  const moundColor = config.species.startsWith('hebra_pine')
+  // Snow cover (the snowy pine) whitens the whole island.
+  const isSnowyGround = (config.snowCover ?? 0) > 0.05;
+  const moundColor = isSnowyGround
+    ? 0xe4edf6 // Hebra snowfield
+    : config.species.startsWith('hebra_pine')
     ? 0x5a4838 // Alpine cold earth
     : config.species.startsWith('satori_sakura')
     ? 0x4e8555 // Satori Mountain sacred grove green
@@ -878,7 +882,7 @@ export function createTree(config: TreeConfig): TreeInstance {
 
   // Stylized 3D Tapered Grass Tufts around the base (curved BotW grass blades)
   const isCactusOrPalm = config.species.startsWith('gerudo_cactus') || config.species.startsWith('faron_palm');
-  if (!isCactusOrPalm) {
+  if (!isCactusOrPalm && !isSnowyGround) {
     const tuftShape = new THREE.Shape();
     tuftShape.moveTo(-0.06, 0);
     tuftShape.lineTo(0.06, 0);
@@ -938,6 +942,36 @@ export function createTree(config: TreeConfig): TreeInstance {
         stoneMesh.receiveShadow = true;
         group.add(stoneMesh);
       }
+    }
+  }
+
+  // Snowy ground: a few dark stones break up the white, each wearing a cap of
+  // the same snow.
+  if (isSnowyGround) {
+    const stoneMat = new THREE.MeshToonMaterial({ color: 0x5f6670 });
+    const capMat = new THREE.MeshToonMaterial({ color: 0xf2f7fc });
+    materialsToDispose.push(stoneMat, capMat);
+    for (let s = 0; s < 6; s++) {
+      const stoneR = 0.25 + rnd() * 0.3;
+      const stoneGeo = new THREE.DodecahedronGeometry(stoneR, 0);
+      geometriesToDispose.push(stoneGeo);
+      const stone = new THREE.Mesh(stoneGeo, stoneMat);
+      const sAngle = (s / 6) * Math.PI * 2 + rnd() * 0.6;
+      const sDist = config.trunkRadiusBase * 1.4 + 0.6 + rnd() * (moundRadius * 0.55);
+      stone.position.set(Math.cos(sAngle) * sDist, stoneR * 0.3 - 0.05, Math.sin(sAngle) * sDist);
+      stone.rotation.set(rnd() * Math.PI, rnd() * Math.PI, rnd() * Math.PI);
+      stone.scale.set(1.25, 0.7, 1.0);
+      stone.castShadow = true;
+      stone.receiveShadow = true;
+      group.add(stone);
+
+      const cap = new THREE.Mesh(stoneGeo, capMat);
+      cap.position.copy(stone.position);
+      cap.position.y += stoneR * 0.42;
+      cap.rotation.y = rnd() * Math.PI;
+      cap.scale.set(1.05, 0.28, 0.85);
+      cap.receiveShadow = true;
+      group.add(cap);
     }
   }
 

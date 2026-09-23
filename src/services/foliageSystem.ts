@@ -204,7 +204,7 @@ function drawSpeciesLeafTile(
 
   if (species === 'satori_sakura') {
     drawBotWSakuraClump(ctx, variant);
-  } else if (species === 'hebra_pine') {
+  } else if (species.startsWith('hebra_pine')) {
     drawBotWPineBranch(ctx, variant);
   } else if (species === 'akkala_birch') {
     drawBotWBirchClump(ctx, variant);
@@ -1084,7 +1084,7 @@ export function buildProceduralFoliage(
   };
 
   // 1. Minimum height for foliage: strictly keep the main lower trunk clean of leaves
-  const isConifer = config.species === 'hebra_pine' || config.foliageType === 'pine_cone';
+  const isConifer = config.species.startsWith('hebra_pine') || config.foliageType === 'pine_cone';
   const isSwamp = config.species === 'swamp_mangrove' || config.foliageType === 'swamp_weeping';
   const defaultStartRatio = isConifer ? 0.24 : (isSwamp ? 0.44 : 0.48);
   const branchStartRatio = Math.max(isConifer ? 0.18 : 0.40, config.branchStartHeight ?? defaultStartRatio);

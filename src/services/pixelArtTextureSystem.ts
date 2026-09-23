@@ -126,7 +126,7 @@ const BASE_DEFAULTS: SpeciesTextureDefaults = {
 };
 
 function speciesKey(species: string): string {
-  return species.replace(/_sapling$|_fallen$/, '');
+  return species.replace(/_sapling$|_fallen$/, '').replace(/_snowy$/, '');
 }
 
 function speciesDefaults(species: string): SpeciesTextureDefaults {
@@ -1606,6 +1606,21 @@ export const PIXEL_LEAF_FRAGMENT_SHADER = /* glsl */ `
 `;
 
 /**
+ * Snow, drawn in the same terms as everything else: a fixed four-step ramp
+ * (deep blue shade .. sunlit white) picked in whole steps, so snow never turns
+ * into a gradient. Shared by the needles, the bark and the sapling leaves.
+ */
+const SNOW_GLSL = /* glsl */ `
+  vec3 snowRamp(float i) {
+    if (i < 0.5) return vec3(0.435, 0.529, 0.690);   // #6f87b0 deep shade
+    if (i < 1.5) return vec3(0.643, 0.737, 0.859);   // #a4bcdb shade
+    if (i < 2.5) return vec3(0.851, 0.906, 0.965);   // #d9e7f6 lit
+    return vec3(0.973, 0.988, 1.0);                  // #f8fcff sunlit
+  }
+  float snowHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+`;
+
+/**
  * Conifer needle sprays. The pine's foliage is one merged mesh of flat spray
  * quads rather than instanced cards, and it used to go through its own smooth
  * material that read the pixel atlas's colours back as data and multiplied
@@ -1669,11 +1684,25 @@ export const PIXEL_CONIFER_FRAGMENT_SHADER = /* glsl */ `
   uniform float uAccentAmount;
   uniform float uCrownBottomY;
   uniform float uCrownTopY;
+  uniform float uSnow;
+  uniform float uTileTexels;
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vWorldPos;
   varying float vCrownDepth;
   varying float vShade;
+  ${SNOW_GLSL}
+
+  // Snow lying along one spray, for a texel of its atlas cell (x across,
+  // y from the root at 0 to the tip at uTileTexels): a drift heaped along the
+  // spray's spine, thinning toward the tip so the needle ends stay green,
+  // with a ragged per-texel edge.
+  float snowField(vec2 t) {
+    vec2 c = (t + 0.5) / uTileTexels;
+    float spine = 1.0 - abs(c.x - 0.5) * 2.1;
+    float along = 1.0 - smoothstep(0.62, 0.95, c.y);
+    return spine * along + (snowHash(t + vShade * 61.0) - 0.5) * 0.3;
+  }
 
   void main() {
     vec4 s = texture2D(uStruct, vUv);
@@ -1706,7 +1735,25 @@ export const PIXEL_CONIFER_FRAGMENT_SHADER = /* glsl */ `
     if (clumpH > 0.975 && uHighlightAmount > 0.02 && ndl > 0.2) idx = max(idx, N1 - 1.0);
 
     float row = (clumpH < uAccentAmount * 0.20) ? ${PALETTE_ROW_ACCENT} : ${PALETTE_ROW_MAIN};
-    gl_FragColor = vec4(texture2D(uPalette, vec2((idx + 0.5) / uPaletteSteps, row)).rgb, 1.0);
+    vec3 col = texture2D(uPalette, vec2((idx + 0.5) / uPaletteSteps, row)).rgb;
+
+    // Snow rests on the TOP of each spray only - seen from below, the needles
+    // stay green - and less of it reaches the tufts deep inside a tier.
+    if (uSnow > 0.001 && n.y > 0.05) {
+      vec2 t = floor(fract(vUv * vec2(4.0, 2.0)) * uTileTexels);
+      float thr = 1.0 - uSnow * (1.0 - vCrownDepth * 0.5);
+      float f = snowField(t) + (clumpH - 0.5) * 0.25;
+      if (f > thr) {
+        // a lit top and a shaded lower rim where the drift ends, so it reads
+        // as a heap with thickness rather than white paint
+        float rim = (snowField(t + vec2(0.0, 1.0)) < thr
+                  || snowField(t + vec2(1.0, 0.0)) < thr
+                  || snowField(t - vec2(1.0, 0.0)) < thr) ? 1.0 : 0.0;
+        float si = 2.0 + (ndl > 0.25 ? 1.0 : 0.0) - vCrownDepth * 1.6 - rim + (heightN > 0.6 ? 0.5 : 0.0);
+        col = snowRamp(floor(clamp(si, 0.0, 3.0) + 0.5));
+      }
+    }
+    gl_FragColor = vec4(col, 1.0);
   }
 `;
 
@@ -1732,6 +1779,8 @@ export function createPixelConiferMaterial(
       uCrownBottomY: { value: crownBottomY },
       uCrownTopY: { value: crownTopY },
       uTreeHeight: { value: config.trunkHeight },
+      uSnow: { value: THREE.MathUtils.clamp(config.snowCover ?? 0, 0, 1) },
+      uTileTexels: { value: pix.tileRes },
     },
     vertexShader: PIXEL_CONIFER_VERTEX_SHADER,
     fragmentShader: PIXEL_CONIFER_FRAGMENT_SHADER,
@@ -1802,6 +1851,8 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
   uniform float uCrownBottomY;
   uniform float uCrownTopY;
   uniform float uCrownRadius;
+  // Snow lying on the upward-facing wood (0 = off): root flare, branch tops.
+  uniform float uSnow;
 
   varying vec3 vNormal;
   varying vec3 vWorldPos;
@@ -1812,6 +1863,7 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
 
   float bhash(float n) { return fract(sin(n * 12.9898) * 43758.5453123); }
   float bhash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+  ${SNOW_GLSL}
 
   void main() {
     float N1 = uPaletteSteps - 1.0;
@@ -1821,6 +1873,8 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
     float plateH;
     float crevice;
     float hiMask;
+    // texel cell for the snow edge; the lobed path swaps in its metre grid
+    vec2 snowTexel = floor(vBarkUv * vec2(48.0, 64.0));
 
     if (uLobedMode > 0.5 && vWood.z > 0.001) {
       // ----------------------------------------------------------------------
@@ -1894,6 +1948,7 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
       float texelsPerLobeHere = max(2.0, texelsAround / lobes);
       float texU = floor(angleU * texelsAround);
       float texV = floor(along * uTexelsPerMetre);
+      snowTexel = vec2(texU, texV);
       // snap across-lobe onto that grid, so the shading steps in hard pixels
       float tq = (floor(t * texelsPerLobeHere) + 0.5) / texelsPerLobeHere;
 
@@ -2051,6 +2106,17 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
     float row = (mossMask > 0.10 && plateH < mossMask * 0.70) ? 0.25 : 0.75;
 
     vec3 col = texture2D(uPalette, vec2((idx + 0.5) / uPaletteSteps, row)).rgb;
+
+    // Snow: only where the wood faces the sky and the crown does not cover it,
+    // with a ragged per-texel edge, in the shared snow ramp.
+    if (uSnow > 0.001) {
+      float sf = N.y + (bhash2(snowTexel + uTextureSeed) - 0.5) * 0.35
+               - (1.0 - uSnow) * 0.6 - crownCover * 0.9;
+      if (sf > 0.42) {
+        float si = 2.0 + (ndl > 0.2 ? 1.0 : 0.0) - (sf < 0.6 ? 1.0 : 0.0);
+        col = snowRamp(si);
+      }
+    }
     gl_FragColor = vec4(col, 1.0);
   }
 `;
@@ -2512,16 +2578,44 @@ const PIXEL_SAPLING_LEAF_FRAGMENT_SHADER = /* glsl */ `
   uniform vec3 uTexLightDir;
   uniform float uShadowStrength;
   uniform float uTextureContrast;
+  uniform float uSnow;
   varying vec3 vNormal;
   varying vec2 vUv;
+  ${SNOW_GLSL}
+
+  // Snow heaped on the middle of the sprite (16 x 24 texels, base at v = 0):
+  // it fills the gaps between needles, so it reads as a drift sitting on the
+  // spray, and leaves the base and the tips clear.
+  float leafSnow(vec2 t) {
+    vec2 c = (t + 0.5) / vec2(16.0, 24.0);
+    float spine = 1.0 - abs(c.x - 0.5) * 3.2;
+    float along = smoothstep(0.08, 0.22, c.y) * (1.0 - smoothstep(0.55, 0.82, c.y));
+    return spine * along + (snowHash(t) - 0.5) * 0.35;
+  }
+
   void main() {
+    vec3 n = normalize(vNormal);
+    float back = gl_FrontFacing ? 0.0 : 1.0;
+    if (!gl_FrontFacing) n = -n;
+    float ndl = dot(n, normalize(uTexLightDir));
+
+    // snow on the face turned to the sky only
+    if (uSnow > 0.001 && n.y > 0.2) {
+      vec2 t = floor(vUv * vec2(16.0, 24.0));
+      float thr = 1.0 - uSnow * 0.8;
+      if (leafSnow(t) > thr) {
+        float rim = (leafSnow(t + vec2(1.0, 0.0)) < thr
+                  || leafSnow(t - vec2(1.0, 0.0)) < thr
+                  || leafSnow(t + vec2(0.0, 1.0)) < thr) ? 1.0 : 0.0;
+        gl_FragColor = vec4(snowRamp(2.0 + (ndl > 0.3 ? 1.0 : 0.0) - rim), 1.0);
+        return;
+      }
+    }
+
     vec4 s = texture2D(uLeaf, vUv);
     if (s.a < 0.5) discard;
     float N1 = uPaletteSteps - 1.0;
     float idx = floor(s.r * N1 + 0.5);
-    vec3 n = normalize(vNormal);
-    float back = gl_FrontFacing ? 0.0 : 1.0;
-    if (!gl_FrontFacing) n = -n;
     // the leaf's V-fold gives its two halves different normals, so light and
     // shade split along the midrib, in whole palette steps
     float tone = dot(n, normalize(uTexLightDir)) * 1.25 - back * 0.7 - uShadowStrength * 0.25;
@@ -2546,6 +2640,7 @@ export function createPixelSaplingLeafMaterial(
       uTexLightDir: { value: pixelTextureLightDir(foliage.params) },
       uShadowStrength: { value: foliage.params.shadow },
       uTextureContrast: { value: foliage.params.contrast },
+      uSnow: { value: THREE.MathUtils.clamp(config.snowCover ?? 0, 0, 1) },
     },
     vertexShader: PIXEL_SAPLING_LEAF_VERTEX_SHADER,
     fragmentShader: PIXEL_SAPLING_LEAF_FRAGMENT_SHADER,
@@ -3086,6 +3181,7 @@ export function createPixelBarkMaterial(
       uCrownBottomY: { value: 0 },
       uCrownTopY: { value: 1 },
       uCrownRadius: { value: 1 },
+      uSnow: { value: THREE.MathUtils.clamp(config.snowCover ?? 0, 0, 1) },
       uLitSign: { value: Math.cos((bark.params.lightAzimuth * Math.PI) / 180) >= 0 ? 1 : -1 },
     },
     vertexShader: PIXEL_BARK_VERTEX_SHADER,
