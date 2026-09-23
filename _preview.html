@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gerador de Árvores Zelda BotW — preview sem Node</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind v4, compiled in the browser: stands in for the @tailwindcss/vite
+       plugin, which needs Node. Same utility classes, generated at runtime. -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@19.0.0",
+      "react/jsx-runtime": "https://esm.sh/react@19.0.0/jsx-runtime",
+      "react-dom": "https://esm.sh/react-dom@19.0.0",
+      "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+      "lucide-react": "https://esm.sh/lucide-react@0.546.0?external=react",
+      "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js",
+      "three/": "https://cdn.jsdelivr.net/npm/three@0.186.0/"
+    }
+  }
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/typescript@5.8.3/lib/typescript.js"></script>
+
+  <style>
+    html, body { margin: 0; height: 100%; }
+    #boot {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #1c1917; color: #d6d3d1;
+      font: 13px ui-monospace, monospace;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 10px; text-align: center; padding: 24px;
+    }
+    #boot b { color: #a3e635; }
+    #boot .err { color: #fca5a5; max-width: 900px; text-align: left; white-space: pre-wrap; }
+  </style>
+</head>
+<body class="bg-stone-900 text-stone-100 overflow-hidden select-none">
+  <div id="root"></div>
+  <div id="boot"><b>Compilando o projeto no navegador…</b><span id="bootmsg">carregando TypeScript</span></div>
+
+  <script type="module">
+    const boot = document.getElementById('boot');
+    const msg = document.getElementById('bootmsg');
+    const say = (t) => { msg.textContent = t; };
+
+    try {
+      say('lendo os arquivos do projeto');
+      const list = await (await fetch('/__list')).json();
+      const src = {};
+      await Promise.all(list.map(async (f) => {
+        src[f] = await (await fetch('/' + f + '?t=' + Date.now())).text();
+      }));
+
+      const dirname = (p) => { const i = p.lastIndexOf('/'); return i < 0 ? '' : p.slice(0, i); };
+      const joinPath = (b, r) => {
+        const parts = b ? b.split('/') : [];
+        for (const s of r.split('/')) {
+          if (s === '.' || s === '') continue;
+          if (s === '..') parts.pop(); else parts.push(s);
+        }
+        return parts.join('/');
+      };
+      const resolveLocal = (from, spec) => {
+        const p = joinPath(dirname(from), spec);
+        for (const c of [p, p + '.ts', p + '.tsx', p.replace(/\.js$/, '.ts')]) {
+          if (src[c] !== undefined) return c;
+        }
+        return null;
+      };
+
+      const cache = new Map();
+      const building = new Set();
+      function build(file) {
+        if (cache.has(file)) return cache.get(file);
+        if (building.has(file)) return null;
+        building.add(file);
+        let js = ts.transpileModule(src[file], {
+          compilerOptions: {
+            target: ts.ScriptTarget.ES2022,
+            module: ts.ModuleKind.ESNext,
+            jsx: ts.JsxEmit.ReactJSX,
+            isolatedModules: true,
+          },
+          fileName: file,
+        }).outputText;
+
+        // Tailwind is compiled by the browser build above, so the stylesheet
+        // import has nothing to resolve to here.
+        js = js.replace(/^\s*import\s+["'][^"']+\.css["'];?\s*$/gm, '');
+
+        // point every relative import at the blob URL of its transpiled module
+        js = js.replace(/(from\s*|import\s*\(\s*)(["'])(\.{1,2}\/[^"']+)\2/g, (m, pre, q, spec) => {
+          const t = resolveLocal(file, spec);
+          if (!t) return m;
+          const u = build(t);
+          return u ? `${pre}${q}${u}${q}` : m;
+        });
+
+        const url = URL.createObjectURL(new Blob([js], { type: 'text/javascript' }));
+        building.delete(file);
+        cache.set(file, url);
+        return url;
+      }
+
+      say('transpilando ' + list.length + ' arquivos');
+      const entry = build('src/main.tsx');
+
+      say('iniciando o app');
+      await import(entry);
+
+      // the app has mounted; drop the splash
+      setTimeout(() => boot.remove(), 350);
+    } catch (e) {
+      boot.innerHTML = '<b style="color:#fca5a5">Falha ao iniciar</b>' +
+        '<div class="err">' + String(e && e.stack || e) + '</div>';
+      console.error(e);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "name": "Gerador de Árvores Zelda BotW",
+  "description": "Gerador procedural 3D de árvores no estilo cel-shaded de The Legend of Zelda: Breath of the Wild utilizando Three.js.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
