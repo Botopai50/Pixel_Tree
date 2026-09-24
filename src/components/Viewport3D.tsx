@@ -13,16 +13,51 @@ export interface Viewport3DHandle {
   focusTrunk: () => void;
 }
 
+// The camera's vertical field of view. On a wide screen it is a fixed 42
+// degrees; on a portrait phone that leaves a slice too narrow for a crown, so
+// the view is widened until it spans as much sideways as a square screen would
+// (capped, so it does not turn fish-eyed).
+const BASE_FOV = 42;
+function fovForAspect(aspect: number): number {
+  if (aspect >= 1) return BASE_FOV;
+  const halfTan = Math.tan(THREE.MathUtils.degToRad(BASE_FOV / 2)) / aspect;
+  return Math.min(68, THREE.MathUtils.radToDeg(Math.atan(halfTan)) * 2);
+}
+// ...and past that cap, a tall narrow screen frames the tree from further back.
+function portraitDistanceScale(aspect: number): number {
+  return aspect >= 1 ? 1 : Math.min(1.4, 1 / Math.sqrt(aspect * 1.4));
+}
+
 interface Viewport3DProps {
   treeConfig: TreeConfig;
   envConfig: EnvironmentConfig;
   onFpsUpdate?: (fps: number) => void;
+  // share of the screen height covered from below by an overlay (0 = none)
+  viewInsetBottom?: number;
 }
 
 export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
-  ({ treeConfig, envConfig, onFpsUpdate }, ref) => {
+  ({ treeConfig, envConfig, onFpsUpdate, viewInsetBottom = 0 }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const viewInsetRef = useRef(viewInsetBottom);
+
+    // Zooms the picture out to the height left uncovered and shifts the
+    // rendered window down, so the whole tree sits in what is still visible
+    // (a little below its middle: the toolbar covers the very top).
+    const applyViewInset = () => {
+      const camera = cameraRef.current;
+      const renderer = rendererRef.current;
+      if (!camera || !renderer) return;
+      const inset = viewInsetRef.current;
+      const size = renderer.getSize(new THREE.Vector2());
+      camera.zoom = 1 - inset * 0.9;
+      if (inset > 0 && size.x > 0 && size.y > 0) {
+        camera.setViewOffset(size.x, size.y, 0, size.y * inset * 0.4, size.x, size.y);
+      } else {
+        camera.clearViewOffset();
+      }
+    };
 
     // Refs for active Three.js state
     const sceneRef = useRef<THREE.Scene | null>(null);
@@ -48,8 +83,8 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
       const scene = new THREE.Scene();
       sceneRef.current = scene;
 
-      const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
-      camera.position.set(0, 6.5, 18);
+      const camera = new THREE.PerspectiveCamera(fovForAspect(width / height), width / height, 0.1, 100);
+      camera.position.set(0, 6.5, 18).multiplyScalar(portraitDistanceScale(width / height));
       cameraRef.current = camera;
 
       const renderer = new THREE.WebGLRenderer({
@@ -102,8 +137,10 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         const { width: newW, height: newH } = entries[0].contentRect;
         if (newW > 0 && newH > 0 && renderer && camera) {
           camera.aspect = newW / newH;
+          camera.fov = fovForAspect(camera.aspect);
           camera.updateProjectionMatrix();
           renderer.setSize(newW, newH);
+          applyViewInset();
         }
       });
       resizeObserver.observe(container);
@@ -216,28 +253,28 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
           const currentDist = cameraRef.current.position.distanceTo(controlsRef.current.target);
           if (currentDist < 3.5 || currentDist > 9.0) {
             const dir = cameraRef.current.position.clone().sub(controlsRef.current.target).normalize();
-            cameraRef.current.position.copy(controlsRef.current.target).addScaledVector(dir, 5.5);
+            cameraRef.current.position.copy(controlsRef.current.target).addScaledVector(dir, 5.5 * portraitDistanceScale(cameraRef.current.aspect));
           }
         } else if (isFallen) {
           controlsRef.current.minDistance = 1.6;
           const currentDist = cameraRef.current.position.distanceTo(controlsRef.current.target);
           if (currentDist < 6.0 || currentDist > 14.0) {
             const dir = cameraRef.current.position.clone().sub(controlsRef.current.target).normalize();
-            cameraRef.current.position.copy(controlsRef.current.target).addScaledVector(dir, 9.5);
+            cameraRef.current.position.copy(controlsRef.current.target).addScaledVector(dir, 9.5 * portraitDistanceScale(cameraRef.current.aspect));
           }
         } else if (isSapling) {
           controlsRef.current.minDistance = 0.8;
           const currentDist = cameraRef.current.position.distanceTo(controlsRef.current.target);
           if (currentDist > 4.5) {
             const dir = cameraRef.current.position.clone().sub(controlsRef.current.target).normalize();
-            cameraRef.current.position.copy(controlsRef.current.target).addScaledVector(dir, 3.4);
+            cameraRef.current.position.copy(controlsRef.current.target).addScaledVector(dir, 3.4 * portraitDistanceScale(cameraRef.current.aspect));
           }
         } else {
           controlsRef.current.minDistance = 3.0;
           const currentDist = cameraRef.current.position.distanceTo(controlsRef.current.target);
           if (currentDist < 6.5) {
             const dir = cameraRef.current.position.clone().sub(controlsRef.current.target).normalize();
-            cameraRef.current.position.copy(controlsRef.current.target).addScaledVector(dir, 14.0);
+            cameraRef.current.position.copy(controlsRef.current.target).addScaledVector(dir, 14.0 * portraitDistanceScale(cameraRef.current.aspect));
           }
         }
       }
@@ -304,6 +341,13 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
       }
     }, [envConfig.timeOfDay, envConfig.autoRotate]);
 
+    // While the phone's settings sheet covers the bottom of the screen, the
+    // scene is drawn raised into the part still visible.
+    useEffect(() => {
+      viewInsetRef.current = viewInsetBottom;
+      applyViewInset();
+    }, [viewInsetBottom]);
+
     // -------------------------------------------------------------
     // EXPOSE IMPERATIVE METHODS (EXPORT, CAMERA CONTROLS)
     // -------------------------------------------------------------
@@ -341,6 +385,11 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
           cameraRef.current.position.set(0, 6.5, 18);
           controlsRef.current.target.set(0, treeConfig.trunkHeight * 0.55, 0);
         }
+        const target = controlsRef.current.target;
+        cameraRef.current.position
+          .sub(target)
+          .multiplyScalar(portraitDistanceScale(cameraRef.current.aspect))
+          .add(target);
         controlsRef.current.update();
       },
       focusCanopy: () => {

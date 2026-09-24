@@ -101,7 +101,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
   return (
     <div
       id="botw-bottom-bar"
-      className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-2xl md:max-w-3xl lg:max-w-4xl px-2 pointer-events-none"
+      className="absolute bottom-2 sm:bottom-3 pb-[env(safe-area-inset-bottom)] left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 w-full max-w-[calc(100vw-1rem)] sm:max-w-2xl md:max-w-3xl lg:max-w-4xl px-2 pointer-events-none"
     >
       {/* Popover: Grid of all 16 species */}
       {isGridOpen && (
@@ -231,13 +231,13 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
       )}
 
       {/* Main Bar: Category Selector + Scrollable Pills + Grid Button */}
-      <div className="pointer-events-auto flex items-center gap-1.5 p-1 sm:p-1.5 rounded-2xl bg-stone-950/90 backdrop-blur-xl border border-stone-800/90 shadow-2xl w-full overflow-hidden">
+      <div className="pointer-events-auto flex flex-wrap md:flex-nowrap items-center gap-1.5 p-1.5 rounded-2xl bg-stone-950/90 backdrop-blur-xl border border-stone-800/90 shadow-2xl w-full overflow-hidden">
         {/* Category Tabs: Árvores vs Mudas */}
-        <div className="flex items-center p-0.5 rounded-xl bg-stone-900/90 border border-stone-800 shrink-0">
+        <div className="order-1 flex-1 min-w-0 md:flex-none md:shrink-0 flex items-center p-0.5 rounded-xl bg-stone-900/90 border border-stone-800">
           <button
             id="tab-select-adult"
             onClick={() => setActiveTab('adult')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+            className={`flex-1 md:flex-none justify-center px-2.5 py-1.5 md:py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
               activeTab === 'adult'
                 ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/60'
                 : 'text-stone-400 hover:text-stone-200'
@@ -245,14 +245,14 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
             title="Exibir árvores adultas"
           >
             <TreePine className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Árvores</span>
+            <span>Árvores</span>
             <span className="text-[10px] opacity-75">{adultPresets.length}</span>
           </button>
 
           <button
             id="tab-select-sapling"
             onClick={() => setActiveTab('sapling')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+            className={`flex-1 md:flex-none justify-center px-2.5 py-1.5 md:py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
               activeTab === 'sapling'
                 ? 'bg-lime-600 text-white shadow-md shadow-lime-950/60'
                 : 'text-stone-400 hover:text-stone-200'
@@ -260,14 +260,14 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
             title="Exibir mudas e brotos"
           >
             <Sprout className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Mudas</span>
+            <span>Mudas</span>
             <span className="text-[10px] opacity-75">{saplingPresets.length}</span>
           </button>
 
           <button
             id="tab-select-shrub"
             onClick={() => setActiveTab('shrub')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+            className={`flex-1 md:flex-none justify-center px-2.5 py-1.5 md:py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
               activeTab === 'shrub'
                 ? 'bg-teal-600 text-white shadow-md shadow-teal-950/60'
                 : 'text-stone-400 hover:text-stone-200'
@@ -275,7 +275,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
             title="Exibir arbustos"
           >
             <Leaf className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Arbustos</span>
+            <span>Arbustos</span>
             <span className="text-[10px] opacity-75">{shrubPresets.length}</span>
           </button>
         </div>
@@ -284,7 +284,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
         <button
           id="btn-scroll-species-left"
           onClick={() => handleScroll('left')}
-          className="p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800/80 transition cursor-pointer shrink-0"
+          className="hidden md:block md:order-2 p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800/80 transition cursor-pointer shrink-0"
           title="Rolar espécies para esquerda"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -293,7 +293,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
         {/* Horizontal Scrollable Pills Area */}
         <div
           ref={scrollRef}
-          className="flex items-center gap-1.5 overflow-x-auto scroll-smooth py-0.5 px-1 scrollbar-none touch-pan-x flex-1 min-w-0"
+          className="order-3 basis-full md:basis-auto flex items-center gap-1.5 overflow-x-auto scroll-smooth py-0.5 px-1 scrollbar-none touch-pan-x flex-1 min-w-0"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {displayedPresets.map((item) => {
@@ -303,7 +303,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
                 key={item.id}
                 id={`pill-preset-${item.species}`}
                 onClick={() => handleSelect(item.species)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap active:scale-95 ${
+                className={`px-3 py-2 md:py-1.5 rounded-full text-xs font-medium transition cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap active:scale-95 ${
                   isSelected
                     ? activeTab === 'sapling'
                       ? 'bg-lime-600 text-white shadow-md shadow-lime-900/50'
@@ -328,7 +328,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
         <button
           id="btn-scroll-species-right"
           onClick={() => handleScroll('right')}
-          className="p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800/80 transition cursor-pointer shrink-0"
+          className="hidden md:block md:order-4 p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800/80 transition cursor-pointer shrink-0"
           title="Rolar espécies para direita"
         >
           <ChevronRight className="w-4 h-4" />
@@ -338,7 +338,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
         <button
           id="btn-open-species-grid"
           onClick={() => setIsGridOpen(!isGridOpen)}
-          className={`p-1.5 rounded-xl border transition cursor-pointer flex items-center gap-1 text-xs shrink-0 ${
+          className={`order-2 md:order-5 p-2 md:p-1.5 rounded-xl border transition cursor-pointer flex items-center gap-1 text-xs shrink-0 ${
             isGridOpen
               ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
               : 'bg-stone-900/80 text-stone-300 hover:text-white hover:bg-stone-800 border-stone-700/60'
@@ -351,7 +351,21 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
       </div>
 
       {/* Viewport Interaction Legend */}
-      <div className="flex items-center gap-3 text-[11px] text-stone-300/80 bg-stone-950/60 backdrop-blur-sm px-3 py-0.5 rounded-full border border-stone-800/50">
+      {/* (touch screens) */}
+      <div className="md:hidden flex items-center gap-2 text-[10px] text-stone-300/80 bg-stone-950/60 backdrop-blur-sm px-3 py-0.5 rounded-full border border-stone-800/50">
+        <span>
+          Girar: <b>1 dedo</b>
+        </span>
+        <span>&bull;</span>
+        <span>
+          Zoom: <b>pinça</b>
+        </span>
+        <span>&bull;</span>
+        <span>
+          Mover: <b>2 dedos</b>
+        </span>
+      </div>
+      <div className="hidden md:flex items-center gap-3 text-[11px] text-stone-300/80 bg-stone-950/60 backdrop-blur-sm px-3 py-0.5 rounded-full border border-stone-800/50">
         <span>
           Girar: <b>Clique & Arraste</b>
         </span>
@@ -374,7 +388,15 @@ function formatShortName(fullName: string, stage: Stage): string {
       .replace('Arbusto de Hyrule', 'Arbusto Hyrule')
       .replace('Arbusto de Frutinhas', 'Frutinhas')
       .replace('Arbusto Florido', 'Florido')
-      .replace('Arbusto do Deserto', 'Deserto');
+      .replace('Arbusto do Deserto', 'Deserto')
+      .replace('Arbusto de Satori', 'Satori')
+      .replace('Arbusto de Akkala', 'Akkala')
+      .replace('Arbusto de Hebra', 'Hebra')
+      .replace('Arbusto de Faron', 'Faron')
+      .replace('Arbusto Korok', 'Korok')
+      .replace('Arbusto do Pântano', 'Pântano')
+      .replace('Arbusto da Savana', 'Savana')
+      .replace('Arbusto Seco', 'Seco');
   }
   if (stage === 'sapling') {
     return fullName

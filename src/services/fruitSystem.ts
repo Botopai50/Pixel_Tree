@@ -209,6 +209,37 @@ export function buildHangingFruit(
   const down = new THREE.Vector3(0, -1, 0);
   const raycaster = new THREE.Raycaster();
   if (foliage) foliage.updateMatrixWorld(true);
+
+  // Points along every leaf card (a card grows along its local Y from its
+  // base), for flowers to be held against: where the leaves really are.
+  const leafPoints: THREE.Vector3[] = [];
+  if (foliage && options.kind === 'flower') {
+    const m = new THREE.Matrix4();
+    const cardH = 1.22 * (config.leafCardSize ?? 1);
+    foliage.traverse((o) => {
+      const mesh = o as THREE.InstancedMesh;
+      if (!mesh.isInstancedMesh) return;
+      for (let i = 0; i < mesh.count; i++) {
+        mesh.getMatrixAt(i, m);
+        m.premultiply(mesh.matrixWorld);
+        for (const t of [0.25, 0.5, 0.75]) {
+          leafPoints.push(new THREE.Vector3(0, cardH * t, 0).applyMatrix4(m));
+        }
+      }
+    });
+  }
+  const nearestLeaf = (p: THREE.Vector3): THREE.Vector3 | null => {
+    let best: THREE.Vector3 | null = null;
+    let bestSq = Infinity;
+    for (const q of leafPoints) {
+      const d = q.distanceToSquared(p);
+      if (d < bestSq) {
+        bestSq = d;
+        best = q;
+      }
+    }
+    return best;
+  };
   const center = data.crownCenter;
   for (const anchor of anchors) {
     // out of the crown a little, so the fruit shows against the leaves
@@ -242,19 +273,37 @@ export function buildHangingFruit(
     }
 
     if (options.kind === 'flower') {
-      // blossoms open on the skin (or, failing a hit, at the twig), facing out
-      const at = skin ?? anchor.position;
+      // Blossoms open in the leaves, facing out. Spread sideways from ONE
+      // point on the skin and set a little in front of it, the flowers of a
+      // cluster at the edge of a bush stood out past its outline, in the air.
+      // So each flower gets its own spot: offset from its twig, then found on
+      // the leaves along its own line in, never further out than a tuft
+      // reaches, and set INTO the leaves so only its face shows.
       const facing = skinDir ?? outward;
+      const side = new THREE.Vector3().crossVectors(facing, new THREE.Vector3(0, 1, 0));
+      if (side.lengthSq() < 1e-4) side.set(1, 0, 0);
+      side.normalize();
+      const up = new THREE.Vector3().crossVectors(side, facing).normalize();
+      const maxOut = (config.clusterRadius ?? 1) * 0.6;
       for (let k = 0; k < perCluster && placed < count; k++, placed++) {
-        const side = new THREE.Vector3().crossVectors(facing, new THREE.Vector3(0, 1, 0));
-        if (side.lengthSq() < 1e-4) side.set(1, 0, 0);
-        side.normalize();
-        const up = new THREE.Vector3().crossVectors(side, facing).normalize();
         const a = (k / perCluster) * Math.PI * 2 + rnd();
-        const pos = at.clone()
-          .addScaledVector(facing, r * 0.2)
-          .addScaledVector(side, perCluster > 1 ? Math.cos(a) * r * 2.4 : 0)
-          .addScaledVector(up, perCluster > 1 ? Math.sin(a) * r * 2.4 : 0);
+        const base = anchor.position.clone()
+          .addScaledVector(side, perCluster > 1 ? Math.cos(a) * r * 1.8 : 0)
+          .addScaledVector(up, perCluster > 1 ? Math.sin(a) * r * 1.8 : 0);
+        let out = maxOut * 0.5;                        // no leaves found: kept well inside
+        if (foliage) {
+          raycaster.set(base.clone().addScaledVector(facing, crownR * 3), facing.clone().negate());
+          raycaster.far = crownR * 3.2;
+          const hit = raycaster.intersectObject(foliage, true)[0];
+          if (hit) out = THREE.MathUtils.clamp(hit.point.clone().sub(base).dot(facing), 0, maxOut);
+        }
+        const pos = base.addScaledVector(facing, out - r * 0.4);
+        // The ray can still stop on a card's transparent corner, out in the
+        // air: a flower is finally held within reach of real leaf.
+        const leaf = nearestLeaf(pos);
+        if (leaf && leaf.distanceTo(pos) > r * 2) {
+          pos.copy(leaf).addScaledVector(pos.clone().sub(leaf).normalize(), r * 2);
+        }
         const face = facing.clone().addScaledVector(up, 0.35).normalize();   // turned a little to the sky
         const flower = new THREE.Mesh(flowerGeo!, flowerMat!);
         flower.position.copy(pos);

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { 
-  Sliders, 
-  TreePine, 
-  Sun, 
-  ChevronRight, 
-  ChevronLeft, 
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Sliders,
+  TreePine,
+  Sun,
+  ChevronRight,
+  ChevronLeft,
+  ChevronDown,
   Dices,
   Wand2,
   Apple,
@@ -17,6 +18,7 @@ import { TreeConfig, EnvironmentConfig, TreeSpecies, TimeOfDay, CrownShape } fro
 import { TREE_PRESETS } from '../constants/presets';
 import { audioSystem } from '../services/audioSynthesizer';
 import { resolvePixelTextureParams } from '../services/pixelArtTextureSystem';
+import { isMobileViewport, useIsMobile } from './useIsMobile';
 
 interface ControlPanelProps {
   treeConfig: TreeConfig;
@@ -24,6 +26,8 @@ interface ControlPanelProps {
   onUpdateTreeConfig: (updater: (prev: TreeConfig) => TreeConfig) => void;
   onUpdateEnvConfig: (updater: (prev: EnvironmentConfig) => EnvironmentConfig) => void;
   onSelectPreset: (species: TreeSpecies) => void;
+  // tells the app when the phone sheet opens or closes (it covers the scene)
+  onMobileSheetChange?: (open: boolean) => void;
 }
 
 type MainTab = 'sliders' | 'presets' | 'env';
@@ -35,12 +39,24 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onUpdateTreeConfig,
   onUpdateEnvConfig,
   onSelectPreset,
+  onMobileSheetChange,
 }) => {
   // Default directly to 'sliders' so procedural controls are immediately visible!
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('sliders');
   const [activeSection, setActiveSection] = useState<SliderSection>('all');
   const [stageFilter, setStageFilter] = useState<'all' | 'adult' | 'sapling' | 'shrub'>('all');
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+  // On a phone the panel would cover the whole tree, so there it starts closed
+  // and opens as a sheet from the bottom.
+  const isMobile = useIsMobile();
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(isMobileViewport);
+  useEffect(() => {
+    setIsCollapsed(isMobile);
+  }, [isMobile]);
+  useEffect(() => {
+    onMobileSheetChange?.(isMobile && !isCollapsed);
+  }, [isMobile, isCollapsed]);
+  // swipe the sheet's grab bar down to close it
+  const swipeStartY = useRef<number | null>(null);
 
   const presetsList = Object.values(TREE_PRESETS);
 
@@ -69,13 +85,33 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   };
 
   return (
+    <>
+    {/* Phone: floating button that opens the sheet */}
+    {isMobile && isCollapsed && (
+      <button
+        id="btn-open-panel-mobile"
+        onClick={() => setIsCollapsed(false)}
+        className="fixed right-3 bottom-[9.5rem] z-20 flex items-center gap-2 pl-3.5 pr-4 py-2.5 rounded-full bg-emerald-600 active:bg-emerald-500 text-white text-sm font-semibold shadow-xl shadow-emerald-950/60 border border-emerald-400/40 cursor-pointer active:scale-95 transition"
+        title="Abrir ajustes"
+      >
+        <Sliders className="w-4 h-4" />
+        <span>Ajustar</span>
+      </button>
+    )}
     <div
       id="botw-control-panel-wrapper"
-      className={`fixed right-2 sm:right-4 top-20 bottom-4 z-20 transition-transform duration-300 flex items-start ${
-        isCollapsed ? 'translate-x-[calc(100%-2.5rem)]' : 'translate-x-0'
-      }`}
+      className={
+        isMobile
+          ? `fixed inset-x-0 bottom-0 z-30 h-[62dvh] transition-transform duration-300 ${
+              isCollapsed ? 'translate-y-full pointer-events-none' : 'translate-y-0'
+            }`
+          : `fixed right-2 sm:right-4 top-20 bottom-4 z-20 transition-transform duration-300 flex items-start ${
+              isCollapsed ? 'translate-x-[calc(100%-2.5rem)]' : 'translate-x-0'
+            }`
+      }
     >
       {/* Collapse/Expand Handle Button */}
+      {!isMobile && (
       <button
         id="btn-collapse-panel"
         onClick={() => setIsCollapsed(!isCollapsed)}
@@ -84,12 +120,40 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       >
         {isCollapsed ? <ChevronLeft className="w-5 h-5 text-emerald-400" /> : <ChevronRight className="w-5 h-5" />}
       </button>
+      )}
 
       {/* Main Glass Panel */}
       <div
         id="botw-control-panel"
-        className="w-[21rem] sm:w-[24rem] h-full bg-stone-950/90 backdrop-blur-xl border border-stone-800/80 rounded-r-xl rounded-bl-xl shadow-2xl flex flex-col overflow-hidden text-stone-200"
+        className={
+          isMobile
+            ? 'w-full h-full bg-stone-950/95 backdrop-blur-xl border-t border-stone-700/80 rounded-t-2xl shadow-2xl flex flex-col overflow-hidden text-stone-200'
+            : 'w-[21rem] sm:w-[24rem] h-full bg-stone-950/90 backdrop-blur-xl border border-stone-800/80 rounded-r-xl rounded-bl-xl shadow-2xl flex flex-col overflow-hidden text-stone-200'
+        }
       >
+        {/* Phone: grab bar (tap or swipe down to close) */}
+        {isMobile && (
+          <div
+            className="relative flex items-center justify-center pt-2 pb-1.5 bg-stone-900/80 touch-none"
+            onTouchStart={(e) => (swipeStartY.current = e.touches[0].clientY)}
+            onTouchEnd={(e) => {
+              const start = swipeStartY.current;
+              swipeStartY.current = null;
+              if (start !== null && e.changedTouches[0].clientY - start > 40) setIsCollapsed(true);
+            }}
+          >
+            <span className="w-10 h-1.5 rounded-full bg-stone-600" />
+            <button
+              id="btn-close-panel-mobile"
+              onClick={() => setIsCollapsed(true)}
+              className="absolute right-2 top-1 p-1.5 rounded-lg text-stone-400 active:text-white active:bg-stone-800 cursor-pointer"
+              title="Fechar ajustes"
+            >
+              <ChevronDown className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
         {/* Main Navigation Tabs */}
         <div className="flex border-b border-stone-800 bg-stone-900/80 p-1.5 gap-1">
           <button
@@ -102,7 +166,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             }`}
           >
             <Sliders className="w-4 h-4" />
-            <span>Sliders Procedurais</span>
+            <span className="sm:hidden">Ajustes</span>
+            <span className="hidden sm:inline">Sliders Procedurais</span>
           </button>
 
           <button
@@ -540,8 +605,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     />
                   </div>
 
-                  {/* Snow Cover (pines) */}
-                  {treeConfig.species.startsWith('hebra_pine') && (
+                  {/* Snow Cover (Hebra pines and bushes) */}
+                  {(treeConfig.species.startsWith('hebra_pine') || treeConfig.species.startsWith('hebra_shrub')) && (
                     <div>
                       <div className="flex justify-between text-stone-300 mb-1">
                         <span>Cobertura de Neve (Hebra)</span>
@@ -1878,5 +1943,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
       </div>
     </div>
+    </>
   );
 };

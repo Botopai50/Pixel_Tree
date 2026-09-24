@@ -18,6 +18,8 @@ export default function App() {
     soundEnabled: false,
   });
   const [fps, setFps] = useState<number>(60);
+  // the phone settings sheet, while open, covers the lower part of the scene
+  const [sheetOpen, setSheetOpen] = useState(false);
   const viewportRef = useRef<Viewport3DHandle>(null);
 
   // Quick preset selector
@@ -68,6 +70,7 @@ export default function App() {
         treeConfig={treeConfig}
         envConfig={envConfig}
         onFpsUpdate={setFps}
+        viewInsetBottom={sheetOpen ? 0.62 : 0}
       />
 
       {/* Header with Title & Action Controls */}
@@ -92,6 +95,7 @@ export default function App() {
         onUpdateTreeConfig={setTreeConfig}
         onUpdateEnvConfig={setEnvConfig}
         onSelectPreset={handleSelectPreset}
+        onMobileSheetChange={setSheetOpen}
       />
 
       {/* Floating Procedural Stats HUD (Top-Left under header) */}

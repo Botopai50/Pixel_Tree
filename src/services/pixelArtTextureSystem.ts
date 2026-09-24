@@ -116,6 +116,15 @@ const SPECIES_DEFAULTS: Record<string, Partial<SpeciesTextureDefaults>> = {
   berry_shrub: { clusterSize: 3.2, gaps: 0.26, hueCold: 38, hueWarm: -18 },
   flowering_shrub: { clusterSize: 3.4, gaps: 0.3, hueCold: 30, hueWarm: -20 },
   desert_shrub: { clusterSize: 2.6, irregularity: 0.65, gaps: 0.46, contrast: 0.45, hueCold: 18, hueWarm: -26 },
+  // one bush per biome: that biome's tree's leaf character, at bush scale
+  satori_shrub: { clusterSize: 3.2, gaps: 0.32, accent: 0.55, hueCold: 22, hueWarm: -12 },
+  akkala_shrub: { clusterSize: 3.2, gaps: 0.34, contrast: 0.54, hueCold: 30, hueWarm: -26 },
+  hebra_shrub: { clusterSize: 2.8, irregularity: 0.7, gaps: 0.26, shadow: 0.6, hueCold: 44, hueWarm: -14 },
+  faron_shrub: { clusterSize: 4.0, gaps: 0.22, hueCold: 26, hueWarm: -24 },
+  korok_shrub: { clusterSize: 3.6, gaps: 0.26, contrast: 0.56, hueCold: 40, hueWarm: -18 },
+  swamp_shrub: { clusterSize: 3.4, irregularity: 0.62, gaps: 0.3, shadow: 0.64, hueCold: 46, hueWarm: -16 },
+  savanna_shrub: { clusterSize: 2.6, irregularity: 0.6, gaps: 0.42, hueCold: 20, hueWarm: -30 },
+  withered_shrub: { clusterSize: 5.0, gaps: 0.5, contrast: 0.6, shadow: 0.68, highlights: 0.4, hueCold: 18, hueWarm: -10 },
 };
 
 const BASE_DEFAULTS: SpeciesTextureDefaults = {
@@ -1471,7 +1480,25 @@ export function disposePixelTextureCaches(): void {
  *                 so a card steps between palette entries as one piece instead
  *                 of growing a smooth gradient across its surface;
  *   vCrownDepth - how deep inside the crown the card sits.
+ * (The snow ramp is defined just below, ahead of the fragment shaders that
+ * use it.)
  */
+/**
+ * Snow, drawn in the same terms as everything else: a fixed four-step ramp
+ * (deep blue shade .. sunlit white) picked in whole steps, so snow never turns
+ * into a gradient. Shared by the needles, the leaves, the bark and the sapling
+ * leaves.
+ */
+const SNOW_GLSL = /* glsl */ `
+  vec3 snowRamp(float i) {
+    if (i < 0.5) return vec3(0.435, 0.529, 0.690);   // #6f87b0 deep shade
+    if (i < 1.5) return vec3(0.643, 0.737, 0.859);   // #a4bcdb shade
+    if (i < 2.5) return vec3(0.851, 0.906, 0.965);   // #d9e7f6 lit
+    return vec3(0.973, 0.988, 1.0);                  // #f8fcff sunlit
+  }
+  float snowHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+`;
+
 export const PIXEL_LEAF_VERTEX_SHADER = /* glsl */ `
   attribute vec3 aClumpCenter;
   attribute float aAtlasIndex;
@@ -1559,6 +1586,8 @@ export const PIXEL_LEAF_FRAGMENT_SHADER = /* glsl */ `
   uniform float uAccentAmount;
   uniform float uCrownBottomY;
   uniform float uCrownTopY;
+  uniform float uSnow;
+  ${SNOW_GLSL}
 
   varying vec2 vAtlasUv;
   varying vec3 vNormal;
@@ -1607,23 +1636,18 @@ export const PIXEL_LEAF_FRAGMENT_SHADER = /* glsl */ `
 
     float row = (clumpH < uAccentAmount * 0.20) ? ${PALETTE_ROW_ACCENT} : ${PALETTE_ROW_MAIN};
     vec3 col = texture2D(uPalette, vec2((idx + 0.5) / uPaletteSteps, row)).rgb;
+
+    // Snow settles on the top of the crown's outer leaves (the Hebra bush):
+    // ragged along the leaf clusters, never inside the crown.
+    if (uSnow > 0.001) {
+      float sf = vNormal.y + (clumpH - 0.5) * 0.6 - vCrownDepth * 0.8 - (1.0 - uSnow) * 0.9;
+      if (sf > 0.3) {
+        float si = 2.0 + (vCardNdl > 0.2 ? 1.0 : 0.0) - (sf < 0.45 ? 1.0 : 0.0);
+        col = snowRamp(si);
+      }
+    }
     gl_FragColor = vec4(col, 1.0);
   }
-`;
-
-/**
- * Snow, drawn in the same terms as everything else: a fixed four-step ramp
- * (deep blue shade .. sunlit white) picked in whole steps, so snow never turns
- * into a gradient. Shared by the needles, the bark and the sapling leaves.
- */
-const SNOW_GLSL = /* glsl */ `
-  vec3 snowRamp(float i) {
-    if (i < 0.5) return vec3(0.435, 0.529, 0.690);   // #6f87b0 deep shade
-    if (i < 1.5) return vec3(0.643, 0.737, 0.859);   // #a4bcdb shade
-    if (i < 2.5) return vec3(0.851, 0.906, 0.965);   // #d9e7f6 lit
-    return vec3(0.973, 0.988, 1.0);                  // #f8fcff sunlit
-  }
-  float snowHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
 `;
 
 /**

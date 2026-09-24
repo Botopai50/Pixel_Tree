@@ -43,30 +43,31 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header
       id="botw-header"
-      className="absolute top-0 left-0 right-0 z-20 pointer-events-none p-3 sm:p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-gradient-to-b from-stone-950/85 via-stone-950/40 to-transparent"
+      className="absolute top-0 left-0 right-0 z-20 pointer-events-none p-2 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 sm:gap-3 bg-gradient-to-b from-stone-950/85 via-stone-950/40 to-transparent"
     >
       {/* Title & BotW Brand */}
-      <div className="pointer-events-auto flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-emerald-950/80 border border-emerald-500/40 flex items-center justify-center shadow-lg shadow-emerald-950/50 backdrop-blur-md">
-          <Sparkles className="w-5 h-5 text-emerald-400" />
+      <div className="pointer-events-auto flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-lg bg-emerald-950/80 border border-emerald-500/40 flex items-center justify-center shadow-lg shadow-emerald-950/50 backdrop-blur-md">
+          <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
         </div>
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="font-serif tracking-widest text-sm sm:text-base font-bold text-amber-200 uppercase drop-shadow-sm">
               The Legend of Zelda
             </h1>
-            <span className="text-[10px] font-sans px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider font-semibold">
+            <span className="hidden sm:inline text-[10px] font-sans px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider font-semibold">
               BotW Tree.js
             </span>
           </div>
-          <p className="text-xs text-stone-300 font-sans tracking-wide">
-            Gerador Procedural Cel-Shaded &bull; {treeConfig.name}
+          <p className="text-xs text-stone-300 font-sans tracking-wide truncate">
+            <span className="hidden sm:inline">Gerador Procedural Cel-Shaded &bull; </span>
+            {treeConfig.name}
           </p>
         </div>
       </div>
 
       {/* Action Toolbar */}
-      <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 sm:gap-2 bg-stone-900/80 backdrop-blur-md border border-stone-700/60 p-1.5 rounded-xl shadow-xl">
+      <div className="pointer-events-auto flex items-center justify-between md:justify-start gap-1 sm:gap-2 bg-stone-900/80 backdrop-blur-md border border-stone-700/60 p-1.5 rounded-xl shadow-xl">
         {/* Seed & Randomize */}
         <button
           id="btn-randomize-seed"
@@ -82,13 +83,13 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="font-mono text-amber-300 font-semibold">{treeConfig.seed}</span>
         </button>
 
-        <div className="h-4 w-[1px] bg-stone-700" />
+        <div className="hidden sm:block h-4 w-[1px] bg-stone-700" />
 
         {/* Camera Controls */}
         <button
           id="btn-camera-reset"
           onClick={onResetCamera}
-          className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800/80 transition cursor-pointer"
+          className="p-2 sm:p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800/80 transition cursor-pointer"
           title="Resetar Câmera"
         >
           <Maximize2 className="w-4 h-4" />
@@ -96,7 +97,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           id="btn-camera-canopy"
           onClick={onFocusCanopy}
-          className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800/80 transition cursor-pointer text-xs flex items-center gap-1"
+          className="p-2 sm:p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800/80 transition cursor-pointer text-xs flex items-center gap-1"
           title="Focar na Copa da Árvore"
         >
           <Focus className="w-4 h-4 text-emerald-400" />
@@ -105,7 +106,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           id="btn-camera-trunk"
           onClick={onFocusTrunk}
-          className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800/80 transition cursor-pointer text-xs flex items-center gap-1"
+          className="p-2 sm:p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800/80 transition cursor-pointer text-xs flex items-center gap-1"
           title="Focar no Tronco & Raízes"
         >
           <Focus className="w-4 h-4 text-amber-600" />
@@ -115,7 +116,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           id="btn-auto-rotate"
           onClick={onToggleAutoRotate}
-          className={`p-1.5 rounded-lg transition cursor-pointer ${
+          className={`p-2 sm:p-1.5 rounded-lg transition cursor-pointer ${
             envConfig.autoRotate
               ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
               : 'text-stone-300 hover:text-white hover:bg-stone-800/80'
@@ -129,7 +130,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           id="btn-toggle-sound"
           onClick={onToggleSound}
-          className={`p-1.5 rounded-lg transition cursor-pointer ${
+          className={`p-2 sm:p-1.5 rounded-lg transition cursor-pointer ${
             envConfig.soundEnabled
               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
               : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/80'
@@ -143,13 +144,13 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </button>
 
-        <div className="h-4 w-[1px] bg-stone-700" />
+        <div className="hidden sm:block h-4 w-[1px] bg-stone-700" />
 
         {/* Screenshot */}
         <button
           id="btn-screenshot"
           onClick={onScreenshot}
-          className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-stone-200 hover:text-white hover:bg-stone-800/80 transition cursor-pointer text-xs flex items-center gap-1.5"
+          className="p-2 sm:px-2.5 sm:py-1.5 rounded-lg text-stone-200 hover:text-white hover:bg-stone-800/80 transition cursor-pointer text-xs flex items-center gap-1.5"
           title="Capturar Foto PNG em Alta Resolução"
         >
           <Camera className="w-4 h-4 text-sky-400" />
@@ -160,11 +161,11 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           id="btn-export-obj"
           onClick={onExportOBJ}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-900/40 transition cursor-pointer active:scale-95"
+          className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-900/40 transition cursor-pointer active:scale-95"
           title="Exportar Geometria 3D (.OBJ para Blender/Unity)"
         >
           <Download className="w-4 h-4" />
-          <span>Exportar 3D (.OBJ)</span>
+          <span className="hidden sm:inline">Exportar 3D (.OBJ)</span>
         </button>
 
         {/* Performance indicator */}

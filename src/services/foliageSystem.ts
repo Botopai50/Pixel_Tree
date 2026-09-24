@@ -1842,6 +1842,7 @@ export function buildProceduralFoliage(
         uAccentAmount: { value: pix.params.accent },
         uCrownBottomY: { value: crownBounds.bottomY },
         uCrownTopY: { value: crownBounds.topY },
+        uSnow: { value: THREE.MathUtils.clamp(config.snowCover ?? 0, 0, 1) },
         uCanopyCenter: { value: crownCenter },
         uTexLightDir: { value: pixelTextureLightDir(pix.params) },
         uTime: { value: 0.0 },

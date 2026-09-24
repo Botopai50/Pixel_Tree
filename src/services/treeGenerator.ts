@@ -21,6 +21,20 @@ export interface TreeInstance {
   dispose: () => void;
 }
 
+// The ground, grass and stones a biome's bush stands on: the same as that
+// biome's tree.
+const SHRUB_BIOME: Record<string, string> = {
+  satori_shrub: 'satori_sakura',
+  akkala_shrub: 'akkala_birch',
+  hebra_shrub: 'hebra_pine',
+  hebra_shrub_snowy: 'hebra_pine',
+  faron_shrub: 'faron_palm',
+  korok_shrub: 'korok_ancient',
+  swamp_shrub: 'swamp_mangrove',
+  savanna_shrub: 'savanna_acacia',
+  withered_shrub: 'dry_withered',
+};
+
 /**
  * Creates a 100% procedural Zelda: Breath of the Wild style tree.
  * When useSpaceColonization is true (default), both the trunk and canopy are
@@ -302,7 +316,9 @@ export function createTree(config: TreeConfig): TreeInstance {
   const isPine = config.species.startsWith('hebra_pine') || config.foliageType === 'pine_cone';
   const isCactus = config.species.startsWith('gerudo_cactus') || config.foliageType === 'cactus_bloom';
   const isSwamp = config.species.startsWith('swamp_mangrove') || config.foliageType === 'swamp_weeping' || config.barkStyle === 'swamp';
-  const isDeadwood = config.species.startsWith('dry_withered') || config.foliageType === 'none' || config.barkStyle === 'deadwood';
+  // (a bare bush grows like any other bush, just without leaves)
+  const isDeadwood = config.growthStage !== 'shrub' &&
+    (config.species.startsWith('dry_withered') || config.foliageType === 'none' || config.barkStyle === 'deadwood');
 
   if (isPalm) {
     if (config.useSpaceColonization) {
@@ -857,6 +873,8 @@ export function createTree(config: TreeConfig): TreeInstance {
   // -------------------------------------------------------------
   // a bush stands on a small island of its own size
   const isShrubGround = config.growthStage === 'shrub';
+  // A biome's bush stands on the same ground as that biome's tree.
+  const biome = SHRUB_BIOME[config.species] ?? config.species;
   const moundRadius = isShrubGround
     ? 2.6
     : Math.max(config.rootSpread * 3.8 + config.trunkRadiusBase + 2.5, 5.0);
@@ -867,21 +885,21 @@ export function createTree(config: TreeConfig): TreeInstance {
   const isSnowyGround = (config.snowCover ?? 0) > 0.05;
   const moundColor = isSnowyGround
     ? 0xe4edf6 // Hebra snowfield
-    : config.species.startsWith('desert_shrub')
+    : biome.startsWith('desert_shrub')
     ? 0xd4a359 // Gerudo sand
-    : config.species.startsWith('savanna_acacia')
+    : biome.startsWith('savanna_acacia')
     ? 0xc09a58 // Savanna red-gold earth
-    : config.species.startsWith('hebra_pine')
+    : biome.startsWith('hebra_pine')
     ? 0x5a4838 // Alpine cold earth
-    : config.species.startsWith('satori_sakura')
+    : biome.startsWith('satori_sakura')
     ? 0x4e8555 // Satori Mountain sacred grove green
-    : config.species.startsWith('gerudo_cactus')
+    : biome.startsWith('gerudo_cactus')
     ? 0xd4a359 // Gerudo Desert dunes
-    : config.species.startsWith('faron_palm')
+    : biome.startsWith('faron_palm')
     ? 0xc2a66e // Coastal sand
-    : config.species.startsWith('swamp_mangrove')
+    : biome.startsWith('swamp_mangrove')
     ? 0x2e271f // Swamp marsh mud
-    : config.species.startsWith('dry_withered')
+    : biome.startsWith('dry_withered')
     ? 0x6e5c49 // Arid scorched steppe soil
     : 0x588e36; // Lush Hyrule field green
 
@@ -896,7 +914,7 @@ export function createTree(config: TreeConfig): TreeInstance {
   materialsToDispose.push(moundMat);
 
   // Stylized 3D Tapered Grass Tufts around the base (curved BotW grass blades)
-  const isCactusOrPalm = config.species.startsWith('gerudo_cactus') || config.species.startsWith('faron_palm');
+  const isCactusOrPalm = biome.startsWith('gerudo_cactus') || biome.startsWith('faron_palm');
   if (!isCactusOrPalm && !isSnowyGround) {
     const tuftShape = new THREE.Shape();
     tuftShape.moveTo(-0.06, 0);
@@ -906,13 +924,13 @@ export function createTree(config: TreeConfig): TreeInstance {
     const grassBladeGeo = new THREE.ShapeGeometry(tuftShape);
     
     const grassBladeMat = new THREE.MeshToonMaterial({
-      color: config.species.startsWith('satori_sakura')
+      color: biome.startsWith('satori_sakura')
         ? 0x81c784
-        : config.species.startsWith('savanna_acacia')
+        : biome.startsWith('savanna_acacia')
         ? 0xd8bd62 // Tall golden savanna grass
-        : config.species.startsWith('dry_withered') || config.species.startsWith('desert_shrub')
+        : biome.startsWith('dry_withered') || biome.startsWith('desert_shrub')
         ? 0xa89368 // Dry golden savannah grass
-        : config.species.startsWith('hebra_pine')
+        : biome.startsWith('hebra_pine')
         ? 0x6e9970
         : 0x7cb342, // Vibrant Hyrule green
       side: THREE.DoubleSide,
@@ -920,9 +938,9 @@ export function createTree(config: TreeConfig): TreeInstance {
     materialsToDispose.push(grassBladeMat);
     geometriesToDispose.push(grassBladeGeo);
 
-    const grassTuftCount = config.species.startsWith('dry_withered')
+    const grassTuftCount = biome.startsWith('dry_withered')
       ? 10
-      : config.species.startsWith('savanna_acacia') ? 30 : 18; // savanna: grassland all round
+      : biome.startsWith('savanna_acacia') ? 30 : 18; // savanna: grassland all round
     for (let g = 0; g < grassTuftCount; g++) {
       const grAngle = rnd() * Math.PI * 2;
       const grDist = isShrubGround
@@ -946,17 +964,17 @@ export function createTree(config: TreeConfig): TreeInstance {
     }
 
     // Weathered low-poly stones nestled by the roots for dry withered trees
-    if (config.species.startsWith('dry_withered')) {
+    if (biome.startsWith('dry_withered')) {
       const stoneMat = new THREE.MeshToonMaterial({ color: 0x786e65 });
       materialsToDispose.push(stoneMat);
 
       for (let s = 0; s < 5; s++) {
-        const stoneR = 0.22 + rnd() * 0.25;
+        const stoneR = (0.22 + rnd() * 0.25) * (isShrubGround ? 0.5 : 1);
         const stoneGeo = new THREE.DodecahedronGeometry(stoneR, 0);
         geometriesToDispose.push(stoneGeo);
         const stoneMesh = new THREE.Mesh(stoneGeo, stoneMat);
         const sAngle = (s / 5) * Math.PI * 2 + rnd() * 0.5;
-        const sDist = config.trunkRadiusBase * 1.3 + 0.3 + rnd() * 0.8;
+        const sDist = isShrubGround ? 0.8 + rnd() * 0.7 : config.trunkRadiusBase * 1.3 + 0.3 + rnd() * 0.8;
         stoneMesh.position.set(Math.cos(sAngle) * sDist, stoneR * 0.4 - 0.05, Math.sin(sAngle) * sDist);
         stoneMesh.rotation.set(rnd() * Math.PI, rnd() * Math.PI, rnd() * Math.PI);
         stoneMesh.scale.set(1.2, 0.7, 1.0);
@@ -974,12 +992,14 @@ export function createTree(config: TreeConfig): TreeInstance {
     const capMat = new THREE.MeshToonMaterial({ color: 0xf2f7fc });
     materialsToDispose.push(stoneMat, capMat);
     for (let s = 0; s < 6; s++) {
-      const stoneR = 0.25 + rnd() * 0.3;
+      const stoneR = (0.25 + rnd() * 0.3) * (isShrubGround ? 0.45 : 1);
       const stoneGeo = new THREE.DodecahedronGeometry(stoneR, 0);
       geometriesToDispose.push(stoneGeo);
       const stone = new THREE.Mesh(stoneGeo, stoneMat);
       const sAngle = (s / 6) * Math.PI * 2 + rnd() * 0.6;
-      const sDist = config.trunkRadiusBase * 1.4 + 0.6 + rnd() * (moundRadius * 0.55);
+      const sDist = isShrubGround
+        ? 1.0 + rnd() * 0.9
+        : config.trunkRadiusBase * 1.4 + 0.6 + rnd() * (moundRadius * 0.55);
       stone.position.set(Math.cos(sAngle) * sDist, stoneR * 0.3 - 0.05, Math.sin(sAngle) * sDist);
       stone.rotation.set(rnd() * Math.PI, rnd() * Math.PI, rnd() * Math.PI);
       stone.scale.set(1.25, 0.7, 1.0);

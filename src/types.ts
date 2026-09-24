@@ -24,7 +24,16 @@ export type TreeSpecies =
   | 'hyrule_shrub'
   | 'berry_shrub'
   | 'flowering_shrub'
-  | 'desert_shrub';
+  | 'desert_shrub'
+  | 'satori_shrub'
+  | 'akkala_shrub'
+  | 'hebra_shrub'
+  | 'hebra_shrub_snowy'
+  | 'faron_shrub'
+  | 'korok_shrub'
+  | 'swamp_shrub'
+  | 'savanna_shrub'
+  | 'withered_shrub';
 
 export type TimeOfDay = 'day' | 'sunset' | 'night' | 'misty';
 
