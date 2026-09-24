@@ -9,7 +9,6 @@ import { buildSwampRootsAndAccessories } from './swampGenerator';
 import { buildStylizedMangroveCanopy } from './stylizedRosetteCanopy';
 import { buildProceduralSapling } from './saplingGenerator';
 import { buildProceduralDeadwood } from './deadwoodGenerator';
-import { buildOakForkJunctionGeometry } from './oakForkGenerator';
 import { createPixelBarkMaterial } from './pixelArtTextureSystem';
 
 export interface TreeInstance {
@@ -509,24 +508,27 @@ export function createTree(config: TreeConfig): TreeInstance {
       isSwamp
     );
 
+    // The full broadleaf crowns (oak, sakura, birch, Korok) wrap their limbs
+    // in foliage, so the wood inside is in shade, as the pine's is: turn on
+    // the bark shader's crown shade with this tree's own crown, as a rounded
+    // mass. Not for the open crowns - the mangrove's rosettes and the
+    // acacia's thin plates hide little of their wood.
+    const barkUniforms = (barkMaterial as THREE.ShaderMaterial).uniforms;
+    const openCrown = isSwamp || config.scaCrownShape === 'flat_top';
+    if (barkUniforms?.uCrownShade && !openCrown) {
+      barkUniforms.uCrownShade.value = 0.8;
+      barkUniforms.uCrownEllipsoid.value = 1;
+      barkUniforms.uCrownCenterY.value = scaData.crownCenter.y;
+      barkUniforms.uCrownRadius.value = (scaData.crownRadiusX + scaData.crownRadiusZ) * 0.5;
+      barkUniforms.uCrownRadiusY.value = scaData.crownRadiusY;
+    }
+
     const fullTreeMesh = new THREE.Mesh(treeGeo, barkMaterial);
     fullTreeMesh.name = 'ProceduralTreeWood';
     fullTreeMesh.castShadow = true;
     fullTreeMesh.receiveShadow = true;
     group.add(fullTreeMesh);
     geometriesToDispose.push(treeGeo);
-
-    if (config.species === 'hyrule_oak') {
-      const forkGeometry = buildOakForkJunctionGeometry(config, scaData);
-      if (forkGeometry) {
-        const forkMesh = new THREE.Mesh(forkGeometry, barkMaterial);
-        forkMesh.name = 'BotW_OakForkJunction';
-        forkMesh.castShadow = true;
-        forkMesh.receiveShadow = true;
-        group.add(forkMesh);
-        geometriesToDispose.push(forkGeometry);
-      }
-    }
 
     // Collect branch tips from leaf nodes for apples and accessories
     scaData.leafNodes.forEach((leaf) => {

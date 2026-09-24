@@ -47,6 +47,12 @@ export interface TreeChain {
   nodes: SCANode[];
   isTrunk: boolean;
   baseRadius?: number;
+  /** Nodes at the start that belong to the PARENT chain, before the fork
+   *  node: the side branch is swept from inside its parent and curves out of
+   *  it, instead of starting as a straight tube at the fork. */
+  leadIn?: number;
+  /** Build order: a chain must be built after the chain it branches from. */
+  sortKey?: number;
 }
 
 /**
@@ -1164,10 +1170,16 @@ export function runSpaceColonization(config: TreeConfig): SCATreeData {
  * This decomposition enables 100% continuous welded rings along each branch and the main trunk,
  * completely eliminating gaps, cuts, and detached peeling ribbons!
  */
-export function extractTreeChains(rootNode: SCANode): TreeChain[] {
+export function extractTreeChains(rootNode: SCANode, leadIns = true): TreeChain[] {
   const chains: TreeChain[] = [];
 
-  function traceChain(startNodes: SCANode[], isTrunk: boolean, baseRadius?: number) {
+  function traceChain(
+    startNodes: SCANode[],
+    isTrunk: boolean,
+    baseRadius?: number,
+    leadIn = 0,
+    sortKey = -1
+  ) {
     const chain = [...startNodes];
     let curr = chain[chain.length - 1];
 
@@ -1186,10 +1198,16 @@ export function extractTreeChains(rootNode: SCANode): TreeChain[] {
           }
         }
 
-        // Secondary children start branch chains anchored smoothly at the parent node
+        // Secondary children start branch chains at the parent node. Where the
+        // parent has a node below the fork, the chain starts there instead,
+        // inside the parent, so the branch is swept up through its parent and
+        // bends out of it rather than poking out of the side as a straight
+        // tube (see leadIn in buildFullTreeGeometry).
         for (const child of curr.children) {
           if (child !== primaryChild) {
-            traceChain([curr, child], false, child.radius * 1.15);
+            const withLead = leadIns && curr.parent !== null;
+            const lead = withLead ? [curr.parent!, curr, child] : [curr, child];
+            traceChain(lead, false, child.radius * 1.15, withLead ? 1 : 0, curr.depth + 0.5);
           }
         }
       }
@@ -1199,7 +1217,7 @@ export function extractTreeChains(rootNode: SCANode): TreeChain[] {
     }
 
     if (chain.length >= 2) {
-      chains.push({ nodes: chain, isTrunk, baseRadius });
+      chains.push({ nodes: chain, isTrunk, baseRadius, leadIn, sortKey });
     }
   }
 
@@ -1220,17 +1238,13 @@ export function extractTreeChains(rootNode: SCANode): TreeChain[] {
  * area (which goes as r * length) rather than plainly averaged.
  *
  * The bark shader turns this into a ridge count that must be CONSTANT along the
- * chain, so every surface that wants to look like the same piece of wood has to
- * agree on it exactly - the trunk mesh and the fork junction that sits on it,
- * for instance. It lives here, exported, because the last time two call sites
- * each had their own version of this formula they drifted apart and the ridges
- * stopped lining up.
+ * chain.
  *
  * A plain average is wrong for a tapered branch: most of its visible surface is
  * at the thick end, but the mean is dragged down by the thin tip and yields too
  * few ridges for what you actually see.
  */
-export function chainRepresentativeRadius(nodes: SCANode[], radii?: number[]): number {
+function chainRepresentativeRadius(nodes: SCANode[], radii?: number[]): number {
   const r = radii ?? nodes.map((n) => Math.max(0.025, n.radius));
   let areaWeight = 0;
   let radiusSum = 0;
@@ -1373,28 +1387,53 @@ export function groundedRingFrame(
 /**
  * The radii a chain is actually rendered with.
  *
- * The pipe model is evaluated at discrete SCA nodes. At a major fork its
- * mathematically correct radius can fall sharply in a single growth step,
- * which renders as a cut shoulder. Spread that taper across consecutive
- * trunk rings; branch radii and topology remain untouched.
+ * The pipe model is evaluated at discrete SCA nodes. At a fork its radius can
+ * fall sharply in a single growth step - the trunk is thick, the limb that
+ * carries it on is capped at the branch radius - and that renders as a cut
+ * shoulder: a lip right round the wood with a narrower tube rising out of it,
+ * the "waist" that made trunk and crown look like two separate pieces. So on
+ * every chain a ring may be at most a set fraction thinner than the one before
+ * it, and never thicker: the wood thins steadily out of every fork instead.
+ * (A swamp tree's trunk keeps its raw radii: it is kept deliberately slender
+ * over its stilt roots.)
  *
- * Exported so that anything deriving bark parameters from the trunk (the fork
- * junction) feeds chainRepresentativeRadius the very same numbers the trunk
- * mesh did - raw node radii give a slightly different figure, and at some
- * seeds that is enough to round to another ridge count.
+ * A side branch's start is swept INSIDE its parent (its lead-in, see
+ * extractTreeChains): thinner than the parent there, so the two surfaces never
+ * coincide, and at most the branch's own base girth as it bends out at the fork.
+ *
+ * With smoothJoins off (the conifers, see buildFullTreeGeometry) only a trunk
+ * is eased, and more loosely - the radii the pine was tuned with.
  */
-export function chainRenderedRadii(chain: TreeChain, isSwampTree = false): number[] {
-  const renderedRadii = chain.nodes.map((node) => Math.max(0.025, node.radius));
-  if (chain.isTrunk && !isSwampTree) {
-    const maxTaperPerStep = 1.28;
-    for (let i = 1; i < renderedRadii.length; i++) {
-      renderedRadii[i] = Math.max(renderedRadii[i], renderedRadii[i - 1] / maxTaperPerStep);
+function chainRenderedRadii(chain: TreeChain, isSwampTree = false, smoothJoins = true): number[] {
+  const nodes = chain.nodes;
+  const radii = nodes.map((node) => Math.max(0.025, node.radius));
+  if (!smoothJoins) {
+    if (chain.isTrunk && !isSwampTree) {
+      for (let i = 1; i < radii.length; i++) radii[i] = Math.max(radii[i], radii[i - 1] / 1.28);
+    }
+    return radii;
+  }
+  const leadIn = chain.leadIn ?? 0;
+  if (chain.baseRadius) {
+    if (leadIn > 0) {
+      radii[leadIn] = Math.max(0.04, Math.min(chain.baseRadius, nodes[leadIn].radius * 0.85));
+      for (let k = 0; k < leadIn; k++) {
+        radii[k] = Math.max(0.03, Math.min(radii[leadIn] * 0.85, nodes[k].radius * 0.7));
+      }
+    } else {
+      radii[0] = Math.max(0.04, chain.baseRadius);
     }
   }
-  return renderedRadii;
+  if (!(chain.isTrunk && isSwampTree)) {
+    const maxTaperPerStep = chain.isTrunk ? 1.12 : 1.15;
+    for (let i = leadIn + 1; i < radii.length; i++) {
+      radii[i] = Math.min(radii[i - 1], Math.max(radii[i], radii[i - 1] / maxTaperPerStep));
+    }
+  }
+  return radii;
 }
 
-export interface ChainFrames {
+interface ChainFrames {
   tangents: THREE.Vector3[];
   frames: { u: THREE.Vector3; v: THREE.Vector3 }[];
 }
@@ -1403,13 +1442,10 @@ export interface ChainFrames {
  * Smooth tangents plus rotation-minimising (parallel transported) frames along
  * a chain of nodes.
  *
- * Exported because the frame fixes where angle 0 sits around the wood, and the
- * bark's ridges are laid out from that angle. Anything that wants to texture a
- * surface consistently with the trunk - the fork junction, for instance - has
- * to use the SAME frame, or its ridges land at a different phase and the patch
- * reads as belonging to another tree.
+ * The frame fixes where angle 0 sits around the wood, and the bark's ridges
+ * are laid out from that angle.
  */
-export function computeChainFrames(nodes: SCANode[], seedU?: THREE.Vector3): ChainFrames {
+function computeChainFrames(nodes: SCANode[], seedU?: THREE.Vector3): ChainFrames {
   const tangents: THREE.Vector3[] = [];
   for (let i = 0; i < nodes.length; i++) {
     if (i === 0) {
@@ -1469,14 +1505,20 @@ export function computeChainFrames(nodes: SCANode[], seedU?: THREE.Vector3): Cha
   return { tangents, frames };
 }
 
+/**
+ * smoothJoins (default on) sweeps branches out of their parents, rounds every
+ * bend, eases every taper and rounds the tips - see the notes below. The
+ * conifers pass false and keep the plain chain sweep their look was tuned on.
+ */
 export function buildFullTreeGeometry(
   rootNode: SCANode,
   radialSegments = 16,
   rootSpread = 1.0,
   trunkTwist = 0.5,
-  isSwampTree = false
+  isSwampTree = false,
+  smoothJoins = true
 ): THREE.BufferGeometry {
-  const chains = extractTreeChains(rootNode);
+  const chains = extractTreeChains(rootNode, smoothJoins);
   const geo = new THREE.BufferGeometry();
   const positions: number[] = [];
   const normals: number[] = [];
@@ -1486,8 +1528,8 @@ export function buildFullTreeGeometry(
   const woodInfo: number[] = [];
   // (cos, sin) of the ring angle. The bark shader reconstructs the azimuth from
   // this instead of from uv.x, so any mesh that can supply the angle - even one
-  // whose triangles straddle the 0/1 seam, like the convex fork junction - gets
-  // a continuous angle with no wrap artefact.
+  // whose triangles straddle the 0/1 seam - gets a continuous angle with no
+  // wrap artefact.
   const barkAngle: number[] = [];
   const indices: number[] = [];
 
@@ -1501,7 +1543,7 @@ export function buildFullTreeGeometry(
   // chain from its parent's frame at that shared node carries the phase across
   // every fork.
   const orderedChains = [...chains].sort(
-    (a, b) => (a.nodes[0].depth ?? 0) - (b.nodes[0].depth ?? 0)
+    (a, b) => (a.sortKey ?? a.nodes[0].depth ?? 0) - (b.sortKey ?? b.nodes[0].depth ?? 0)
   );
   const frameByNode = new Map<number, THREE.Vector3>();
   const alongByNode = new Map<number, number>();
@@ -1513,7 +1555,8 @@ export function buildFullTreeGeometry(
     // Use higher radial resolution for the main trunk to ensure smooth root fluting
     const segs = chain.isTrunk ? Math.max(18, radialSegments) : radialSegments;
 
-    const renderedRadii = chainRenderedRadii(chain, isSwampTree);
+    const leadIn = chain.leadIn ?? 0;
+    const renderedRadii = chainRenderedRadii(chain, isSwampTree, smoothJoins);
 
     // One representative radius for the WHOLE chain. The bark shader turns this
     // into a lobe count, and it has to be constant along the branch: deriving
@@ -1521,19 +1564,64 @@ export function buildFullTreeGeometry(
     // and every step re-phases the lobes, so the ridges break and jump sideways
     // instead of running unbroken from root to tip. With a fixed count the
     // ridges simply narrow as the wood narrows, which is what real bark does.
-    const chainMeanRadius = chainRepresentativeRadius(nodes, renderedRadii);
+    // (The lead-in, hidden inside the parent, is left out of it.)
+    const chainMeanRadius = chainRepresentativeRadius(nodes.slice(leadIn), renderedRadii.slice(leadIn));
+    // (the plain sweep widens only the first ring, after the mean is taken)
+    if (!smoothJoins && chain.baseRadius) renderedRadii[0] = Math.max(0.04, chain.baseRadius);
 
-    // 1-2. Tangents and rotation-minimising frames along the chain, seeded from
+    // The path the tube is swept along. The colonisation graph turns by up to
+    // ~45 degrees from one node to the next, and a tube whose radius is close
+    // to the node spacing cannot take a turn that sharp: its rings cross on the
+    // inside of the bend and fold out as flaps, and the outside shows a hard
+    // mitred elbow - which is what made forks and bends look like separate
+    // pieces stuck together. Corner-cutting the polyline (Chaikin: each pass
+    // replaces every corner by two points at 1/4 and 3/4 of its segments)
+    // turns every bend into a round one while keeping both ends in place;
+    // thick wood gets a second pass for a wider bend. Radii and the node index
+    // are carried along so rings and bark stay tied to the graph.
+    let path: { p: THREE.Vector3; r: number; s: number }[] = nodes.map((n, i) => ({
+      p: n.position.clone(),
+      r: renderedRadii[i],
+      s: i,
+    }));
+    const passes = !smoothJoins || nodes.length < 3 ? 0 : (Math.max(...renderedRadii) > 0.1 ? 2 : 1);
+    for (let pass = 0; pass < passes; pass++) {
+      const next: { p: THREE.Vector3; r: number; s: number }[] = [path[0]];
+      for (let i = 0; i < path.length - 1; i++) {
+        const a = path[i];
+        const b = path[i + 1];
+        const mix = (f: number) => ({
+          p: a.p.clone().lerp(b.p, f),
+          r: a.r + (b.r - a.r) * f,
+          s: a.s + (b.s - a.s) * f,
+        });
+        if (i > 0) next.push(mix(0.25));
+        if (i < path.length - 2) next.push(mix(0.75));
+      }
+      next.push(path[path.length - 1]);
+      path = next;
+    }
+    // the sample standing in for each graph node (its corner was cut away)
+    const sampleOfNode = nodes.map((_, i) => {
+      let best = 0;
+      for (let k = 1; k < path.length; k++) {
+        if (Math.abs(path[k].s - i) < Math.abs(path[best].s - i)) best = k;
+      }
+      return best;
+    });
+    const pathNodes = path.map((q) => ({ position: q.p }) as SCANode);
+
+    // 1-2. Tangents and rotation-minimising frames along the path, seeded from
     // the parent chain's frame at the node they share.
     const { tangents, frames: normalFrames } = computeChainFrames(
-      nodes,
+      pathNodes,
       frameByNode.get(nodes[0].id)
     );
     for (let i = 0; i < nodes.length; i++) {
-      if (!frameByNode.has(nodes[i].id)) frameByNode.set(nodes[i].id, normalFrames[i].u.clone());
+      if (!frameByNode.has(nodes[i].id)) frameByNode.set(nodes[i].id, normalFrames[sampleOfNode[i]].u.clone());
     }
 
-    // 3. Generate smooth, connected rings of vertices for each node
+    // 3. Generate smooth, connected rings of vertices along the path
     const chainStartVert = vertOffset;
     // Arc length carries on from the parent chain at the shared node, for the
     // same reason as the frame above: the bark's texel rows and the slow drift
@@ -1541,23 +1629,20 @@ export function buildFullTreeGeometry(
     // branch shifts the whole pattern sideways at every fork.
     const chainStartAlong = alongByNode.get(nodes[0].id) ?? 0;
     let accumulatedLength = chainStartAlong;
+    const alongAtSample: number[] = [];
 
-    for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i];
+    for (let i = 0; i < path.length; i++) {
+      const sample = path[i];
       if (i > 0) {
-        accumulatedLength += node.position.distanceTo(nodes[i - 1].position);
+        accumulatedLength += sample.p.distanceTo(path[i - 1].p);
       }
-      if (!alongByNode.has(node.id)) alongByNode.set(node.id, accumulatedLength);
+      alongAtSample.push(accumulatedLength);
 
-      let r = renderedRadii[i];
-      if (i === 0 && chain.baseRadius) {
-        r = Math.max(0.04, chain.baseRadius);
-      }
-
+      const r = sample.r;
       const frame = normalFrames[i];
       // Flared buttress roots on the solid trunk base near the ground
-      const isTrunkBase = chain.isTrunk && node.position.y < 2.5;
-      const groundFactor = isTrunkBase ? Math.pow(Math.max(0, 1.0 - node.position.y / 2.5), 2.0) : 0;
+      const isTrunkBase = chain.isTrunk && sample.p.y < 2.5;
+      const groundFactor = isTrunkBase ? Math.pow(Math.max(0, 1.0 - sample.p.y / 2.5), 2.0) : 0;
 
       // Radius of this ring in metres, for the bark shader: u spans the
       // circumference exactly once whatever the girth, so without a real radius
@@ -1589,9 +1674,9 @@ export function buildFullTreeGeometry(
         const nY = frame.u.y * cosA + frame.v.y * sinA;
         const nZ = frame.u.z * cosA + frame.v.z * sinA;
 
-        let pX = node.position.x + nX * effectiveR;
-        let pY = node.position.y + nY * effectiveR;
-        let pZ = node.position.z + nZ * effectiveR;
+        const pX = sample.p.x + nX * effectiveR;
+        let pY = sample.p.y + nY * effectiveR;
+        const pZ = sample.p.z + nZ * effectiveR;
 
         // Ensure bottom ring at y = 0 anchors smoothly into the ground
         if (chain.isTrunk && i === 0) {
@@ -1606,10 +1691,13 @@ export function buildFullTreeGeometry(
         vertOffset++;
       }
     }
+    for (let i = 0; i < nodes.length; i++) {
+      if (!alongByNode.has(nodes[i].id)) alongByNode.set(nodes[i].id, alongAtSample[sampleOfNode[i]]);
+    }
 
     // 4. Connect adjacent rings with welded quad faces
     const vertsPerRing = segs + 1;
-    for (let i = 0; i < nodes.length - 1; i++) {
+    for (let i = 0; i < path.length - 1; i++) {
       const ring1Start = chainStartVert + i * vertsPerRing;
       const ring2Start = chainStartVert + (i + 1) * vertsPerRing;
 
@@ -1624,20 +1712,57 @@ export function buildFullTreeGeometry(
       }
     }
 
-    // 5. Clean tip cap for branch ends
-    const tipIndex = chainStartVert + (nodes.length - 1) * vertsPerRing;
-    const tipPos = nodes[nodes.length - 1].position;
+    // 5. Rounded tip cap for branch ends. A flat disc on a limb that ends
+    // while still thick reads as a sawn-off pipe; two shrinking rings and a
+    // point close it into a rounded end instead, carrying the bark over it.
+    // (The plain sweep keeps its flat disc.)
+    const tipSample = path[path.length - 1];
     const tipNorm = tangents[tangents.length - 1];
+    const tipFrame = normalFrames[path.length - 1];
+    let capRingStart = chainStartVert + (path.length - 1) * vertsPerRing;
+    (smoothJoins ? [0.6, 1.05] : []).forEach((phi) => {
+      const ringR = tipSample.r * Math.cos(phi);
+      const ahead = tipSample.r * Math.sin(phi) * 0.8;
+      const center = tipSample.p.clone().addScaledVector(tipNorm, ahead);
+      const nextRingStart = vertOffset;
+      for (let j = 0; j <= segs; j++) {
+        const frac = j / segs;
+        const angle = frac * Math.PI * 2;
+        const cosA = Math.cos(angle);
+        const sinA = Math.sin(angle);
+        const nX = tipFrame.u.x * cosA + tipFrame.v.x * sinA;
+        const nY = tipFrame.u.y * cosA + tipFrame.v.y * sinA;
+        const nZ = tipFrame.u.z * cosA + tipFrame.v.z * sinA;
+        positions.push(center.x + nX * ringR, center.y + nY * ringR, center.z + nZ * ringR);
+        normals.push(nX, nY, nZ);
+        uvs.push(frac, (accumulatedLength + ahead) * 0.4);
+        woodInfo.push(Math.max(0.02, tipSample.r), accumulatedLength + ahead, chainMeanRadius);
+        barkAngle.push(cosA, sinA);
+        vertOffset++;
+      }
+      for (let j = 0; j < segs; j++) {
+        const a = capRingStart + j;
+        const b = nextRingStart + j;
+        const c = nextRingStart + j + 1;
+        const d = capRingStart + j + 1;
+        indices.push(a, d, b);
+        indices.push(b, d, c);
+      }
+      capRingStart = nextRingStart;
+    });
+    const tipAhead = smoothJoins ? tipSample.r * 0.85 : 0;
+    const tipAlong = accumulatedLength + (smoothJoins ? tipAhead : 0.05);
+    const tipPos = tipSample.p.clone().addScaledVector(tipNorm, tipAhead);
     positions.push(tipPos.x, tipPos.y, tipPos.z);
     normals.push(tipNorm.x, tipNorm.y, tipNorm.z);
-    uvs.push(0.5, (accumulatedLength + 0.05) * 0.4);
-    woodInfo.push(Math.max(0.02, renderedRadii[nodes.length - 1]), accumulatedLength + 0.05, chainMeanRadius);
+    uvs.push(0.5, tipAlong * 0.4);
+    woodInfo.push(Math.max(0.02, tipSample.r), tipAlong, chainMeanRadius);
     barkAngle.push(1, 0);
     const tipCenterVert = vertOffset;
     vertOffset++;
 
     for (let j = 0; j < segs; j++) {
-      indices.push(tipIndex + j, tipIndex + j + 1, tipCenterVert);
+      indices.push(capRingStart + j, capRingStart + j + 1, tipCenterVert);
     }
 
     // 6. Solid bottom cap for the trunk base (eliminates hollow opening under ground)

@@ -1847,11 +1847,17 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
   uniform float uForcedLobes;      // >0 pins the ridge count (modelled ribs)
   uniform float uLitSign;
   // Shade cast by a dense crown on the wood inside it (0 = off). Set for the
-  // pine, whose trunk and limbs run up through the middle of its needles.
+  // pine, whose trunk and limbs run up through the middle of its needles
+  // (a cone), and for the full broadleaf crowns (uCrownEllipsoid = 1: a
+  // rounded mass centred at uCrownCenterY, uCrownRadius wide, uCrownRadiusY
+  // tall).
   uniform float uCrownShade;
   uniform float uCrownBottomY;
   uniform float uCrownTopY;
   uniform float uCrownRadius;
+  uniform float uCrownEllipsoid;
+  uniform float uCrownCenterY;
+  uniform float uCrownRadiusY;
   // Snow lying on the upward-facing wood (0 = off): root flare, branch tops.
   uniform float uSnow;
 
@@ -1866,6 +1872,25 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
   float bhash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
   ${SNOW_GLSL}
 
+  // Smooth value noise, for the moss: sampled only at texel centres, so its
+  // blobs come out as clusters of whole texels with ragged pixel edges.
+  float mhash3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123); }
+  float mnoise3(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(mix(mhash3(i), mhash3(i + vec3(1.0, 0.0, 0.0)), f.x),
+          mix(mhash3(i + vec3(0.0, 1.0, 0.0)), mhash3(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+      mix(mix(mhash3(i + vec3(0.0, 0.0, 1.0)), mhash3(i + vec3(1.0, 0.0, 1.0)), f.x),
+          mix(mhash3(i + vec3(0.0, 1.0, 1.0)), mhash3(i + vec3(1.0, 1.0, 1.0)), f.x), f.y),
+      f.z);
+  }
+  // cushions a few texels across, broken up by finer tufts
+  float mossField(vec3 p) {
+    return mnoise3(p / 8.0 + uTextureSeed) * 0.75 + mnoise3(p / 3.0 + 17.0 + uTextureSeed) * 0.25;
+  }
+
   void main() {
     float N1 = uPaletteSteps - 1.0;
     float qs = N1 / 5.0;
@@ -1876,6 +1901,13 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
     float hiMask;
     // texel cell for the snow edge; the lobed path swaps in its metre grid
     vec2 snowTexel = floor(vBarkUv * vec2(48.0, 64.0));
+    // Where this texel sits for the moss noise, and which way is "up the
+    // wood" in that space (one texel). The lobed path wraps the texel grid
+    // onto a circle so the noise runs on unbroken across the seam at angle 0.
+    vec3 mossP = vec3(snowTexel, 0.0);
+    vec3 mossUp = vec3(0.0, 1.0, 0.0);
+    // 1 down in a furrow .. 0 on a ridge's crest: moss fills the furrows first
+    float mossGroove = 0.5;
 
     if (uLobedMode > 0.5 && vWood.z > 0.001) {
       // ----------------------------------------------------------------------
@@ -1936,7 +1968,7 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
 
       // Reconstruct the azimuth from the interpolated (cos, sin) when the mesh
       // supplies it. Interpolating the angle itself breaks on any triangle that
-      // straddles the 0/1 wrap, which the convex fork junction's do.
+      // straddles the 0/1 wrap.
       float angleU = vAngleU;
       if (dot(vBarkAngle, vBarkAngle) > 0.01) {
         angleU = atan(vBarkAngle.y, vBarkAngle.x) * 0.15915494 + 0.5;
@@ -1950,6 +1982,10 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
       float texU = floor(angleU * texelsAround);
       float texV = floor(along * uTexelsPerMetre);
       snowTexel = vec2(texU, texV);
+      float mossA = 6.2831853 * (texU + 0.5) / texelsAround;
+      float mossR = texelsAround / 6.2831853;
+      mossP = vec3(cos(mossA) * mossR, sin(mossA) * mossR, texV);
+      mossUp = vec3(0.0, 0.0, 1.0);
       // snap across-lobe onto that grid, so the shading steps in hard pixels
       float tq = (floor(t * texelsPerLobeHere) + 0.5) / texelsPerLobeHere;
 
@@ -1964,6 +2000,7 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
       float span = max(0.18, max(crest, 1.0 - crest));
       float across = min(1.0, abs(tq - crest) / span);
       float relief = 1.0 - 2.0 * pow(across, 0.55);
+      mossGroove = clamp(0.5 - relief * 0.5, 0.0, 1.0);
 
       idx = N1 * 0.30;
       // plates are flatter than oak ridges: the column's round relief is
@@ -2051,6 +2088,7 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
       float packed = floor(s.b * 255.0 + 0.5);
       hiMask = step(127.5, packed);
       crevice = (packed - hiMask * 128.0) / 127.0;
+      mossGroove = 0.35 + crevice * 0.65;
     }
 
     vec3 N = normalize(vNormal);
@@ -2068,7 +2106,17 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
     // reaches the edge of the foliage catches some light, the trunk up the
     // middle gets none.
     float crownCover = 0.0;
-    if (uCrownShade > 0.001) {
+    if (uCrownShade > 0.001 && uCrownEllipsoid > 0.5) {
+      // A broadleaf crown is a rounded mass, not a cone: the cover is deepest
+      // at its heart and eases off toward its surface, so the limbs darken as
+      // they climb into the leaves and their tips at the rim stay lit. The
+      // trunk below the crown sits outside the mass and is untouched.
+      vec3 q = vec3(
+        vWorldPos.x / max(0.5, uCrownRadius),
+        (vWorldPos.y - uCrownCenterY) / max(0.5, uCrownRadiusY),
+        vWorldPos.z / max(0.5, uCrownRadius));
+      crownCover = (1.0 - smoothstep(0.35, 1.0, length(q))) * uCrownShade;
+    } else if (uCrownShade > 0.001) {
       float ch = (vWorldPos.y - uCrownBottomY) / max(0.5, uCrownTopY - uCrownBottomY);
       // eased in over the lower part of the crown: the needles thicken
       // gradually, and a short ramp drew a hard dark band across the trunk
@@ -2100,11 +2148,41 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
     off = clamp(off, -2.0 - floor(crownCover * 1.5 + 0.5), 3.0);
     idx = clamp(idx + off, 0.0, N1);
 
-    // moss: a hard per-texel threshold, so it appears as patches on the damp
-    // side and near the roots instead of a soft wash
+    // Moss. It used to be switched on a whole ridge (or plate) at a time, so it
+    // came out as long random green stripes. It grows in cushions instead: a
+    // noise field on the texel grid, thresholded per texel by how much moss
+    // this spot wants - most near the ground, on the damp shaded side and on
+    // surfaces facing up (the tops of the root flare), and first down in the
+    // furrows, where it creeps out from. Its own tones: the cushion is lit on
+    // top and shaded along its lower edge, so it reads as growth on the bark
+    // rather than green paint.
+    //
+    // It also follows the bark's relief (mossGroove, 1 in a furrow .. 0 on a
+    // crest): it settles more readily in the furrows than on the crests, and
+    // inside a cushion the crests stay lighter and the furrows darker, so the
+    // ridges still read through the green instead of it lying on the roots as
+    // one flat sheet.
     float damp = clamp(dot(N, vec3(0.0, 0.25, -0.95)), 0.0, 1.0);
-    float mossMask = pow(1.0 - heightN, 2.2) * (0.30 + damp * 0.70) * uMossAmount;
-    float row = (mossMask > 0.10 && plateH < mossMask * 0.70) ? 0.25 : 0.75;
+    float up = clamp(N.y, 0.0, 1.0);
+    // capped, so even the mossiest roots (Korok, mangrove) stay a patchwork
+    // of cushions with bark between them instead of one green lawn
+    float mossWant = min(0.5,
+        pow(1.0 - heightN, 2.2) * (0.1 + damp * 0.45 + up * 0.3) * uMossAmount * 2.0
+      + crevice * 0.15 * uMossAmount)
+      * (0.55 + mossGroove * 0.9);
+    float row = ${PALETTE_ROW_MAIN};
+    if (mossWant > 0.04 && mossField(mossP) < mossWant) {
+      row = ${PALETTE_ROW_ACCENT};
+      bool topEdge = mossField(mossP + mossUp) >= mossWant;
+      bool bottomEdge = mossField(mossP - mossUp) >= mossWant;
+      // tone varies across a cushion in soft patches, not texel by texel
+      float mi = N1 * 0.35 + (ndl > 0.15 ? qs * 0.8 : -qs * 0.6) - crownCover * qs * 1.5
+               + (mnoise3(mossP / 3.0 + 41.0) - 0.5) * qs * 1.6
+               + (0.5 - mossGroove) * qs * 2.4;              // crests lighter, furrows darker
+      if (topEdge) mi += qs * 1.0;
+      if (bottomEdge) mi -= qs * 1.2;
+      idx = clamp(floor(mi + 0.5), 0.0, N1);
+    }
 
     vec3 col = texture2D(uPalette, vec2((idx + 0.5) / uPaletteSteps, row)).rgb;
 
@@ -3191,6 +3269,9 @@ export function createPixelBarkMaterial(
       uCrownBottomY: { value: 0 },
       uCrownTopY: { value: 1 },
       uCrownRadius: { value: 1 },
+      uCrownEllipsoid: { value: 0 },
+      uCrownCenterY: { value: 0 },
+      uCrownRadiusY: { value: 1 },
       uSnow: { value: THREE.MathUtils.clamp(config.snowCover ?? 0, 0, 1) },
       uLitSign: { value: Math.cos((bark.params.lightAzimuth * Math.PI) / 180) >= 0 ? 1 : -1 },
     },

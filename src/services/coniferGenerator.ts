@@ -380,11 +380,15 @@ export function buildProceduralConifer(
     }
   });
 
+  // the pine keeps the plain chain sweep (smoothJoins off): its look was
+  // tuned on it
   const woodGeometry = buildFullTreeGeometry(
     treeData.rootNode,
     10,
     config.rootSpread * 0.45,
-    config.trunkTwist
+    config.trunkTwist,
+    false,
+    false
   );
   geometriesToDispose.push(woodGeometry);
 
