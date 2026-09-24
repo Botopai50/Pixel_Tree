@@ -856,6 +856,8 @@ export function createTree(config: TreeConfig): TreeInstance {
   const isSnowyGround = (config.snowCover ?? 0) > 0.05;
   const moundColor = isSnowyGround
     ? 0xe4edf6 // Hebra snowfield
+    : config.species.startsWith('savanna_acacia')
+    ? 0xc09a58 // Savanna red-gold earth
     : config.species.startsWith('hebra_pine')
     ? 0x5a4838 // Alpine cold earth
     : config.species.startsWith('satori_sakura')
@@ -893,6 +895,8 @@ export function createTree(config: TreeConfig): TreeInstance {
     const grassBladeMat = new THREE.MeshToonMaterial({
       color: config.species.startsWith('satori_sakura')
         ? 0x81c784
+        : config.species.startsWith('savanna_acacia')
+        ? 0xd8bd62 // Tall golden savanna grass
         : config.species.startsWith('dry_withered')
         ? 0xa89368 // Dry golden savannah grass
         : config.species.startsWith('hebra_pine')
@@ -903,7 +907,9 @@ export function createTree(config: TreeConfig): TreeInstance {
     materialsToDispose.push(grassBladeMat);
     geometriesToDispose.push(grassBladeGeo);
 
-    const grassTuftCount = config.species.startsWith('dry_withered') ? 10 : 18;
+    const grassTuftCount = config.species.startsWith('dry_withered')
+      ? 10
+      : config.species.startsWith('savanna_acacia') ? 30 : 18; // savanna: grassland all round
     for (let g = 0; g < grassTuftCount; g++) {
       const grAngle = rnd() * Math.PI * 2;
       const grDist = config.trunkRadiusBase * 1.2 + 0.4 + rnd() * (moundRadius * 0.7);

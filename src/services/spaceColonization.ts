@@ -111,15 +111,20 @@ export function runSpaceColonization(config: TreeConfig): SCATreeData {
   const isPineSpecies = config.species.startsWith('hebra_pine') || crownShape === 'conical';
   const isCactusSpecies = config.species === 'gerudo_cactus' || crownShape === 'candelabra';
   const isSwampSpecies = config.species === 'swamp_mangrove' || crownShape === 'swamp_vault';
-  const minBranchH = isPineSpecies ? 0.22 : (isCactusSpecies ? 0.30 : (isSwampSpecies ? 0.44 : 0.35));
+  // Savanna acacia: a short trunk that forks low into a few long, open limbs
+  // carrying one wide, thin, flat-topped layer of foliage.
+  const isFlatTop = crownShape === 'flat_top';
+  const minBranchH = isPineSpecies ? 0.22 : (isCactusSpecies ? 0.30 : (isSwampSpecies ? 0.44 : (isFlatTop ? 0.25 : 0.35)));
   const branchStartH = Math.max(minBranchH, Math.min(0.75, config.branchStartHeight ?? 0.45));
   const crownBottomY = trunkHeight * branchStartH;
   const crownTopY = trunkHeight * 1.18;
   const crownHeight = crownTopY - crownBottomY;
-  const crownCenterY = crownBottomY + crownHeight * 0.52;
-  const crownRadiusX = (config.branchLength * 0.95 + 1.2) * canopySpread;
+  // the flat crown's mass is its top layer, not the middle of the crown band
+  const flatLayer = crownHeight * 0.24;
+  const crownCenterY = isFlatTop ? crownTopY - flatLayer * 0.6 : crownBottomY + crownHeight * 0.52;
+  const crownRadiusX = (config.branchLength * 0.95 + 1.2) * canopySpread * (isFlatTop ? 1.3 : 1);
   const crownRadiusZ = crownRadiusX * (0.9 + rnd() * 0.2);
-  const crownRadiusY = crownHeight * 0.55;
+  const crownRadiusY = isFlatTop ? flatLayer : crownHeight * 0.55;
 
   const crownCenter = new THREE.Vector3(0, crownCenterY, 0);
 
@@ -693,6 +698,22 @@ export function runSpaceColonization(config: TreeConfig): SCATreeData {
           break;
         }
 
+        case 'flat_top': {
+          // A wide lens at the very top of the crown band: flat on top,
+          // thinning and drooping a little toward the rim, like the tabletop
+          // of a savanna acacia.
+          const rXZ = Math.sqrt(px * px + pz * pz);
+          if (rXZ <= 1.0) {
+            const thickness = flatLayer * (1.0 - 0.55 * rXZ * rXZ);
+            const top = crownTopY - rXZ * rXZ * flatLayer * 0.5;
+            worldX = px * crownRadiusX;
+            worldY = top - (py * 0.5 + 0.5) * thickness;
+            worldZ = pz * crownRadiusZ;
+            inside = true;
+          }
+          break;
+        }
+
         case 'multi_cloud': {
           const targetCloud = cloudSubCenters[Math.floor(rnd() * cloudSubCenters.length)];
           const theta = rnd() * Math.PI * 2;
@@ -740,6 +761,34 @@ export function runSpaceColonization(config: TreeConfig): SCATreeData {
         attractorPositionsForDebug.push(pt.clone());
       }
     }
+
+    // Acacia limbs: left to the crown alone, the colonisation sends one
+    // leader straight up the middle into the lens. A trail of guide points
+    // from the fork out to each of 3-5 spots under the crown makes the trunk
+    // split into long limbs that leave at a wide angle and curve up into the
+    // canopy - the open vase that is the acacia's silhouette.
+    if (isFlatTop) {
+      const limbCount = 3 + Math.floor(rnd() * 3);
+      const turn = rnd() * Math.PI * 2;
+      for (let l = 0; l < limbCount; l++) {
+        const az = turn + (l / limbCount) * Math.PI * 2 + (rnd() - 0.5) * 0.5;
+        const reach = crownRadiusX * (0.45 + rnd() * 0.2);
+        const endY = crownTopY - flatLayer * (0.9 + rnd() * 0.3);
+        const steps = Math.max(4, Math.ceil(Math.hypot(reach, endY - crownBottomY) / (stepSize * 1.6)));
+        for (let s = 1; s <= steps; s++) {
+          const t = s / steps;
+          // out early, up late: the limb spreads first and rises into the crown
+          const out = Math.pow(t, 0.7) * reach;
+          const pt = new THREE.Vector3(
+            Math.cos(az) * out,
+            crownBottomY + Math.pow(t, 1.25) * (endY - crownBottomY),
+            Math.sin(az) * out
+          );
+          attractors.push(pt);
+          attractorPositionsForDebug.push(pt.clone());
+        }
+      }
+    }
   }
 
   // -------------------------------------------------------------
@@ -769,7 +818,9 @@ export function runSpaceColonization(config: TreeConfig): SCATreeData {
   // plus a small margin for the organic (not perfectly vertical) path.
   const maxIterations = Math.min(
     110,
-    Math.max(55, Math.ceil(crownTopY / Math.max(stepSize * 0.86, 0.01)) + 8)
+    Math.max(55, Math.ceil(crownTopY / Math.max(stepSize * 0.86, 0.01)) + 8
+      // a flat crown also has to spread its full width out from the limbs
+      + (isFlatTop ? Math.ceil(crownRadiusX / Math.max(stepSize, 0.01)) : 0))
   );
   let activeAttractors = [...attractors];
 

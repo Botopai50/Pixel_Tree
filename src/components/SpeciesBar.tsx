@@ -328,7 +328,8 @@ function formatShortName(fullName: string, stage: 'adult' | 'sapling'): string {
       .replace('Broto da Árvore Ancestral Korok', 'Broto Korok')
       .replace('Muda de Cacto de Gerudo', 'Muda Cacto')
       .replace('Muda de Manguezal do Pântano', 'Muda Manguezal')
-      .replace('Muda Seca de Hyrule', 'Muda Seca');
+      .replace('Muda Seca de Hyrule', 'Muda Seca')
+      .replace('Muda de Acácia da Savana', 'Muda Acácia');
   }
 
   return fullName
@@ -341,7 +342,8 @@ function formatShortName(fullName: string, stage: 'adult' | 'sapling'): string {
     .replace('Árvore Ancestral Korok', 'Árvore Ancestral')
     .replace('Cacto de Gerudo', 'Cacto Gerudo')
     .replace('Árvore do Pântano (Manguezal)', 'Manguezal')
-    .replace('Árvore Seca de Hyrule', 'Árvore Seca');
+    .replace('Árvore Seca de Hyrule', 'Árvore Seca')
+    .replace('Acácia da Savana', 'Acácia');
 }
 
 

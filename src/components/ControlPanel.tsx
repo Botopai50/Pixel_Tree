@@ -254,6 +254,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                         { id: 'dome', label: 'Cúpula / Domo' },
                         { id: 'sphere', label: 'Esfera Suave' },
                         { id: 'umbrella', label: 'Guarda-Chuva' },
+                        { id: 'flat_top', label: 'Mesa (Acácia)' },
                         { id: 'conical', label: 'Cônica (Pinheiro)' },
                         { id: 'multi_cloud', label: 'Nuvens Múltiplas' },
                         { id: 'candelabra', label: 'Candelabro (Cacto)' },

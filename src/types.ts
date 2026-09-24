@@ -9,6 +9,7 @@ export type TreeSpecies =
   | 'gerudo_cactus'
   | 'swamp_mangrove'
   | 'dry_withered'
+  | 'savanna_acacia'
   | 'hyrule_oak_sapling'
   | 'satori_sakura_sapling'
   | 'akkala_birch_sapling'
@@ -18,11 +19,12 @@ export type TreeSpecies =
   | 'korok_ancient_sapling'
   | 'gerudo_cactus_sapling'
   | 'swamp_mangrove_sapling'
-  | 'dry_withered_sapling';
+  | 'dry_withered_sapling'
+  | 'savanna_acacia_sapling';
 
 export type TimeOfDay = 'day' | 'sunset' | 'night' | 'misty';
 
-export type CrownShape = 'dome' | 'sphere' | 'umbrella' | 'conical' | 'multi_cloud' | 'candelabra' | 'swamp_vault' | 'gnarled';
+export type CrownShape = 'dome' | 'sphere' | 'umbrella' | 'flat_top' | 'conical' | 'multi_cloud' | 'candelabra' | 'swamp_vault' | 'gnarled';
 
 export interface TreeConfig {
   id: string;

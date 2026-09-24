@@ -110,6 +110,7 @@ const SPECIES_DEFAULTS: Record<string, Partial<SpeciesTextureDefaults>> = {
   swamp_mangrove: { clusterSize: 5.2, irregularity: 0.62, gaps: 0.30, shadow: 0.64, hueCold: 46, hueWarm: -16 },
   gerudo_cactus: { clusterSize: 6.0, gaps: 0.14, hueCold: 24, hueWarm: -20 },
   dry_withered: { clusterSize: 5.0, gaps: 0.5, contrast: 0.6, shadow: 0.68, highlights: 0.4, hueCold: 18, hueWarm: -10 },
+  savanna_acacia: { clusterSize: 3.2, irregularity: 0.6, gaps: 0.42, hueCold: 20, hueWarm: -30 },
 };
 
 const BASE_DEFAULTS: SpeciesTextureDefaults = {
@@ -2442,7 +2443,7 @@ const succulentPaletteCache = new Map<string, THREE.CanvasTexture>();
 // SAPLINGS
 // ---------------------------------------------------------------------------
 
-type SaplingLeafShape = 'oak' | 'ovate' | 'serrated' | 'round' | 'lance' | 'ellipse' | 'needles';
+type SaplingLeafShape = 'oak' | 'ovate' | 'serrated' | 'round' | 'lance' | 'ellipse' | 'needles' | 'pinnate';
 
 function saplingLeafShapeFor(species: string): SaplingLeafShape {
   if (species.startsWith('akkala_birch')) return 'serrated';
@@ -2451,6 +2452,7 @@ function saplingLeafShapeFor(species: string): SaplingLeafShape {
   if (species.startsWith('faron_palm')) return 'lance';
   if (species.startsWith('swamp_mangrove')) return 'ellipse';
   if (species.startsWith('hebra_pine')) return 'needles';
+  if (species.startsWith('savanna_acacia')) return 'pinnate';
   return 'oak';
 }
 
@@ -2517,6 +2519,13 @@ export function getPixelSaplingLeafTexture(config: TreeConfig): THREE.CanvasText
       const reach = 0.72 + hash1(k * 5 + 1, seed) * 0.24;
       return Math.abs(ang - target) * len < 0.035 + 0.02 * (1 - len) && len < reach;
     }
+    if (shape === 'pinnate') {
+      // acacia: a one-texel rachis up the middle, lined on every other row
+      // with a pair of tiny leaflets that shorten toward the tip
+      if (Math.abs(u) < 0.5 / W + 0.001) return v < 0.96;
+      if (v < 0.12 || v > 0.94 || y % 2 === 1) return false;
+      return Math.abs(u) <= 0.44 * (1 - 0.55 * (v - 0.12) / 0.82);
+    }
     return Math.abs(u) <= halfWidth(v);
   };
 
@@ -2541,7 +2550,8 @@ export function getPixelSaplingLeafTexture(config: TreeConfig): THREE.CanvasText
         if (vv < 0.2) t -= 0.1;                                    // shaded near the stalk
         if (Math.abs(u) < 0.5 / W + 0.001) t -= 0.14;              // midrib
         else if (((vv * 6 - Math.abs(u) * 1.4) % 1 + 1) % 1 < 0.13) t -= 0.08; // lateral veins
-        const edge = !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y + 1);
+        // (a pinnate leaf's leaflets are single rows: only their ends are outline)
+        const edge = !inside(x - 1, y) || !inside(x + 1, y) || (shape !== 'pinnate' && !inside(x, y + 1));
         if (edge) t -= 0.18;                                       // drawn outline
       }
       out[o] = Math.round(Math.min(1, Math.max(0, t)) * 255);

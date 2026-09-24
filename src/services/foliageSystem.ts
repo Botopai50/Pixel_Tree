@@ -1088,7 +1088,13 @@ export function buildProceduralFoliage(
   const isSwamp = config.species === 'swamp_mangrove' || config.foliageType === 'swamp_weeping';
   const defaultStartRatio = isConifer ? 0.24 : (isSwamp ? 0.44 : 0.48);
   const branchStartRatio = Math.max(isConifer ? 0.18 : 0.40, config.branchStartHeight ?? defaultStartRatio);
-  const minFoliageY = Math.max(crownBounds.bottomY * 0.92, config.trunkHeight * branchStartRatio);
+  // A flat-topped (acacia) crown keeps its foliage in the top layer: tufts
+  // along the limbs below it would fill in the open vase of bare limbs that
+  // is half of the tree's silhouette.
+  const isFlatTop = crownBounds.shape === 'flat_top';
+  const minFoliageY = isFlatTop
+    ? Math.max(config.trunkHeight * branchStartRatio, crownBounds.topY - crownBounds.radiusY * 2.4)
+    : Math.max(crownBounds.bottomY * 0.92, config.trunkHeight * branchStartRatio);
 
   // 2. Extract valid crown branches and terminal nodes
   const branches: BranchSkeletonData[] = [];
@@ -1517,6 +1523,44 @@ export function buildProceduralFoliage(
           growDir: termGrow,
           faceNormal: termNormal,
           scaleMultiplier: 1.30 * (1.0 + (rnd() - 0.5) * sizeVariance),
+        });
+      }
+    } else if (isFlatTop) {
+      // Acacia pads: the leaves lie in flat plates, not billowing clouds. A
+      // star of near-horizontal cards (faces up, tipped a little outward)
+      // makes one plate, a centre card closes its middle, and a second,
+      // smaller layer just below gives the plate its shaded underside.
+      const out = clump.outward.clone().setY(0);
+      if (out.lengthSq() < 0.001) out.set(1, 0, 0);
+      out.normalize();
+      const padCount = 5;
+      const turn = rnd() * Math.PI * 2;
+      for (let p = 0; p < padCount; p++) {
+        const az = turn + (p / padCount) * Math.PI * 2 + (rnd() - 0.5) * 0.4;
+        const dir = new THREE.Vector3(Math.cos(az), -0.04 + rnd() * 0.1, Math.sin(az)).normalize();
+        plans.push({
+          pos: clump.center.clone()
+            .addScaledVector(dir, clump.radius * 0.08)
+            .add(new THREE.Vector3(0, (rnd() - 0.5) * 0.14, 0)),
+          growDir: dir,
+          faceNormal: new THREE.Vector3(dir.x * 0.25, 1, dir.z * 0.25).normalize(),
+          scaleMultiplier: 1.04 + (rnd() - 0.5) * sizeVariance,
+        });
+      }
+      plans.push({
+        pos: clump.center.clone().addScaledVector(out, -0.3).add(new THREE.Vector3(0, 0.1, 0)),
+        growDir: out.clone().setY(0.05).normalize(),
+        faceNormal: new THREE.Vector3(0, 1, 0),
+        scaleMultiplier: 0.9,
+      });
+      for (let u = 0; u < 2; u++) {
+        const az = turn + Math.PI / padCount + u * Math.PI;
+        const dir = new THREE.Vector3(Math.cos(az), -0.12, Math.sin(az)).normalize();
+        plans.push({
+          pos: clump.center.clone().add(new THREE.Vector3(0, -clump.radius * 0.2, 0)),
+          growDir: dir,
+          faceNormal: new THREE.Vector3(dir.x * 0.3, 1, dir.z * 0.3).normalize(),
+          scaleMultiplier: 0.82 + (rnd() - 0.5) * sizeVariance,
         });
       }
     } else {

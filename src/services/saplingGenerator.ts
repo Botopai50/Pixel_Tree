@@ -416,6 +416,31 @@ function generateSaplingLeafTexture(species: string, config: TreeConfig): THREE.
       ctx.stroke();
     }
 
+  } else if (species.startsWith('savanna_acacia')) {
+    // -------------------------------------------------------------
+    // SAVANNA ACACIA (pinnate leaf: a rachis lined with tiny leaflet pairs)
+    // -------------------------------------------------------------
+    ctx.strokeStyle = '#5a4030';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(256, 512);
+    ctx.lineTo(256, 40);
+    ctx.stroke();
+    for (let y = 470; y > 60; y -= 26) {
+      const f = (512 - y) / 472;                     // 0 at the base, 1 at the tip
+      const reach = 150 * (1 - 0.6 * f);
+      [-1, 1].forEach((side) => {
+        const grad = ctx.createLinearGradient(256, y, 256 + side * reach, y - 14);
+        grad.addColorStop(0, botHex);
+        grad.addColorStop(1, topHex);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.ellipse(256 + side * reach * 0.55, y - 7, reach * 0.5, 10, side * -0.18, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
   } else if (isPine) {
     // -------------------------------------------------------------
     // HEBRA PINE (Lush fan of tapered conifer needles with frost highlights)
@@ -597,7 +622,8 @@ export function buildProceduralSapling(
   const isBirch = species.startsWith('akkala_birch');
   const isKorok = species.startsWith('korok_ancient');
   const isDry = species.startsWith('dry_withered');
-  const isOak = species.startsWith('hyrule_oak') || (!isCactus && !isPalm && !isPine && !isMangrove && !isSakura && !isBirch && !isKorok && !isDry);
+  const isAcacia = species.startsWith('savanna_acacia');
+  const isOak = species.startsWith('hyrule_oak') || (!isCactus && !isPalm && !isPine && !isMangrove && !isSakura && !isBirch && !isKorok && !isDry && !isAcacia);
 
   const saplingHeight = Math.max(0.7, Math.min(1.8, config.trunkHeight || 1.15));
   const baseRadius = Math.max(0.035, Math.min(0.12, (config.trunkRadiusBase || 0.35) * 0.18));
@@ -789,6 +815,8 @@ export function buildProceduralSapling(
     ? 0xe4edf6 // snow
     : isMangrove
     ? 0x2e271f // swamp mud
+    : isAcacia
+    ? 0xc09a58 // savanna red-gold earth
     : isPalm || isCactus
     ? 0xc2a66e // sand
     : isDry
@@ -815,7 +843,7 @@ export function buildProceduralSapling(
     tuftShape.quadraticCurveTo(-0.02, 0.11, -0.025, 0);
     const tuftGeo = new THREE.ShapeGeometry(tuftShape);
     const tuftMat = new THREE.MeshToonMaterial({
-      color: isSakura ? 0x81c784 : isDry ? 0xa89368 : 0x7cb342,
+      color: isSakura ? 0x81c784 : isDry ? 0xa89368 : isAcacia ? 0xd8bd62 : 0x7cb342,
       side: THREE.DoubleSide,
     });
     materialsToDispose.push(tuftMat);
@@ -1385,6 +1413,107 @@ export function buildProceduralSapling(
         amp: 0.06,
       });
     }
+
+  } else if (isAcacia) {
+    // =========================================================
+    // SAVANNA ACACIA SAPLING (MUDA DE ACÁCIA DA SAVANA)
+    // A slender stem that zig-zags from node to node, a pair of pale thorns
+    // at every node, and pinnate leaves held flat - on short side shoots and
+    // in a ring at the top, already the flat little crown of the adult tree.
+    // =========================================================
+    const acaciaHeight = saplingHeight * 0.88;
+    const zig = 0.035;
+    const stemPts: THREE.Vector3[] = [new THREE.Vector3(0, 0, 0)];
+    const nodes = 5;
+    for (let n = 1; n <= nodes; n++) {
+      const side = n % 2 === 0 ? 1 : -1;
+      const ang = n * 2.1 + rnd() * 0.3;
+      stemPts.push(new THREE.Vector3(
+        Math.cos(ang) * zig * side,
+        (n / nodes) * acaciaHeight,
+        Math.sin(ang) * zig * side
+      ));
+    }
+    const acaciaCurve = new THREE.CatmullRomCurve3(stemPts, false, 'centripetal');
+    const acaciaStemGeo = createClosedTaperedBranchGeo(acaciaCurve, baseRadius * 0.8, topRadius * 0.7, 24, 8, false);
+    geometriesToDispose.push(acaciaStemGeo);
+    const acaciaStem = new THREE.Mesh(acaciaStemGeo, stemMaterial);
+    acaciaStem.castShadow = true;
+    group.add(acaciaStem);
+
+    // Paired thorns at each node, pale against the bark
+    const thornGeo = new THREE.ConeGeometry(0.006, 0.07, 5);
+    thornGeo.translate(0, 0.035, 0);
+    geometriesToDispose.push(thornGeo);
+    const thornMat = usePixelSapling
+      ? createPixelPropMaterial(config, sharedUniforms, '#e9e0c8', 'smooth')
+      : new THREE.MeshToonMaterial({ color: 0xe9e0c8 });
+    materialsToDispose.push(thornMat);
+    const up = new THREE.Vector3(0, 1, 0);
+    for (let n = 1; n < nodes; n++) {
+      const t = n / nodes;
+      const p = acaciaCurve.getPoint(t);
+      const tangent = acaciaCurve.getTangent(t).normalize();
+      const around = n * 2.4;
+      [0, Math.PI].forEach((offset) => {
+        const outward = new THREE.Vector3(Math.cos(around + offset), 0, Math.sin(around + offset));
+        const dir = outward.addScaledVector(tangent, 0.9).normalize();
+        const thorn = new THREE.Mesh(thornGeo, thornMat);
+        thorn.position.copy(p).addScaledVector(dir, baseRadius * 0.4);
+        thorn.quaternion.setFromUnitVectors(up, dir);
+        group.add(thorn);
+      });
+    }
+
+    // One pinnate leaf lying (almost) flat, pointing along `azimuth`.
+    const acaciaLeafGeo = createCurvedLeafGeometry(0.16, 0.3);
+    geometriesToDispose.push(acaciaLeafGeo);
+    const addFlatLeaf = (parent: THREE.Object3D, azimuth: number, scale: number, droop: number) => {
+      const holder = new THREE.Group();
+      holder.rotation.y = azimuth;
+      const leaf = new THREE.Mesh(acaciaLeafGeo, leafMaterial);
+      // the leaf is modelled growing up +Y with its face on +Z; turn it to
+      // grow outward along -Z with its face to the sky, tipped down by `droop`
+      leaf.rotation.x = -Math.PI / 2 - droop;
+      leaf.scale.setScalar(scale);
+      leaf.castShadow = true;
+      holder.add(leaf);
+      parent.add(holder);
+    };
+
+    // Short side shoots, each ending in a small flat spray of leaves
+    [0.5, 0.68].forEach((t, i) => {
+      const shoot = new THREE.Group();
+      shoot.position.copy(acaciaCurve.getPoint(t));
+      shoot.rotation.y = i * 2.6 + rnd() * 0.5;
+      const len = 0.16 - i * 0.03;
+      const twigGeo = new THREE.CylinderGeometry(0.004, 0.007, len, 5);
+      twigGeo.rotateZ(-Math.PI / 2 + 0.35);                 // out and a little up
+      twigGeo.translate(len * 0.47, len * 0.17, 0);
+      geometriesToDispose.push(twigGeo);
+      shoot.add(new THREE.Mesh(twigGeo, stemMaterial));
+      const tip = new THREE.Group();
+      tip.position.set(len * 0.94, len * 0.34, 0);
+      for (let k = 0; k < 3; k++) addFlatLeaf(tip, -Math.PI / 2 + (k - 1) * 0.75, 0.75 - i * 0.1, 0.1);
+      shoot.add(tip);
+      group.add(shoot);
+      leafMeshes.push({ mesh: shoot, baseRotation: shoot.rotation.clone(), phase: i * 1.7, amp: 0.05 });
+    });
+
+    // The flat crown: a ring of leaves spread level around the top
+    const crown = new THREE.Group();
+    crown.position.copy(acaciaCurve.getPoint(1));
+    const ringCount = 9;
+    for (let k = 0; k < ringCount; k++) {
+      addFlatLeaf(crown, (k / ringCount) * Math.PI * 2 + rnd() * 0.3, 0.9 + rnd() * 0.2, -0.04 + rnd() * 0.06);
+    }
+    // a smaller, fresher ring just above closes the middle
+    const crownTop = new THREE.Group();
+    crownTop.position.y = 0.02;
+    for (let k = 0; k < 5; k++) addFlatLeaf(crownTop, (k / 5) * Math.PI * 2 + 0.4, 0.62, -0.08);
+    crown.add(crownTop);
+    group.add(crown);
+    leafMeshes.push({ mesh: crown, baseRotation: crown.rotation.clone(), phase: 3.1, amp: 0.04 });
 
   } else if (isDry) {
     // =========================================================
