@@ -121,10 +121,12 @@ export function runSpaceColonization(config: TreeConfig): SCATreeData {
   const crownHeight = crownTopY - crownBottomY;
   // the flat crown's mass is its top layer, not the middle of the crown band
   const flatLayer = crownHeight * 0.24;
-  const crownCenterY = isFlatTop ? crownTopY - flatLayer * 0.6 : crownBottomY + crownHeight * 0.52;
+  const crownCenterY = isFlatTop ? crownTopY - flatLayer * 1.1 : crownBottomY + crownHeight * 0.52;
   const crownRadiusX = (config.branchLength * 0.95 + 1.2) * canopySpread * (isFlatTop ? 1.3 : 1);
   const crownRadiusZ = crownRadiusX * (0.9 + rnd() * 0.2);
-  const crownRadiusY = isFlatTop ? flatLayer : crownHeight * 0.55;
+  // the acacia's plates sit at different heights (see acaciaPads), so its
+  // foliage band is deeper than one plate
+  const crownRadiusY = isFlatTop ? flatLayer * 1.9 : crownHeight * 0.55;
 
   const crownCenter = new THREE.Vector3(0, crownCenterY, 0);
 
@@ -659,6 +661,34 @@ export function runSpaceColonization(config: TreeConfig): SCATreeData {
       });
     }
 
+    // Acacia plates. One flat lens reads as a table top cut with a ruler; a
+    // real acacia's crown is a few flat plates, one at the end of each main
+    // limb, each at its own height, overlapping into a stepped, uneven top.
+    // One plate per limb (3-5) plus one over the middle.
+    const acaciaPads: { x: number; z: number; r: number; top: number; limb: boolean }[] = [];
+    if (isFlatTop) {
+      const limbCount = 3 + Math.floor(rnd() * 3);
+      const turn = rnd() * Math.PI * 2;
+      for (let l = 0; l < limbCount; l++) {
+        const az = turn + (l / limbCount) * Math.PI * 2 + (rnd() - 0.5) * 0.5;
+        const dist = crownRadiusX * (0.42 + rnd() * 0.22);
+        acaciaPads.push({
+          x: Math.cos(az) * dist,
+          z: Math.sin(az) * dist,
+          r: crownRadiusX * (0.32 + rnd() * 0.16),
+          top: crownTopY - rnd() * flatLayer * 2.3,
+          limb: true,
+        });
+      }
+      acaciaPads.push({
+        x: 0,
+        z: 0,
+        r: crownRadiusX * (0.32 + rnd() * 0.12),
+        top: crownTopY - rnd() * flatLayer * 0.9,
+        limb: false,
+      });
+    }
+
     let crownAttempts = 0;
     const maxAttempts = attractorCount * 8;
 
@@ -699,16 +729,16 @@ export function runSpaceColonization(config: TreeConfig): SCATreeData {
         }
 
         case 'flat_top': {
-          // A wide lens at the very top of the crown band: flat on top,
-          // thinning and drooping a little toward the rim, like the tabletop
-          // of a savanna acacia.
+          // A point in one of the acacia plates (see acaciaPads): each is a
+          // thin lens, flat on top, thinning and drooping a little at its rim.
           const rXZ = Math.sqrt(px * px + pz * pz);
-          if (rXZ <= 1.0) {
-            const thickness = flatLayer * (1.0 - 0.55 * rXZ * rXZ);
-            const top = crownTopY - rXZ * rXZ * flatLayer * 0.5;
-            worldX = px * crownRadiusX;
+          if (rXZ <= 1.0 && acaciaPads.length > 0) {
+            const pad = acaciaPads[Math.floor(rnd() * acaciaPads.length)];
+            const thickness = flatLayer * 0.8 * (1.0 - 0.6 * rXZ * rXZ);
+            const top = pad.top - rXZ * rXZ * flatLayer * 0.35;
+            worldX = pad.x + px * pad.r;
             worldY = top - (py * 0.5 + 0.5) * thickness;
-            worldZ = pz * crownRadiusZ;
+            worldZ = pad.z + pz * pad.r * 0.9;
             inside = true;
           }
           break;
@@ -764,31 +794,26 @@ export function runSpaceColonization(config: TreeConfig): SCATreeData {
 
     // Acacia limbs: left to the crown alone, the colonisation sends one
     // leader straight up the middle into the lens. A trail of guide points
-    // from the fork out to each of 3-5 spots under the crown makes the trunk
+    // from the fork out to the underside of each limb's plate makes the trunk
     // split into long limbs that leave at a wide angle and curve up into the
     // canopy - the open vase that is the acacia's silhouette.
-    if (isFlatTop) {
-      const limbCount = 3 + Math.floor(rnd() * 3);
-      const turn = rnd() * Math.PI * 2;
-      for (let l = 0; l < limbCount; l++) {
-        const az = turn + (l / limbCount) * Math.PI * 2 + (rnd() - 0.5) * 0.5;
-        const reach = crownRadiusX * (0.45 + rnd() * 0.2);
-        const endY = crownTopY - flatLayer * (0.9 + rnd() * 0.3);
-        const steps = Math.max(4, Math.ceil(Math.hypot(reach, endY - crownBottomY) / (stepSize * 1.6)));
-        for (let s = 1; s <= steps; s++) {
-          const t = s / steps;
-          // out early, up late: the limb spreads first and rises into the crown
-          const out = Math.pow(t, 0.7) * reach;
-          const pt = new THREE.Vector3(
-            Math.cos(az) * out,
-            crownBottomY + Math.pow(t, 1.25) * (endY - crownBottomY),
-            Math.sin(az) * out
-          );
-          attractors.push(pt);
-          attractorPositionsForDebug.push(pt.clone());
-        }
+    acaciaPads.forEach((pad) => {
+      if (!pad.limb) return;
+      const endY = pad.top - flatLayer * 0.9;
+      const steps = Math.max(4, Math.ceil(Math.hypot(pad.x, pad.z, endY - crownBottomY) / (stepSize * 1.6)));
+      for (let s = 1; s <= steps; s++) {
+        const t = s / steps;
+        // out early, up late: the limb spreads first and rises into the crown
+        const out = Math.pow(t, 0.7);
+        const pt = new THREE.Vector3(
+          pad.x * out,
+          crownBottomY + Math.pow(t, 1.25) * (endY - crownBottomY),
+          pad.z * out
+        );
+        attractors.push(pt);
+        attractorPositionsForDebug.push(pt.clone());
       }
-    }
+    });
   }
 
   // -------------------------------------------------------------

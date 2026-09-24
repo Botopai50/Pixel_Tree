@@ -1093,7 +1093,7 @@ export function buildProceduralFoliage(
   // is half of the tree's silhouette.
   const isFlatTop = crownBounds.shape === 'flat_top';
   const minFoliageY = isFlatTop
-    ? Math.max(config.trunkHeight * branchStartRatio, crownBounds.topY - crownBounds.radiusY * 2.4)
+    ? Math.max(config.trunkHeight * branchStartRatio, crownBounds.topY - crownBounds.radiusY * 1.95)
     : Math.max(crownBounds.bottomY * 0.92, config.trunkHeight * branchStartRatio);
 
   // 2. Extract valid crown branches and terminal nodes
