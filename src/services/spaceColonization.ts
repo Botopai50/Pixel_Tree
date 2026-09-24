@@ -120,7 +120,12 @@ export function runSpaceColonization(config: TreeConfig): SCATreeData {
   // Savanna acacia: a short trunk that forks low into a few long, open limbs
   // carrying one wide, thin, flat-topped layer of foliage.
   const isFlatTop = crownShape === 'flat_top';
-  const minBranchH = isPineSpecies ? 0.22 : (isCactusSpecies ? 0.30 : (isSwampSpecies ? 0.44 : (isFlatTop ? 0.25 : 0.35)));
+  // A bush has no trunk to speak of: it branches right at the ground, so the
+  // colonisation sends several stems up from the root at once.
+  const isShrub = config.growthStage === 'shrub';
+  const minBranchH = isShrub
+    ? 0.03
+    : isPineSpecies ? 0.22 : (isCactusSpecies ? 0.30 : (isSwampSpecies ? 0.44 : (isFlatTop ? 0.25 : 0.35)));
   const branchStartH = Math.max(minBranchH, Math.min(0.75, config.branchStartHeight ?? 0.45));
   const crownBottomY = trunkHeight * branchStartH;
   const crownTopY = trunkHeight * 1.18;
@@ -928,7 +933,9 @@ export function runSpaceColonization(config: TreeConfig): SCATreeData {
     let newNodesAdded = 0;
     nodeDirections.forEach((dirs, node) => {
       // Cluster directions if divergent to form distinct branch buds
-      const maxClust = node.isTrunk ? (isPineSpecies ? 5 : (isSwampSpecies ? 4 : 3)) : (isSwampSpecies ? 3 : 2);
+      const maxClust = node.isTrunk
+        ? (isPineSpecies || isShrub ? 5 : (isSwampSpecies ? 4 : 3))
+        : (isSwampSpecies ? 3 : 2);
       const minDot = isSwampSpecies ? 0.60 : 0.52;
       const clusterDirs = clusterDirections(dirs, maxClust, minDot);
 
@@ -1059,7 +1066,10 @@ export function runSpaceColonization(config: TreeConfig): SCATreeData {
   const leafNodes = allNodes.filter((n) => n.children.length === 0);
   const sortedNodes = [...allNodes].sort((a, b) => b.depth - a.depth);
 
-  const terminalRadius = 0.045;
+  // A tree's twig ends are ~9 cm across; a bush's must be a fraction of that
+  // or they poke out through its leaves as thick stubs.
+  const terminalRadius = isShrub ? 0.009 : 0.045;
+  const pipeOffset = isShrub ? 0.002 : 0.012;
   sortedNodes.forEach((node) => {
     if (node.children.length === 0) {
       node.radius = terminalRadius;
@@ -1068,7 +1078,7 @@ export function runSpaceColonization(config: TreeConfig): SCATreeData {
       node.children.forEach((c) => {
         sumSq += Math.pow(c.radius, 2.1);
       });
-      const calculatedRadius = Math.pow(sumSq, 1.0 / 2.1) + 0.012;
+      const calculatedRadius = Math.pow(sumSq, 1.0 / 2.1) + pipeOffset;
 
       if (isCactusSpecies) {
         if (node.isTrunk) {
@@ -1404,9 +1414,14 @@ export function groundedRingFrame(
  * With smoothJoins off (the conifers, see buildFullTreeGeometry) only a trunk
  * is eased, and more loosely - the radii the pine was tuned with.
  */
-function chainRenderedRadii(chain: TreeChain, isSwampTree = false, smoothJoins = true): number[] {
+function chainRenderedRadii(
+  chain: TreeChain,
+  isSwampTree = false,
+  smoothJoins = true,
+  minRadius = 0.025
+): number[] {
   const nodes = chain.nodes;
-  const radii = nodes.map((node) => Math.max(0.025, node.radius));
+  const radii = nodes.map((node) => Math.max(minRadius, node.radius));
   if (!smoothJoins) {
     if (chain.isTrunk && !isSwampTree) {
       for (let i = 1; i < radii.length; i++) radii[i] = Math.max(radii[i], radii[i - 1] / 1.28);
@@ -1416,18 +1431,22 @@ function chainRenderedRadii(chain: TreeChain, isSwampTree = false, smoothJoins =
   const leadIn = chain.leadIn ?? 0;
   if (chain.baseRadius) {
     if (leadIn > 0) {
-      radii[leadIn] = Math.max(0.04, Math.min(chain.baseRadius, nodes[leadIn].radius * 0.85));
+      radii[leadIn] = Math.max(minRadius * 1.6, Math.min(chain.baseRadius, nodes[leadIn].radius * 0.85));
       for (let k = 0; k < leadIn; k++) {
-        radii[k] = Math.max(0.03, Math.min(radii[leadIn] * 0.85, nodes[k].radius * 0.7));
+        radii[k] = Math.max(minRadius * 1.2, Math.min(radii[leadIn] * 0.85, nodes[k].radius * 0.7));
       }
     } else {
-      radii[0] = Math.max(0.04, chain.baseRadius);
+      radii[0] = Math.max(minRadius * 1.6, chain.baseRadius);
     }
   }
   if (!(chain.isTrunk && isSwampTree)) {
+    // The rate is per ~0.38 m (the trees' growth step): wood grown in finer
+    // steps (a bush's, ~0.1 m) may thin by as much over the same distance.
     const maxTaperPerStep = chain.isTrunk ? 1.12 : 1.15;
     for (let i = leadIn + 1; i < radii.length; i++) {
-      radii[i] = Math.min(radii[i - 1], Math.max(radii[i], radii[i - 1] / maxTaperPerStep));
+      const seg = nodes[i].position.distanceTo(nodes[i - 1].position);
+      const maxTaper = Math.pow(maxTaperPerStep, Math.max(1, 0.38 / Math.max(0.05, seg)));
+      radii[i] = Math.min(radii[i - 1], Math.max(radii[i], radii[i - 1] / maxTaper));
     }
   }
   return radii;
@@ -1516,7 +1535,9 @@ export function buildFullTreeGeometry(
   rootSpread = 1.0,
   trunkTwist = 0.5,
   isSwampTree = false,
-  smoothJoins = true
+  smoothJoins = true,
+  /** Thinnest wood drawn, metres (a bush passes a fraction of a tree's). */
+  minRadius = 0.025
 ): THREE.BufferGeometry {
   const chains = extractTreeChains(rootNode, smoothJoins);
   const geo = new THREE.BufferGeometry();
@@ -1556,7 +1577,7 @@ export function buildFullTreeGeometry(
     const segs = chain.isTrunk ? Math.max(18, radialSegments) : radialSegments;
 
     const leadIn = chain.leadIn ?? 0;
-    const renderedRadii = chainRenderedRadii(chain, isSwampTree, smoothJoins);
+    const renderedRadii = chainRenderedRadii(chain, isSwampTree, smoothJoins, minRadius);
 
     // One representative radius for the WHOLE chain. The bark shader turns this
     // into a lobe count, and it has to be constant along the branch: deriving

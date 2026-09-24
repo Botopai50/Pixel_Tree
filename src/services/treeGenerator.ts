@@ -10,6 +10,7 @@ import { buildStylizedMangroveCanopy } from './stylizedRosetteCanopy';
 import { buildProceduralSapling } from './saplingGenerator';
 import { buildProceduralDeadwood } from './deadwoodGenerator';
 import { createPixelBarkMaterial } from './pixelArtTextureSystem';
+import { buildHangingFruit } from './fruitSystem';
 
 export interface TreeInstance {
   group: THREE.Group;
@@ -294,6 +295,8 @@ export function createTree(config: TreeConfig): TreeInstance {
   // -------------------------------------------------------------
   const branchTips: { position: THREE.Vector3; normal: THREE.Vector3; scale: number }[] = [];
   let scaData: ReturnType<typeof runSpaceColonization> | null = null;
+  // the broadleaf foliage, for the fruit to be set on (see buildHangingFruit)
+  let fruitFoliage: THREE.Object3D | undefined;
 
   const isPalm = config.species.startsWith('faron_palm') || config.foliageType === 'palm_frond';
   const isPine = config.species.startsWith('hebra_pine') || config.foliageType === 'pine_cone';
@@ -502,10 +505,13 @@ export function createTree(config: TreeConfig): TreeInstance {
     // Build unified continuous trunk + branch mesh (seamless welded chains)
     const treeGeo = buildFullTreeGeometry(
       scaData.rootNode,
-      12,
+      config.growthStage === 'shrub' ? 8 : 12,
       config.rootSpread,
       config.trunkTwist,
-      isSwamp
+      isSwamp,
+      true,
+      // a bush's twigs are drawn much finer than a tree's
+      config.growthStage === 'shrub' ? 0.006 : 0.025
     );
 
     // The full broadleaf crowns (oak, sakura, birch, Korok) wrap their limbs
@@ -516,7 +522,8 @@ export function createTree(config: TreeConfig): TreeInstance {
     const barkUniforms = (barkMaterial as THREE.ShaderMaterial).uniforms;
     const openCrown = isSwamp || config.scaCrownShape === 'flat_top';
     if (barkUniforms?.uCrownShade && !openCrown) {
-      barkUniforms.uCrownShade.value = 0.8;
+      // (a bush is thin inside: light gets in among its stems)
+      barkUniforms.uCrownShade.value = config.growthStage === 'shrub' ? 0.45 : 0.8;
       barkUniforms.uCrownEllipsoid.value = 1;
       barkUniforms.uCrownCenterY.value = scaData.crownCenter.y;
       barkUniforms.uCrownRadius.value = (scaData.crownRadiusX + scaData.crownRadiusZ) * 0.5;
@@ -665,6 +672,7 @@ export function createTree(config: TreeConfig): TreeInstance {
   }
 
   group.add(foliageGroup);
+  fruitFoliage = foliageGroup;
   }
 
   // -------------------------------------------------------------
@@ -672,36 +680,32 @@ export function createTree(config: TreeConfig): TreeInstance {
   // -------------------------------------------------------------
   let pinwheelBladesMesh: THREE.Mesh | null = null;
 
-  // Hyrule Apples
-  if (config.showApples && config.appleCount > 0 && branchTips.length > 0 && !isCactus && !isSwamp) {
-    const appleGeo = new THREE.SphereGeometry(0.18, 12, 10);
-    const appleMat = new THREE.MeshToonMaterial({
-      color: config.species.startsWith('faron_palm') ? 0xffd54f : 0xdf2828,
-    });
-    materialsToDispose.push(appleMat);
-    geometriesToDispose.push(appleGeo);
-
-    const stemGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.12, 5);
-    const stemMat = new THREE.MeshToonMaterial({ color: 0x3e2723 });
-    materialsToDispose.push(stemMat);
-    geometriesToDispose.push(stemGeo);
-
-    const appleCount = Math.min(config.appleCount, branchTips.length);
-    for (let a = 0; a < appleCount; a++) {
-      const tip = branchTips[a % branchTips.length];
-      const applePos = tip.position.clone().add(
-        new THREE.Vector3((rnd() - 0.5) * 0.8, -0.4 - rnd() * 0.3, (rnd() - 0.5) * 0.8)
+  // Fruit (not on the palm: it grows its own coconuts)
+  if (config.showApples && config.appleCount > 0 && !isCactus && !isSwamp && !isPalm) {
+    if (scaData) {
+      // Bushes carry clusters of berries or flowers instead (the count on the
+      // panel is then the number of clusters of three).
+      const accent = config.growthStage === 'shrub' ? config.bushAccent : undefined;
+      const fruit = buildHangingFruit(
+        config,
+        scaData,
+        sharedUniforms,
+        accent ? config.appleCount * 3 : config.appleCount,
+        rnd,
+        accent === 'berries'
+          ? { radius: 0.055, color: config.accentColor ?? '#b0203a', perCluster: 3 }
+          : accent === 'flowers'
+          ? { radius: 0.09, color: config.accentColor ?? '#f28ab8', perCluster: 3, kind: 'flower' }
+          : {
+              // sized to the crown, so the apples still read on a big tree
+              radius: THREE.MathUtils.clamp(scaData.crownRadiusX * 0.045, 0.18, 0.3),
+              color: '#d8342b',
+            },
+        fruitFoliage
       );
-
-      const appleMesh = new THREE.Mesh(appleGeo, appleMat);
-      appleMesh.position.copy(applePos);
-      appleMesh.castShadow = true;
-
-      const stemMesh = new THREE.Mesh(stemGeo, stemMat);
-      stemMesh.position.set(0, 0.1, 0);
-      appleMesh.add(stemMesh);
-
-      group.add(appleMesh);
+      group.add(fruit.group);
+      geometriesToDispose.push(...fruit.geometries);
+      materialsToDispose.push(...fruit.materials);
     }
   }
 
@@ -851,13 +855,20 @@ export function createTree(config: TreeConfig): TreeInstance {
   // -------------------------------------------------------------
   // 7. PEDESTAL & HYRULE GROUND ISLAND (ILHA DE TERRA E RAÍZES BOTW)
   // -------------------------------------------------------------
-  const moundRadius = Math.max(config.rootSpread * 3.8 + config.trunkRadiusBase + 2.5, 5.0);
-  const moundGeo = new THREE.CylinderGeometry(moundRadius, moundRadius * 1.15, 1.2, 32);
+  // a bush stands on a small island of its own size
+  const isShrubGround = config.growthStage === 'shrub';
+  const moundRadius = isShrubGround
+    ? 2.6
+    : Math.max(config.rootSpread * 3.8 + config.trunkRadiusBase + 2.5, 5.0);
+  const moundDepth = isShrubGround ? 0.6 : 1.2;
+  const moundGeo = new THREE.CylinderGeometry(moundRadius, moundRadius * 1.15, moundDepth, 32);
   
   // Snow cover (the snowy pine) whitens the whole island.
   const isSnowyGround = (config.snowCover ?? 0) > 0.05;
   const moundColor = isSnowyGround
     ? 0xe4edf6 // Hebra snowfield
+    : config.species.startsWith('desert_shrub')
+    ? 0xd4a359 // Gerudo sand
     : config.species.startsWith('savanna_acacia')
     ? 0xc09a58 // Savanna red-gold earth
     : config.species.startsWith('hebra_pine')
@@ -878,7 +889,7 @@ export function createTree(config: TreeConfig): TreeInstance {
     color: moundColor,
   });
   const mound = new THREE.Mesh(moundGeo, moundMat);
-  mound.position.set(0, -0.6, 0);
+  mound.position.set(0, -moundDepth / 2, 0);
   mound.receiveShadow = true;
   group.add(mound);
   geometriesToDispose.push(moundGeo);
@@ -899,7 +910,7 @@ export function createTree(config: TreeConfig): TreeInstance {
         ? 0x81c784
         : config.species.startsWith('savanna_acacia')
         ? 0xd8bd62 // Tall golden savanna grass
-        : config.species.startsWith('dry_withered')
+        : config.species.startsWith('dry_withered') || config.species.startsWith('desert_shrub')
         ? 0xa89368 // Dry golden savannah grass
         : config.species.startsWith('hebra_pine')
         ? 0x6e9970
@@ -914,7 +925,9 @@ export function createTree(config: TreeConfig): TreeInstance {
       : config.species.startsWith('savanna_acacia') ? 30 : 18; // savanna: grassland all round
     for (let g = 0; g < grassTuftCount; g++) {
       const grAngle = rnd() * Math.PI * 2;
-      const grDist = config.trunkRadiusBase * 1.2 + 0.4 + rnd() * (moundRadius * 0.7);
+      const grDist = isShrubGround
+        ? 0.9 + rnd() * (moundRadius * 0.6)                         // round the bush, not under it
+        : config.trunkRadiusBase * 1.2 + 0.4 + rnd() * (moundRadius * 0.7);
       const tuft = new THREE.Group();
       tuft.position.set(Math.cos(grAngle) * grDist, 0.0, Math.sin(grAngle) * grDist);
 
@@ -923,7 +936,8 @@ export function createTree(config: TreeConfig): TreeInstance {
         const blade = new THREE.Mesh(grassBladeGeo, grassBladeMat);
         blade.rotation.y = (b / 3) * Math.PI + (rnd() - 0.5) * 0.4;
         blade.rotation.x = 0.12 + (rnd() - 0.5) * 0.15;
-        blade.scale.set(0.8 + rnd() * 0.5, 0.8 + rnd() * 0.5, 0.8 + rnd() * 0.5);
+        const bladeScale = isShrubGround ? 0.55 : 1;
+        blade.scale.set((0.8 + rnd() * 0.5) * bladeScale, (0.8 + rnd() * 0.5) * bladeScale, (0.8 + rnd() * 0.5) * bladeScale);
         blade.castShadow = true;
         tuft.add(blade);
       }

@@ -1092,7 +1092,11 @@ export function buildProceduralFoliage(
   // along the limbs below it would fill in the open vase of bare limbs that
   // is half of the tree's silhouette.
   const isFlatTop = crownBounds.shape === 'flat_top';
-  const minFoliageY = isFlatTop
+  // A bush is leafy all the way down to the ground.
+  const isShrub = config.growthStage === 'shrub';
+  const minFoliageY = isShrub
+    ? config.trunkHeight * 0.06
+    : isFlatTop
     ? Math.max(config.trunkHeight * branchStartRatio, crownBounds.topY - crownBounds.radiusY * 1.95)
     : Math.max(crownBounds.bottomY * 0.92, config.trunkHeight * branchStartRatio);
 
@@ -1144,6 +1148,8 @@ export function buildProceduralFoliage(
     ? Math.max(0.45, (config.patchSpacing ?? 0.8) * 0.65)
     : isSwamp
     ? Math.max(0.85, (config.patchSpacing ?? 1.0) * 1.05)
+    : isShrub
+    ? Math.max(0.28, (config.patchSpacing ?? 0.4) * 0.88)       // bush-sized tufts
     : Math.max(0.70, (config.patchSpacing ?? 0.8) * 0.88);
   const clumpIndex = new SpatialPatchIndex(clumpSpacing);
 
@@ -1157,60 +1163,81 @@ export function buildProceduralFoliage(
   // join. Tufts further out are drawn in toward the nearest such bough; volume
   // infill is only accepted where it already is that close.
   const anchorTufts = !isConifer && !isSwamp;
-  const VISIBLE_WOOD_RADIUS = 0.07;
-  const tuftReach = baseClusterRadius * 0.55;
-  const visibleWood = anchorTufts
-    ? allNodes
-        .filter((n) => n.parent && Math.max(n.radius, n.parent.radius) >= VISIBLE_WOOD_RADIUS)
-        .map((n) => ({ a: n.parent!.position, b: n.position }))
-    : [];
-  // Every tuft AND every leaf card is checked against it (thousands of queries
-  // on a big crown), so the segments are bucketed in a coarse grid: a query
-  // looks at its own neighbourhood first and only scans everything when the
-  // nearest bough is further away than that.
+  // (a bush's stems are all thin, so all of its wood counts)
+  const VISIBLE_WOOD_RADIUS = isShrub ? 0.005 : 0.07;
+  // (a bush's tufts hug its stems more closely: its whole crown is small)
+  const tuftReach = baseClusterRadius * (isShrub ? 0.35 : 0.55);
+  type WoodSegment = { a: THREE.Vector3; b: THREE.Vector3; node: SCANode };
+  const woodSegments = (minRadius: number): WoodSegment[] =>
+    allNodes
+      .filter((n) => n.parent && Math.max(n.radius, n.parent.radius) >= minRadius)
+      .map((n) => ({ a: n.parent!.position, b: n.position, node: n }));
+  const visibleWood = anchorTufts ? woodSegments(VISIBLE_WOOD_RADIUS) : [];
+
+  const nearestWood = new THREE.Vector3();
+  // direction of that nearest piece of wood, from its base toward its tip,
+  // and the graph node at its tip end
+  const nearestWoodDir = new THREE.Vector3(0, 1, 0);
+  let nearestWoodNode: SCANode | null = null;
+
+  // Every tuft AND every leaf card is checked against the wood (thousands of
+  // queries on a big crown), so the segments are bucketed in a coarse grid: a
+  // query looks at its own neighbourhood first and only scans everything when
+  // the nearest piece is further away than that. Returns the distance, and
+  // sets nearestWood / nearestWoodDir / nearestWoodNode.
   const WOOD_CELL = 1.5;
-  const woodGrid = new Map<string, number[]>();
   const cellKey = (x: number, y: number, z: number) => `${x},${y},${z}`;
-  visibleWood.forEach((s, idx) => {
-    const x0 = Math.floor(Math.min(s.a.x, s.b.x) / WOOD_CELL), x1 = Math.floor(Math.max(s.a.x, s.b.x) / WOOD_CELL);
-    const y0 = Math.floor(Math.min(s.a.y, s.b.y) / WOOD_CELL), y1 = Math.floor(Math.max(s.a.y, s.b.y) / WOOD_CELL);
-    const z0 = Math.floor(Math.min(s.a.z, s.b.z) / WOOD_CELL), z1 = Math.floor(Math.max(s.a.z, s.b.z) / WOOD_CELL);
-    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) {
-      const k = cellKey(x, y, z);
-      let bucket = woodGrid.get(k);
-      if (!bucket) woodGrid.set(k, (bucket = []));
-      bucket.push(idx);
-    }
-  });
   const segAB = new THREE.Vector3();
   const segAP = new THREE.Vector3();
   const segQ = new THREE.Vector3();
-  const nearestWood = new THREE.Vector3();
-  const nearestVisibleWood = (pos: THREE.Vector3): number => {
-    let bestSq = Infinity;
-    const test = (idx: number) => {
-      const s = visibleWood[idx];
-      segAB.subVectors(s.b, s.a);
-      const lenSq = segAB.lengthSq();
-      const t = lenSq > 1e-9 ? THREE.MathUtils.clamp(segAP.subVectors(pos, s.a).dot(segAB) / lenSq, 0, 1) : 0;
-      segQ.copy(s.a).addScaledVector(segAB, t);
-      const dSq = segQ.distanceToSquared(pos);
-      if (dSq < bestSq) {
-        bestSq = dSq;
-        nearestWood.copy(segQ);
+  const makeWoodIndex = (segments: WoodSegment[]) => {
+    const grid = new Map<string, number[]>();
+    segments.forEach((s, idx) => {
+      const x0 = Math.floor(Math.min(s.a.x, s.b.x) / WOOD_CELL), x1 = Math.floor(Math.max(s.a.x, s.b.x) / WOOD_CELL);
+      const y0 = Math.floor(Math.min(s.a.y, s.b.y) / WOOD_CELL), y1 = Math.floor(Math.max(s.a.y, s.b.y) / WOOD_CELL);
+      const z0 = Math.floor(Math.min(s.a.z, s.b.z) / WOOD_CELL), z1 = Math.floor(Math.max(s.a.z, s.b.z) / WOOD_CELL);
+      for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) {
+        const k = cellKey(x, y, z);
+        let bucket = grid.get(k);
+        if (!bucket) grid.set(k, (bucket = []));
+        bucket.push(idx);
       }
+    });
+    return (pos: THREE.Vector3): number => {
+      let bestSq = Infinity;
+      const test = (idx: number) => {
+        const s = segments[idx];
+        segAB.subVectors(s.b, s.a);
+        const lenSq = segAB.lengthSq();
+        const t = lenSq > 1e-9 ? THREE.MathUtils.clamp(segAP.subVectors(pos, s.a).dot(segAB) / lenSq, 0, 1) : 0;
+        segQ.copy(s.a).addScaledVector(segAB, t);
+        const dSq = segQ.distanceToSquared(pos);
+        if (dSq < bestSq) {
+          bestSq = dSq;
+          nearestWood.copy(segQ);
+          if (lenSq > 1e-9) nearestWoodDir.copy(segAB).normalize();
+          nearestWoodNode = s.node;
+        }
+      };
+      const cx = Math.floor(pos.x / WOOD_CELL), cy = Math.floor(pos.y / WOOD_CELL), cz = Math.floor(pos.z / WOOD_CELL);
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+        const bucket = grid.get(cellKey(cx + dx, cy + dy, cz + dz));
+        if (bucket) bucket.forEach(test);
+      }
+      // the neighbourhood only proves a result nearer than one cell
+      if (bestSq > WOOD_CELL * WOOD_CELL) {
+        for (let i = 0; i < segments.length; i++) test(i);
+      }
+      return Math.sqrt(bestSq);
     };
-    const cx = Math.floor(pos.x / WOOD_CELL), cy = Math.floor(pos.y / WOOD_CELL), cz = Math.floor(pos.z / WOOD_CELL);
-    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
-      const bucket = woodGrid.get(cellKey(cx + dx, cy + dy, cz + dz));
-      if (bucket) bucket.forEach(test);
-    }
-    // the neighbourhood only proves a result nearer than one cell
-    if (bestSq > WOOD_CELL * WOOD_CELL) {
-      for (let i = 0; i < visibleWood.length; i++) test(i);
-    }
-    return Math.sqrt(bestSq);
   };
+  const nearestVisibleWood = makeWoodIndex(visibleWood);
+  // The wood a leaf card is laid along (see the card loop): on a bush the
+  // same stems the tufts hang on; on a tree ANY wood that is drawn, twigs
+  // included - the tufts are hung on the thick boughs, but the leaves
+  // themselves should follow the twigs that carry them.
+  const followWood = !anchorTufts ? [] : isShrub ? visibleWood : woodSegments(0);
+  const nearestFollowWood = isShrub ? nearestVisibleWood : makeWoodIndex(followWood);
   const anchorToVisibleWood = (
     pos: THREE.Vector3,
     relocate: boolean,
@@ -1231,13 +1258,13 @@ export function buildProceduralFoliage(
     const branchDir = tn.dir.lengthSq() > 0.001 ? tn.dir.clone().normalize() : outward.clone();
 
     // Center of bouquet placed gracefully at branch terminus
-    const tipCenter = tipPos.clone().add(branchDir.clone().multiplyScalar(isConifer ? 0.22 : (isSwamp ? 0.40 : 0.35)));
-    tipCenter.y += 0.08;
+    const tipCenter = tipPos.clone().add(branchDir.clone().multiplyScalar(isConifer ? 0.22 : (isSwamp ? 0.40 : (isShrub ? 0.12 : 0.35))));
+    tipCenter.y += isShrub ? 0.03 : 0.08;
     const clumpCenter = anchorToVisibleWood(tipCenter, true);
 
     if (clumpCenter && clumpIndex.canAdd(clumpCenter, clumpSpacing)) {
       clumpIndex.add(clumpCenter);
-      const radius = Math.max(1.2, baseClusterRadius * (0.90 + (rnd() - 0.5) * 0.20));
+      const radius = Math.max(isShrub ? 0.35 : 1.2, baseClusterRadius * (0.90 + (rnd() - 0.5) * 0.20));
       clumps.push({
         center: clumpCenter,
         radius,
@@ -1646,23 +1673,22 @@ export function buildProceduralFoliage(
 
     // Construct precise orthonormal 3D transformation matrix for each card
     plans.forEach((plan, planIdx) => {
-      // Column 1 (local Y axis): direction the card grows from stem to tip
-      const Y_axis = plan.growDir.clone().normalize();
-
-      // Column 0 (local X axis): width of the card, perpendicular to growth
-      let X_axis = new THREE.Vector3().crossVectors(Y_axis, plan.faceNormal).normalize();
-      if (X_axis.lengthSq() < 0.001) {
-        X_axis = new THREE.Vector3().crossVectors(Y_axis, new THREE.Vector3(0, 1, 0)).normalize();
-        if (X_axis.lengthSq() < 0.001) X_axis.set(1, 0, 0);
-      }
-
-      // Column 2 (local Z axis): card face normal
-      const Z_axis = new THREE.Vector3().crossVectors(X_axis, Y_axis).normalize();
-
-      const rotMatrix = new THREE.Matrix4().makeBasis(X_axis, Y_axis, Z_axis);
-      const quat = new THREE.Quaternion().setFromRotationMatrix(rotMatrix);
-
       const finalScale = plan.scaleMultiplier * (1.0 + (rnd() - 0.5) * 0.10);
+
+      // Orthonormal frame for a card growing along `growDir`: local Y runs
+      // from its stem to its tip, X across its width, Z is its face normal.
+      const orient = (growDir: THREE.Vector3) => {
+        const Y = growDir.clone().normalize();
+        let X = new THREE.Vector3().crossVectors(Y, plan.faceNormal).normalize();
+        if (X.lengthSq() < 0.001) {
+          X = new THREE.Vector3().crossVectors(Y, new THREE.Vector3(0, 1, 0)).normalize();
+          if (X.lengthSq() < 0.001) X.set(1, 0, 0);
+        }
+        const Z = new THREE.Vector3().crossVectors(X, Y).normalize();
+        const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
+        return { Y, q };
+      };
+      let { Y: Y_axis, q: quat } = orient(plan.growDir);
 
       // The tuft's centre is kept near a visible bough, but its cards fan out
       // up to ~1.2 m from that centre, and the ones on the far side of the
@@ -1678,8 +1704,98 @@ export function buildProceduralFoliage(
         }
       }
 
+      // Cards follow their twig. Measured on a bush, a card pointed in the
+      // tuft layout's fixed direction (up, out, down) had half its length a
+      // quarter-metre or more from any wood and its tip up to 0.8 m off -
+      // leaves hanging in empty air; trees have the same problem at a larger
+      // scale. So a card is laid ALONG the nearest twig, from there toward the
+      // twig's tip, fanned by the tuft's own direction so the sprays still
+      // open out, and slid back down the twig if the twig ends before the
+      // card. Not for a flat-topped crown: the acacia's cards are its flat
+      // plates on purpose.
+      if (anchorTufts && !isFlatTop && followWood.length > 0) {
+        nearestFollowWood(plan.pos);
+        const nearestPoint = nearestWood.clone();
+        const root = nearestWood.clone();
+        const along = nearestWoodDir.clone();
+        let rootNode: SCANode | null = nearestWoodNode;
+
+        // On a tree, every card of a tuft found the same nearest twig and
+        // started from the same spot, so the tuft closed into a ball with bare
+        // wood between tufts. Each card is slid a random distance up or down
+        // its twig (following the wood, so it never leaves it): the tuft is
+        // strung out along the branch instead of piled on one point.
+        if (!isShrub && rootNode) {
+          let slide = (rnd() - 0.5) * 2 * quadH * finalScale * 0.8;
+          let at: SCANode = rootNode;
+          while (Math.abs(slide) > 1e-4) {
+            if (slide > 0) {
+              const d = root.distanceTo(at.position);
+              if (slide <= d) { root.lerp(at.position, slide / Math.max(d, 1e-6)); break; }
+              slide -= d;
+              root.copy(at.position);
+              if (at.children.length === 0) break;
+              at = at.children[Math.floor(rnd() * at.children.length)];
+            } else {
+              const base = at.parent;
+              if (!base || base.isTrunk) break;
+              const d = root.distanceTo(base.position);
+              if (-slide <= d) { root.lerp(base.position, -slide / Math.max(d, 1e-6)); break; }
+              slide += d;
+              root.copy(base.position);
+              if (!base.parent || base.parent.isTrunk) break;
+              at = base;
+            }
+          }
+          rootNode = at;
+          if (at.parent) along.subVectors(at.position, at.parent.position).normalize();
+        }
+
+        // wood left beyond this point, following the twig out to its end
+        let remaining = rootNode ? rootNode.position.distanceTo(root) : 0;
+        let walk: SCANode | null = rootNode;
+        while (walk && walk.children.length > 0 && remaining < 3) {
+          const next: SCANode = walk.children.reduce((best, c) =>
+            c.position.clone().sub(walk!.position).normalize().dot(along) >
+            best.position.clone().sub(walk!.position).normalize().dot(along) ? c : best
+          );
+          remaining += next.position.distanceTo(walk.position);
+          walk = next;
+        }
+        const cardLen = quadH * finalScale * 0.85;
+        if (remaining < cardLen) root.addScaledVector(along, -(cardLen - remaining));
+        // Snapped exactly onto the twig, every card of a tuft started from the
+        // same point and the tuft closed up into a tight ball. Each keeps part
+        // of the offset the tuft layout gave it, so the cards still start
+        // spread apart around the twig.
+        const spread = plan.pos.clone().sub(nearestPoint);
+        const maxSpread = isShrub ? 0.08 : quadH * finalScale * 0.2;
+        if (spread.length() > maxSpread) spread.setLength(maxSpread);
+        root.add(spread);
+
+        // Trees get more slack than bushes (their tufts are bigger and read
+        // better opening wider off the twig). But a tree's card is up to ~2 m
+        // long, and one rooted on a twig at the top of the crown and fanned
+        // upward stood a metre and more above the canopy with nothing under
+        // it. So the tip is checked: while it ends too far from any wood the
+        // card is turned further onto its twig.
+        const baseWeight = isShrub ? 0.65 : 0.3;
+        const tipReach = quadH * finalScale * (isShrub ? 0.3 : 0.4);
+        let grow = along.clone();
+        for (const w of [baseWeight, (baseWeight + 1) / 2, 0.95]) {
+          grow = along.clone().multiplyScalar(w)
+            .addScaledVector(plan.growDir.clone().normalize(), 1 - w)
+            .normalize();
+          const tip = root.clone().addScaledVector(grow, quadH * finalScale * 0.95);
+          if (nearestFollowWood(tip) <= tipReach) break;
+        }
+        ({ Y: Y_axis, q: quat } = orient(grow));
+        cardPos = root;
+      }
+
       const matrix = new THREE.Matrix4();
       matrix.compose(cardPos, quat, new THREE.Vector3(finalScale, finalScale, finalScale));
+
 
       const atlasIdx = (clumpIdx * 3 + planIdx) % 8;
 

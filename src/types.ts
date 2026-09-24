@@ -20,7 +20,11 @@ export type TreeSpecies =
   | 'gerudo_cactus_sapling'
   | 'swamp_mangrove_sapling'
   | 'dry_withered_sapling'
-  | 'savanna_acacia_sapling';
+  | 'savanna_acacia_sapling'
+  | 'hyrule_shrub'
+  | 'berry_shrub'
+  | 'flowering_shrub'
+  | 'desert_shrub';
 
 export type TimeOfDay = 'day' | 'sunset' | 'night' | 'misty';
 
@@ -30,7 +34,7 @@ export interface TreeConfig {
   id: string;
   name: string;
   species: TreeSpecies;
-  growthStage?: 'adult' | 'sapling'; // full tree or young sapling
+  growthStage?: 'adult' | 'sapling' | 'shrub'; // full tree, young sapling or bush
   seed: number;
   
   // Space Colonization Algorithm (SCA)
@@ -137,6 +141,10 @@ export interface TreeConfig {
   // BotW Accents
   showApples: boolean;
   appleCount: number;
+  /** Bushes: what showApples/appleCount put on the bush - clusters of small
+   *  berries, or flowers - and their colour. Trees always get apples. */
+  bushAccent?: 'berries' | 'flowers';
+  accentColor?: string;
   showMushrooms: boolean;
   mushroomCount: number;
   showKorokPinwheel: boolean;

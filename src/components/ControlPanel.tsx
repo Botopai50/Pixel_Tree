@@ -10,6 +10,7 @@ import {
   Apple,
   RotateCcw,
   Sprout,
+  Leaf,
   Palette
 } from 'lucide-react';
 import { TreeConfig, EnvironmentConfig, TreeSpecies, TimeOfDay, CrownShape } from '../types';
@@ -38,7 +39,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   // Default directly to 'sliders' so procedural controls are immediately visible!
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('sliders');
   const [activeSection, setActiveSection] = useState<SliderSection>('all');
-  const [stageFilter, setStageFilter] = useState<'all' | 'adult' | 'sapling'>('all');
+  const [stageFilter, setStageFilter] = useState<'all' | 'adult' | 'sapling' | 'shrub'>('all');
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
 
   const presetsList = Object.values(TREE_PRESETS);
@@ -1112,7 +1113,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                        <span className="font-medium text-stone-200">Maçãs de Hyrule</span>
+                        <span className="font-medium text-stone-200">
+                          {treeConfig.growthStage === 'shrub'
+                            ? treeConfig.bushAccent === 'flowers'
+                              ? 'Flores (cachos de 3)'
+                              : 'Frutinhas (cachos de 3)'
+                            : 'Maçãs de Hyrule'}
+                        </span>
                       </div>
                       <input
                         type="checkbox"
@@ -1715,7 +1722,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               </p>
 
               {/* Stage Filter Buttons */}
-              <div className="grid grid-cols-3 gap-1 p-1 bg-stone-900/90 rounded-lg border border-stone-800 text-[11px]">
+              <div className="grid grid-cols-4 gap-1 p-1 bg-stone-900/90 rounded-lg border border-stone-800 text-[11px]">
                 <button
                   onClick={() => setStageFilter('all')}
                   className={`py-1 rounded font-medium transition cursor-pointer text-center ${
@@ -1748,17 +1755,30 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   <Sprout className="w-3 h-3" />
                   <span>Mudas</span>
                 </button>
+                <button
+                  onClick={() => setStageFilter('shrub')}
+                  className={`py-1 rounded font-medium transition flex items-center justify-center gap-1 cursor-pointer ${
+                    stageFilter === 'shrub'
+                      ? 'bg-teal-600 text-white shadow-sm'
+                      : 'text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  <Leaf className="w-3 h-3" />
+                  <span>Arbustos</span>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 gap-2 pt-1 max-h-[60vh] overflow-y-auto pr-1">
                 {presetsList
                   .filter((p) => {
                     if (stageFilter === 'all') return true;
-                    return (p.growthStage ?? 'adult') === stageFilter;
+                    const stage = p.growthStage === 'shrub' ? 'shrub' : (p.growthStage === 'sapling' || p.species.endsWith('_sapling') ? 'sapling' : 'adult');
+                    return stage === stageFilter;
                   })
                   .map((preset) => {
                     const isSelected = treeConfig.species === preset.species;
                     const isSapling = preset.growthStage === 'sapling' || preset.species.endsWith('_sapling');
+                    const isShrub = preset.growthStage === 'shrub';
 
                     return (
                       <button
@@ -1791,7 +1811,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                                     : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                                 }`}
                               >
-                                {isSapling ? 'Muda' : 'Adulta'} • {preset.trunkHeight}m
+                                {isShrub ? 'Arbusto' : isSapling ? 'Muda' : 'Adulta'} • {preset.trunkHeight}m
                               </span>
                             </div>
                             <div className="text-[10px] text-stone-400 truncate">

@@ -111,6 +111,11 @@ const SPECIES_DEFAULTS: Record<string, Partial<SpeciesTextureDefaults>> = {
   gerudo_cactus: { clusterSize: 6.0, gaps: 0.14, hueCold: 24, hueWarm: -20 },
   dry_withered: { clusterSize: 5.0, gaps: 0.5, contrast: 0.6, shadow: 0.68, highlights: 0.4, hueCold: 18, hueWarm: -10 },
   savanna_acacia: { clusterSize: 3.2, irregularity: 0.6, gaps: 0.42, hueCold: 20, hueWarm: -30 },
+  // bushes: smaller leaves, so the crown reads as a bush and not a shrunk tree
+  hyrule_shrub: { clusterSize: 3.4, gaps: 0.28, hueCold: 34, hueWarm: -22 },
+  berry_shrub: { clusterSize: 3.2, gaps: 0.26, hueCold: 38, hueWarm: -18 },
+  flowering_shrub: { clusterSize: 3.4, gaps: 0.3, hueCold: 30, hueWarm: -20 },
+  desert_shrub: { clusterSize: 2.6, irregularity: 0.65, gaps: 0.46, contrast: 0.45, hueCold: 18, hueWarm: -26 },
 };
 
 const BASE_DEFAULTS: SpeciesTextureDefaults = {

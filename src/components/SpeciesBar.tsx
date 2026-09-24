@@ -5,6 +5,7 @@ import { audioSystem } from '../services/audioSynthesizer';
 import {
   TreePine,
   Sprout,
+  Leaf,
   ChevronLeft,
   ChevronRight,
   LayoutGrid,
@@ -17,21 +18,28 @@ interface SpeciesBarProps {
   onSelectPreset: (species: TreeSpecies) => void;
 }
 
+type Stage = 'adult' | 'sapling' | 'shrub';
+
 interface PresetItem {
   id: string;
   name: string;
   shortName: string;
   species: TreeSpecies;
   color: string;
-  growthStage: 'adult' | 'sapling';
+  growthStage: Stage;
+}
+
+function stageOf(p: TreeConfig | undefined): Stage {
+  if (!p) return 'adult';
+  if (p.growthStage === 'shrub') return 'shrub';
+  if (p.growthStage === 'sapling' || p.species.endsWith('_sapling')) return 'sapling';
+  return 'adult';
 }
 
 export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) {
-  const currentStage: 'adult' | 'sapling' = currentSpecies.endsWith('_sapling')
-    ? 'sapling'
-    : 'adult';
+  const currentStage: Stage = stageOf(TREE_PRESETS[currentSpecies]);
 
-  const [activeTab, setActiveTab] = useState<'adult' | 'sapling'>(currentStage);
+  const [activeTab, setActiveTab] = useState<Stage>(currentStage);
   const [isGridOpen, setIsGridOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const gridModalRef = useRef<HTMLDivElement>(null);
@@ -59,29 +67,23 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
 
   // Group presets
   const allPresets = Object.values(TREE_PRESETS);
-  const adultPresets: PresetItem[] = allPresets
-    .filter((p) => (p.growthStage ?? 'adult') === 'adult' && !p.species.endsWith('_sapling'))
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      shortName: formatShortName(p.name, 'adult'),
-      species: p.species as TreeSpecies,
-      color: p.foliageColorTop || '#7ec832',
-      growthStage: 'adult',
-    }));
+  const presetsOf = (stage: Stage): PresetItem[] =>
+    allPresets
+      .filter((p) => stageOf(p) === stage)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        shortName: formatShortName(p.name, stage),
+        species: p.species as TreeSpecies,
+        color: p.foliageColorTop || '#7ec832',
+        growthStage: stage,
+      }));
+  const adultPresets = presetsOf('adult');
+  const saplingPresets = presetsOf('sapling');
+  const shrubPresets = presetsOf('shrub');
 
-  const saplingPresets: PresetItem[] = allPresets
-    .filter((p) => p.growthStage === 'sapling' || p.species.endsWith('_sapling'))
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      shortName: formatShortName(p.name, 'sapling'),
-      species: p.species as TreeSpecies,
-      color: p.foliageColorTop || '#8fe83a',
-      growthStage: 'sapling',
-    }));
-
-  const displayedPresets = activeTab === 'adult' ? adultPresets : saplingPresets;
+  const displayedPresets =
+    activeTab === 'adult' ? adultPresets : activeTab === 'sapling' ? saplingPresets : shrubPresets;
 
   const handleSelect = (species: TreeSpecies) => {
     audioSystem.playKorokJingle();
@@ -191,6 +193,39 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
                 })}
               </div>
             </div>
+
+            {/* Shrubs */}
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-teal-400 mb-2">
+                <Leaf className="w-4 h-4" />
+                <span>Arbustos ({shrubPresets.length})</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {shrubPresets.map((item) => {
+                  const isSelected = currentSpecies === item.species;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleSelect(item.species)}
+                      className={`p-2 rounded-xl text-left border text-xs font-medium transition cursor-pointer flex flex-col gap-1 ${
+                        isSelected
+                          ? 'bg-teal-600/30 border-teal-500 text-teal-100 shadow-sm'
+                          : 'bg-stone-900/80 border-stone-800 text-stone-300 hover:text-white hover:bg-stone-800 hover:border-stone-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span
+                          className="w-3 h-3 rounded-full border border-black/40 shadow-sm shrink-0"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        {isSelected && <Check className="w-3.5 h-3.5 text-teal-400" />}
+                      </div>
+                      <span className="truncate font-sans">{item.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -228,6 +263,21 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
             <span className="hidden sm:inline">Mudas</span>
             <span className="text-[10px] opacity-75">{saplingPresets.length}</span>
           </button>
+
+          <button
+            id="tab-select-shrub"
+            onClick={() => setActiveTab('shrub')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+              activeTab === 'shrub'
+                ? 'bg-teal-600 text-white shadow-md shadow-teal-950/60'
+                : 'text-stone-400 hover:text-stone-200'
+            }`}
+            title="Exibir arbustos"
+          >
+            <Leaf className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Arbustos</span>
+            <span className="text-[10px] opacity-75">{shrubPresets.length}</span>
+          </button>
         </div>
 
         {/* Scroll Left Button */}
@@ -257,6 +307,8 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
                   isSelected
                     ? activeTab === 'sapling'
                       ? 'bg-lime-600 text-white shadow-md shadow-lime-900/50'
+                      : activeTab === 'shrub'
+                      ? 'bg-teal-600 text-white shadow-md shadow-teal-900/50'
                       : 'bg-emerald-600 text-white shadow-md shadow-emerald-900/50'
                     : 'bg-stone-900/60 text-stone-300 hover:text-white hover:bg-stone-800/80 border border-stone-800/60'
                 }`}
@@ -316,7 +368,14 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
   );
 }
 
-function formatShortName(fullName: string, stage: 'adult' | 'sapling'): string {
+function formatShortName(fullName: string, stage: Stage): string {
+  if (stage === 'shrub') {
+    return fullName
+      .replace('Arbusto de Hyrule', 'Arbusto Hyrule')
+      .replace('Arbusto de Frutinhas', 'Frutinhas')
+      .replace('Arbusto Florido', 'Florido')
+      .replace('Arbusto do Deserto', 'Deserto');
+  }
   if (stage === 'sapling') {
     return fullName
       .replace('Muda de Carvalho de Hyrule', 'Muda Carvalho')
