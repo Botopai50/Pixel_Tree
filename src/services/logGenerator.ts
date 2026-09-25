@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TreeConfig } from '../types';
+import { createPixelEndGrainMaterial } from './endGrainMaterial';
 import { bracketSprite, makeSprite, mushroomSprite, spriteMaterial, surfaceSprite, MUSHROOM_CAPS, MUSHROOM_FOOT } from './pixelSprites';
 
 /**
@@ -89,13 +90,16 @@ class PlainBuffers {
   positions: number[] = [];
   uvs: number[] = [];
   colors: number[] = [];
+  /** radius (m) of the end face a vertex belongs to, for the end grain */
+  grainR: number[] = [];
   indices: number[] = [];
   count = 0;
 
-  push(p: THREE.Vector3, u: number, v: number, shade = 1): number {
+  push(p: THREE.Vector3, u: number, v: number, shade = 1, grainR = 0): number {
     this.positions.push(p.x, p.y, p.z);
     this.uvs.push(u, v);
     this.colors.push(shade, shade, shade);
+    this.grainR.push(grainR);
     return this.count++;
   }
 
@@ -104,6 +108,7 @@ class PlainBuffers {
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.positions, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uvs, 2));
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.colors, 3));
+    g.setAttribute('aGrainR', new THREE.Float32BufferAttribute(this.grainR, 1));
     g.setIndex(this.indices);
     g.computeVertexNormals();
     return g;
@@ -267,6 +272,13 @@ function addEndFace(
   const radial = rim.length;
   const K = 4;
   const rings: number[][] = [];
+  // the face's radius, for the end grain's texel grid
+  let faceR = 0;
+  for (const rp of rim) {
+    const rel = rp.clone().sub(frame.p);
+    faceR += rel.addScaledVector(outward, -rel.dot(outward)).length();
+  }
+  faceR /= Math.max(1, radial);
   // the break's depth varies across the face
   const tearPhase = rnd() * Math.PI * 2;
   for (let k = 0; k <= K; k++) {
@@ -288,7 +300,7 @@ function addEndFace(
       }
       const p = frame.p.clone().add(radialV.multiplyScalar(rho)).addScaledVector(outward, off);
       if (k === 0) p.copy(rimP);
-      ring.push(buf.push(p, 0.5 + 0.5 * rho * Math.cos(a), 0.5 + 0.5 * rho * Math.sin(a)));
+      ring.push(buf.push(p, 0.5 + 0.5 * rho * Math.cos(a), 0.5 + 0.5 * rho * Math.sin(a), 1, faceR));
     }
     rings.push(ring);
   }
@@ -311,7 +323,7 @@ function addEndFace(
     const c = new THREE.Vector3();
     inner.forEach((idx) => c.add(new THREE.Vector3(buf.positions[idx * 3], buf.positions[idx * 3 + 1], buf.positions[idx * 3 + 2])));
     c.multiplyScalar(1 / inner.length);
-    const centre = buf.push(c, 0.5, 0.5);
+    const centre = buf.push(c, 0.5, 0.5, 1, faceR);
     for (let j = 0; j < radial; j++) {
       const j1 = (j + 1) % radial;
       if (flip) buf.indices.push(inner[j], centre, inner[j1]);
@@ -326,70 +338,6 @@ function addEndFace(
 
 function hexToRgb(c: THREE.Color): [number, number, number] {
   return [Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)];
-}
-
-/** Pixel-art growth rings for the cut and broken faces. */
-export function makeEndGrainTexture(barkColor: string, seed: number, hollow: number): THREE.CanvasTexture {
-  const size = 32;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  const img = ctx.createImageData(size, size);
-
-  const bark = new THREE.Color(barkColor);
-  const barkDark = bark.clone().multiplyScalar(0.55);
-  const wood = bark.clone().lerp(new THREE.Color('#e3c38e'), 0.72);
-  const woodLight = wood.clone().lerp(new THREE.Color('#f4e2bc'), 0.4);
-  const ring = wood.clone().multiplyScalar(0.74);
-  const sap = wood.clone().lerp(new THREE.Color('#f0d9a6'), 0.25);
-  const pith = bark.clone().multiplyScalar(0.7);
-
-  let s = seed % 233280;
-  const rnd = () => {
-    s = (s * 9301 + 49297) % 233280;
-    return s / 233280;
-  };
-  const crackA = rnd() * Math.PI * 2;
-  const crackB = crackA + 2.2 + rnd() * 1.4;
-  const wobble = [rnd() * 6, rnd() * 6, rnd() * 6];
-
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const dx = (x + 0.5) / size * 2 - 1;
-      const dy = (y + 0.5) / size * 2 - 1;
-      const a = Math.atan2(dy, dx);
-      // rings are a little off-round, as real ones are
-      const rho = Math.hypot(dx, dy) * (1 + 0.05 * Math.sin(a * 3 + wobble[0]) + 0.03 * Math.sin(a * 5 + wobble[1]));
-      let c: THREE.Color;
-      if (rho > 0.9) c = rho > 0.97 ? barkDark : bark;
-      else if (rho > 0.8) c = sap;
-      else if (rho < 0.08 && hollow <= 0) c = pith;
-      else {
-        const band = (rho * 7 + Math.sin(a * 2 + wobble[2]) * 0.12) % 1;
-        c = band < 0.2 ? ring : rho < 0.45 ? woodLight : wood;
-      }
-      // radial drying cracks
-      const onCrack = (ca: number, len: number) => {
-        let d = Math.abs(((a - ca + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI);
-        return d * rho * size * 0.5 < 0.7 && rho < len && rho > 0.12;
-      };
-      if (onCrack(crackA, 0.85) || onCrack(crackB, 0.6)) c = ring.clone().multiplyScalar(0.7);
-      const [r, g, b] = hexToRgb(c);
-      const o = (y * size + x) * 4;
-      img.data[o] = r;
-      img.data[o + 1] = g;
-      img.data[o + 2] = b;
-      img.data[o + 3] = 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestFilter;
-  tex.generateMipmaps = false;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
 }
 
 /** Rotten wood for the inside of the hollow: dark fibres running along it. */
@@ -849,9 +797,10 @@ export function buildProceduralLog(
 
   const grainGeo = grain.build();
   geometriesToDispose.push(grainGeo);
-  const grainTex = makeEndGrainTexture(config.barkColor, config.seed, hollow);
-  texturesToDispose.push(grainTex);
-  const grainMat = new THREE.MeshToonMaterial({ map: grainTex });
+  // pixel-art rings on a texel grid in metres (see endGrainMaterial)
+  const endGrain = createPixelEndGrainMaterial(config);
+  texturesToDispose.push(endGrain.palette);
+  const grainMat = endGrain.material;
   materialsToDispose.push(grainMat);
   const grainMesh = new THREE.Mesh(grainGeo, grainMat);
   grainMesh.name = 'BotW_LogEndGrain';

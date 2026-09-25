@@ -12,7 +12,8 @@ import { buildProceduralDeadwood } from './deadwoodGenerator';
 import { createPixelBarkMaterial } from './pixelArtTextureSystem';
 import { buildHangingFruit } from './fruitSystem';
 import { bracketSprite, makeSprite, mushroomSprite, spriteMaterial, surfaceSprite, MUSHROOM_CAPS, MUSHROOM_FOOT } from './pixelSprites';
-import { buildProceduralLog, LogResult, makeEndGrainTexture } from './logGenerator';
+import { buildProceduralLog, LogResult } from './logGenerator';
+import { createPixelEndGrainMaterial } from './endGrainMaterial';
 import { cutTree, CutResult } from './treeCutter';
 import { buildPixelRocks } from './rockSystem';
 
@@ -93,11 +94,10 @@ export function createTree(sourceConfig: TreeConfig): TreeInstance {
     if (isCactus) {
       endGrain = new THREE.MeshToonMaterial({ color: 0xb8d68a, emissive: 0x3a4a28 }); // pale green flesh
     } else {
-      const tex = makeEndGrainTexture(config.barkColor, config.seed, 0);
-      extraTextures.push(tex);
-      // lit a little from within: the steep sides of the splinters, turned
-      // from the sun, would otherwise drop to near-black in the toon shading
-      endGrain = new THREE.MeshToonMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.3 });
+      // pixel-art rings on a texel grid in metres (see endGrainMaterial)
+      const grain = createPixelEndGrainMaterial(config);
+      extraTextures.push(grain.palette);
+      endGrain = grain.material;
     }
     extraMaterials.push(endGrain);
 
