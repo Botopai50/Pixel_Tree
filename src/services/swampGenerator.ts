@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { bracketSprite, makeSprite, spriteMaterial } from './pixelSprites';
+import { bracketSprite, makeSprite, spriteMaterial, surfaceSprite } from './pixelSprites';
 import { TreeConfig } from '../types';
 import { SCATreeData, SCANode } from './spaceColonization';
 
@@ -283,10 +283,9 @@ export function buildSwampRootsAndAccessories(
     for (let m = 0; m < targetCount; m += 3) {
       const anchor = mushroomAnchors[(m / 3) % mushroomAnchors.length | 0];
       const shelf = makeSprite(shelfMat, 0.55 + rnd() * 0.25);
-      shelf.position.copy(anchor.pos)
-        .addScaledVector(anchor.normal.clone().setY(0).normalize(), 0.12)
+      const at = anchor.pos.clone()
         .add(new THREE.Vector3((rnd() - 0.5) * 0.1, (rnd() - 0.5) * 0.08, (rnd() - 0.5) * 0.1));
-      group.add(shelf);
+      group.add(surfaceSprite(shelf, at));
     }
   }
 

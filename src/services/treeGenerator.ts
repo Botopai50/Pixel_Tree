@@ -11,7 +11,7 @@ import { buildProceduralSapling } from './saplingGenerator';
 import { buildProceduralDeadwood } from './deadwoodGenerator';
 import { createPixelBarkMaterial } from './pixelArtTextureSystem';
 import { buildHangingFruit } from './fruitSystem';
-import { makeSprite, mushroomSprite, spriteMaterial } from './pixelSprites';
+import { makeSprite, mushroomSprite, spriteMaterial, surfaceSprite, MUSHROOM_CAPS, MUSHROOM_FOOT } from './pixelSprites';
 import { buildProceduralLog, LogResult, makeEndGrainTexture } from './logGenerator';
 import { cutTree, CutResult } from './treeCutter';
 
@@ -866,10 +866,21 @@ function buildTree(config: TreeConfig): TreeInstance {
   // (logs grow their own bracket fungi and toadstools)
   if (config.showMushrooms && config.mushroomCount > 0 && !isSwamp && !isLog) {
     // pixel-art mushroom sprites (a big cap and a small one), like the flowers
-    const shroomMat = spriteMaterial(
-      mushroomSprite(config.species.startsWith('satori_sakura') ? '#3aa7e0' : '#e0782a')
-    );
-    materialsToDispose.push(shroomMat);
+    // A mixed patch: every mushroom picks its own cap colour (the sacred
+    // grove leans to the cool ones). One material per colour in use.
+    const caps = config.species.startsWith('satori_sakura')
+      ? MUSHROOM_CAPS.filter((c) => ['#3aa7e0', '#8e4fc4', '#e56a9a', '#d8b27a'].includes(c.color))
+      : MUSHROOM_CAPS;
+    const shroomMats = new Map<number, THREE.SpriteMaterial>();
+    const shroomMatFor = (i: number) => {
+      let m = shroomMats.get(i);
+      if (!m) {
+        m = spriteMaterial(mushroomSprite(caps[i].color, caps[i].spots));
+        shroomMats.set(i, m);
+        materialsToDispose.push(m);
+      }
+      return m;
+    };
 
     const trunkUpperNodes = scaData
       ? scaData.allNodes.filter((n) => n.isTrunk && n.position.y >= 0.8 && n.position.y <= config.trunkHeight * 0.45)
@@ -917,11 +928,10 @@ function buildTree(config: TreeConfig): TreeInstance {
         }
       }
 
-      // Standing on the bark, out far enough that the trunk does not cut
-      // through the sprite as the camera goes round.
-      const shroom = makeSprite(shroomMat, 0.5 + rnd() * 0.15, new THREE.Vector2(0.5, 0.05));
-      shroom.position.copy(surface).addScaledVector(outward, 0.1);
-      group.add(shroom);
+      // the foot of the stem on the bark itself (see surfaceSprite)
+      const cap = Math.floor(rnd() * caps.length);
+      const shroom = makeSprite(shroomMatFor(cap), 0.45 + rnd() * 0.2, MUSHROOM_FOOT);
+      group.add(surfaceSprite(shroom, surface.clone().addScaledVector(outward, -0.02)));
     }
   }
 
