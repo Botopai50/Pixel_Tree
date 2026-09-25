@@ -1,10 +1,12 @@
 # Builds the app with Vite and publishes it to GitHub Pages on every push to
-# main (and on demand from the Actions tab).
+# main (and on demand from the Actions tab). Pull requests only run the build,
+# so a broken build shows up on the PR before it is merged.
 name: Build and deploy to GitHub Pages
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -12,8 +14,9 @@ permissions:
   pages: write
   id-token: write
 
+# (a PR's build runs in its own group, so it never cancels a deploy)
 concurrency:
-  group: pages
+  group: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || 'pages' }}
   cancel-in-progress: true
 
 jobs:
@@ -34,16 +37,19 @@ jobs:
         run: npm run build
 
       - name: Configure Pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
         with:
           enablement: true
 
       - name: Upload site
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:
