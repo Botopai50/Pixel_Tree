@@ -831,6 +831,8 @@ export function buildProceduralSapling(
 
   const mound = new THREE.Mesh(moundGeo, moundMat);
   mound.position.set(0, -0.11, 0);
+  mound.name = 'GroundMound';
+  mound.userData.ground = true;
   mound.receiveShadow = true;
   group.add(mound);
 
@@ -856,6 +858,7 @@ export function buildProceduralSapling(
       blade.position.set(Math.cos(angle) * dist, 0.08, Math.sin(angle) * dist);
       blade.rotation.y = rnd() * Math.PI;
       blade.rotation.x = 0.15 * (rnd() - 0.5);
+      blade.userData.ground = true;
       group.add(blade);
     }
   }

@@ -328,7 +328,7 @@ function hexToRgb(c: THREE.Color): [number, number, number] {
 }
 
 /** Pixel-art growth rings for the cut and broken faces. */
-function makeEndGrainTexture(barkColor: string, seed: number, hollow: number): THREE.CanvasTexture {
+export function makeEndGrainTexture(barkColor: string, seed: number, hollow: number): THREE.CanvasTexture {
   const size = 32;
   const canvas = document.createElement('canvas');
   canvas.width = size;

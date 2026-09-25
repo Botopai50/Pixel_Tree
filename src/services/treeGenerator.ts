@@ -11,7 +11,8 @@ import { buildProceduralSapling } from './saplingGenerator';
 import { buildProceduralDeadwood } from './deadwoodGenerator';
 import { createPixelBarkMaterial } from './pixelArtTextureSystem';
 import { buildHangingFruit } from './fruitSystem';
-import { buildProceduralLog, LogResult } from './logGenerator';
+import { buildProceduralLog, LogResult, makeEndGrainTexture } from './logGenerator';
+import { cutTree, CutResult } from './treeCutter';
 
 export interface TreeInstance {
   group: THREE.Group;
@@ -20,6 +21,126 @@ export interface TreeInstance {
   pinwheelBlades: THREE.Mesh | null;
   update: (time: number) => void;
   dispose: () => void;
+  /** false for what is already dead wood on the ground (the logs) */
+  canFell?: boolean;
+  /** Fells this very tree: splits it at the cut into the stump and the part
+   *  above, which then falls over and comes to rest beside the stump. */
+  fell?: () => FellInfo | null;
+}
+
+/** Where the felled tree ends up, for framing it. */
+export interface FellInfo {
+  /** middle of the stump + felled trunk, on the ground */
+  centre: THREE.Vector3;
+  /** from the far side of the stump to the felled tree's top */
+  span: number;
+}
+
+/** How high the cut goes: a stump's height, below every branch. */
+function cutHeightFor(config: TreeConfig): number {
+  const h = config.trunkHeight;
+  if (config.growthStage === 'sapling' || config.species.endsWith('_sapling')) return Math.max(0.06, h * 0.12);
+  if (config.growthStage === 'shrub') return Math.max(0.08, h * 0.08);
+  let y = THREE.MathUtils.clamp(h * 0.1, 0.6, 1.3);
+  // the mangrove is cut above its stilt roots, which stay with the stump
+  if (config.species.startsWith('swamp_mangrove') || config.barkStyle === 'swamp') {
+    y = Math.max(y, (config.aerialRootHeight ?? 2.5) + 0.35);
+  }
+  return y;
+}
+
+/**
+ * Creates the tree, and gives it an axe: see TreeInstance.fell.
+ */
+export function createTree(sourceConfig: TreeConfig): TreeInstance {
+  // A private copy, read live by every animation below: felling the tree
+  // stills the wind on it (a trunk lying on the ground does not sway) without
+  // touching the settings the panel shows.
+  const config: TreeConfig = { ...sourceConfig };
+  const tree = buildTree(config);
+  const canFell = config.growthStage !== 'log';
+
+  const extraGeometries: THREE.BufferGeometry[] = [];
+  const extraMaterials: THREE.Material[] = [];
+  const extraTextures: THREE.Texture[] = [];
+  let felled: { cut: CutResult; gap: number; start: number | null } | null = null;
+  const FALL_SECONDS = 1.5;
+
+  const update = (time: number) => {
+    tree.update(time);
+    if (!felled) return;
+    if (felled.start === null) felled.start = time;
+    const t = THREE.MathUtils.clamp((time - felled.start) / FALL_SECONDS, 0, 1);
+    // it tips slowly, then falls faster and faster, as a real trunk does,
+    // pivoting on the hinge at the edge of the cut...
+    const tip = t * t;
+    // ...and slides off the stump as it goes down, to lie beside it
+    const slide = THREE.MathUtils.smoothstep(t, 0.35, 1);
+    const { pivot, hingeX, cutY } = felled.cut;
+    pivot.rotation.z = -Math.PI / 2 * tip;
+    pivot.position.set(hingeX + felled.gap * slide, cutY * (1 - slide), 0);
+  };
+
+  const fell = (): FellInfo | null => {
+    if (!canFell) return null;
+    if (felled) return fellInfo(felled.cut, felled.gap);
+    config.windStrength = 0;
+    config.flutterStrength = 0;
+
+    const isCactus = config.species.startsWith('gerudo_cactus') || config.foliageType === 'cactus_bloom';
+    let endGrain: THREE.Material;
+    if (isCactus) {
+      endGrain = new THREE.MeshToonMaterial({ color: 0xb8d68a, emissive: 0x3a4a28 }); // pale green flesh
+    } else {
+      const tex = makeEndGrainTexture(config.barkColor, config.seed, 0);
+      extraTextures.push(tex);
+      // lit a little from within: the steep sides of the splinters, turned
+      // from the sun, would otherwise drop to near-black in the toon shading
+      endGrain = new THREE.MeshToonMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.3 });
+    }
+    extraMaterials.push(endGrain);
+
+    const cut = cutTree(tree.group, cutHeightFor(config), endGrain, config.seed);
+    extraGeometries.push(...cut.geometries);
+    // far enough that the splinters of the two parts don't cross
+    const gap = Math.max(0.35, cut.radius * 0.8, cut.depth + 0.3);
+    felled = { cut, gap, start: null };
+
+    // The island grows to hold the fallen tree. Its geometry is swapped for a
+    // wider one rather than the mesh scaled: some grounds carry their grass
+    // as children, which a scale would stretch flat.
+    const need = cut.hingeX + gap + cut.topLength + 1.2;
+    tree.group.traverse((o) => {
+      if (o.name !== 'GroundMound') return;
+      const mesh = o as THREE.Mesh;
+      const p = (mesh.geometry as THREE.CylinderGeometry).parameters;
+      if (!p || p.radiusTop >= need) return;
+      const f = need / p.radiusTop;
+      const wider = new THREE.CylinderGeometry(p.radiusTop * f, p.radiusBottom * f, p.height, Math.max(p.radialSegments, 48));
+      extraGeometries.push(wider);
+      mesh.geometry = wider;
+    });
+    return fellInfo(cut, gap);
+  };
+
+  return {
+    ...tree,
+    update,
+    canFell,
+    fell,
+    dispose: () => {
+      tree.dispose();
+      extraGeometries.forEach((g) => g.dispose());
+      extraMaterials.forEach((m) => m.dispose());
+      extraTextures.forEach((t) => t.dispose());
+    },
+  };
+}
+
+function fellInfo(cut: CutResult, gap: number): FellInfo {
+  const far = cut.hingeX + gap + cut.topLength;
+  const near = -cut.radius * 1.5;
+  return { centre: new THREE.Vector3((far + near) / 2, 0, 0), span: far - near };
 }
 
 // The ground, grass and stones a biome's bush stands on: the same as that
@@ -42,7 +163,7 @@ const SHRUB_BIOME: Record<string, string> = {
  * grown entirely through the 3D Space Colonization Algorithm with Leonardo Da Vinci's
  * area-conserving pipe model, flared buttress roots, and Ghibli/BotW NPR cel-shading.
  */
-export function createTree(config: TreeConfig): TreeInstance {
+function buildTree(config: TreeConfig): TreeInstance {
   const group = new THREE.Group();
   group.name = 'BotW_ProceduralTree';
 
@@ -930,6 +1051,8 @@ export function createTree(config: TreeConfig): TreeInstance {
   const mound = new THREE.Mesh(moundGeo, moundMat);
   mound.position.set(0, -moundDepth / 2, 0);
   mound.receiveShadow = true;
+  mound.name = 'GroundMound';
+  mound.userData.ground = true;
   group.add(mound);
   geometriesToDispose.push(moundGeo);
   materialsToDispose.push(moundMat);
@@ -972,6 +1095,7 @@ export function createTree(config: TreeConfig): TreeInstance {
         ? 0.9 + rnd() * (moundRadius * 0.6)                         // round the bush, not under it
         : config.trunkRadiusBase * 1.2 + 0.4 + rnd() * (moundRadius * 0.7);
       const tuft = new THREE.Group();
+      tuft.userData.ground = true;
       tuft.position.set(Math.cos(grAngle) * grDist, 0.0, Math.sin(grAngle) * grDist);
       // not through the log: grass grows along it instead
       if (logResult && logResult.occupies(tuft.position.x, tuft.position.z)) continue;
@@ -1007,6 +1131,7 @@ export function createTree(config: TreeConfig): TreeInstance {
         stoneMesh.scale.set(1.2, 0.7, 1.0);
         stoneMesh.castShadow = true;
         stoneMesh.receiveShadow = true;
+        stoneMesh.userData.ground = true;
         group.add(stoneMesh);
       }
     }
@@ -1032,6 +1157,7 @@ export function createTree(config: TreeConfig): TreeInstance {
       stone.scale.set(1.25, 0.7, 1.0);
       stone.castShadow = true;
       stone.receiveShadow = true;
+      stone.userData.ground = true;
       group.add(stone);
 
       const cap = new THREE.Mesh(stoneGeo, capMat);
@@ -1040,6 +1166,7 @@ export function createTree(config: TreeConfig): TreeInstance {
       cap.rotation.y = rnd() * Math.PI;
       cap.scale.set(1.05, 0.28, 0.85);
       cap.receiveShadow = true;
+      cap.userData.ground = true;
       group.add(cap);
     }
   }
