@@ -907,7 +907,7 @@ export function buildProceduralSapling(
         const u = r / radialSegments;
         const angle = u * Math.PI * 2;
         // Rib indentation
-        const ribDepth = Math.cos(angle * ribCount) * 0.032 * radiusFactor;
+        const ribDepth = Math.cos(angle * ribCount) * 0.013 * radiusFactor;   // soft ribs
         const currentR = Math.max(0.04, cactusRadius * radiusFactor + ribDepth);
 
         const px = Math.cos(angle) * currentR;
@@ -948,7 +948,7 @@ export function buildProceduralSapling(
     geometriesToDispose.push(cactusGeo);
 
     const cactusMat = config.pixelTextureEnabled !== false
-      ? createPixelSucculentMaterial(config, sharedUniforms, ribCount, cactusHeight, cactusRadius, 0.032 / cactusRadius)
+      ? createPixelSucculentMaterial(config, sharedUniforms, ribCount, cactusHeight, cactusRadius, 0.013 / cactusRadius)
       : new THREE.MeshToonMaterial({
       color: 0x68b030, // fresh cactus green
     });

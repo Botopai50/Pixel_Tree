@@ -283,7 +283,9 @@ export function buildProceduralCactus(
     isMain: boolean;
   }[] = [];
   const radialSegments = numRibs * 4; // 56 vertices per ring for crisp stylized ridge definition
-  const ribDepthFactor = 0.135; // depth of the grooves between ribs
+  // depth of the grooves between ribs: shallow, so the stem reads as a
+  // smooth column with soft ribs rather than a deeply fluted one
+  const ribDepthFactor = 0.06;
 
   const allPositions: number[] = [];
   const allNormals: number[] = [];
@@ -414,7 +416,8 @@ export function buildProceduralCactus(
       for (let j = 0; j <= radialSegments; j++) {
         const theta = (j / radialSegments) * Math.PI * 2;
         // Rib modulation smoothly decreases as it converges towards apex center
-        const ribAtten = Math.cos(phi);
+        // (faster than the dome itself, so the crown is smooth, not a star)
+        const ribAtten = Math.pow(Math.cos(phi), 2);
         const ribMod = 1.0 + Math.cos(theta * numRibs) * ribDepthFactor * ribAtten;
         const currentR = capRadius * ribMod;
 
