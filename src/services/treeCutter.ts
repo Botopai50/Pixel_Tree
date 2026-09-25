@@ -241,6 +241,7 @@ function chainLoops(segments: Segment[]): Loop[] {
 function buildCap(loops: Loop[], surfaceY: (x: number, z: number, rimY: number, rho: number) => number): THREE.BufferGeometry {
   const pos: number[] = [];
   const uv: number[] = [];
+  const grainR: number[] = [];
   const RINGS = 5;
   for (const loop of loops) {
     const r = Math.max(loop.radius, 1e-3);
@@ -275,12 +276,14 @@ function buildCap(loops: Loop[], surfaceY: (x: number, z: number, rimY: number, 
       for (const v of [a, b, c2]) {
         pos.push(v.x, v.y, v.z);
         uv.push(0.5 + 0.5 * (v.x - c.x) / r, 0.5 + 0.5 * (v.z - c.z) / r);
+        grainR.push(r);                    // for the end grain's texel grid
       }
     }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('aGrainR', new THREE.Float32BufferAttribute(grainR, 1));
   g.computeVertexNormals();
   return g;
 }
