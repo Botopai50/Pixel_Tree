@@ -90,17 +90,20 @@ export function createTree(sourceConfig: TreeConfig): TreeInstance {
     const isCactus = config.species.startsWith('gerudo_cactus') || config.foliageType === 'cactus_bloom';
     let endGrain: THREE.Material;
     if (isCactus) {
-      endGrain = new THREE.MeshToonMaterial({ color: 0xb8d68a }); // pale green flesh
+      endGrain = new THREE.MeshToonMaterial({ color: 0xb8d68a, emissive: 0x3a4a28 }); // pale green flesh
     } else {
       const tex = makeEndGrainTexture(config.barkColor, config.seed, 0);
       extraTextures.push(tex);
-      endGrain = new THREE.MeshToonMaterial({ map: tex });
+      // lit a little from within: the steep sides of the splinters, turned
+      // from the sun, would otherwise drop to near-black in the toon shading
+      endGrain = new THREE.MeshToonMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.3 });
     }
     extraMaterials.push(endGrain);
 
-    const cut = cutTree(tree.group, cutHeightFor(config), endGrain);
+    const cut = cutTree(tree.group, cutHeightFor(config), endGrain, config.seed);
     extraGeometries.push(...cut.geometries);
-    const gap = Math.max(0.35, cut.radius * 0.8);
+    // far enough that the splinters of the two parts don't cross
+    const gap = Math.max(0.35, cut.radius * 0.8, cut.depth + 0.3);
     felled = { cut, gap, start: null };
 
     // The island grows to hold the fallen tree. Its geometry is swapped for a

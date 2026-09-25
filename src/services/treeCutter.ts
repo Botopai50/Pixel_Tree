@@ -12,9 +12,8 @@ import * as THREE from 'three';
  * bark runs on across the cut unbroken. The open ends are closed with the
  * growth-ring end grain, built from that same ring.
  *
- * Whole objects (leaves, fruit, mushrooms, the ground) go to the side they lie
- * on; the leaf cards of a crown that reaches below the cut are sorted card by
- * card.
+ * Whole objects (fruit, mushrooms, the ground) go to the side they lie on; a
+ * crown's leaf cards go with the crown, even the ones hanging below the cut.
  */
 
 export interface CutResult {
@@ -28,6 +27,8 @@ export interface CutResult {
   radius: number;
   /** how far the felled part reaches from the cut to its top */
   topLength: number;
+  /** how far the break's splinters reach above and below the cut */
+  depth: number;
   geometries: THREE.BufferGeometry[];
 }
 
@@ -53,7 +54,16 @@ interface SliceOutput {
   segments: Segment[];
 }
 
-function sliceGeometry(geo: THREE.BufferGeometry, plane: THREE.Plane): SliceOutput {
+/**
+ * Splits a geometry by a cutting surface: `dist` is the signed distance of a
+ * point (in the geometry's own space) from it, negative below. With
+ * `traceOnly` only the trace is collected and nothing is built.
+ */
+function sliceGeometry(
+  geo: THREE.BufferGeometry,
+  dist: (p: THREE.Vector3) => number,
+  traceOnly = false
+): SliceOutput {
   const names = Object.keys(geo.attributes);
   const attrs = names.map((n) => geo.attributes[n] as THREE.BufferAttribute);
   const sizes = attrs.map((a) => a.itemSize);
@@ -112,14 +122,14 @@ function sliceGeometry(geo: THREE.BufferGeometry, plane: THREE.Plane): SliceOutp
     for (let t = range.start; t + 2 < end; t += 3) {
       const ids = index ? [index.getX(t), index.getX(t + 1), index.getX(t + 2)] : [t, t + 1, t + 2];
       const vs = ids.map(readVertex);
-      const ds = vs.map((v) => plane.distanceToPoint(posOf(v)));
+      const ds = vs.map((v) => dist(posOf(v)));
       const neg = ds.map((d) => d < 0);
       if (neg[0] && neg[1] && neg[2]) {
-        emit(below, vs);
+        if (!traceOnly) emit(below, vs);
         continue;
       }
       if (!neg[0] && !neg[1] && !neg[2]) {
-        emit(above, vs);
+        if (!traceOnly) emit(above, vs);
         continue;
       }
       // split: walk the triangle's edges, handing each corner to its side and
@@ -137,8 +147,10 @@ function sliceGeometry(geo: THREE.BufferGeometry, plane: THREE.Plane): SliceOutp
           hits.push(x);
         }
       }
-      emit(below, polyBelow);
-      emit(above, polyAbove);
+      if (!traceOnly) {
+        emit(below, polyBelow);
+        emit(above, polyAbove);
+      }
       if (hits.length === 2) segments.push({ a: posOf(hits[0]), b: posOf(hits[1]) });
     }
     belowGroups.push({ start: belowStart, count: below.length / stride - belowStart, materialIndex: range.materialIndex });
@@ -166,6 +178,7 @@ function sliceGeometry(geo: THREE.BufferGeometry, plane: THREE.Plane): SliceOutp
     return g;
   };
 
+  if (traceOnly) return { below: null, above: null, segments };
   return { below: build(below, belowGroups), above: build(above, aboveGroups), segments };
 }
 
@@ -218,34 +231,105 @@ function chainLoops(segments: Segment[]): Loop[] {
   return loops;
 }
 
-/** Closes each loop with a fan from its middle, facing up or down. */
-function buildCap(loops: Loop[], cutY: number, facingUp: boolean): THREE.BufferGeometry {
+/**
+ * Closes each loop with the break surface: rings of vertices from the loop
+ * (where the bark ends) in to the middle. The height at each point comes from
+ * `surfaceY`, the same function for both parts, so the stump's face and the
+ * trunk's face are one surface seen from either side: every spike on one is a
+ * notch in the other. Built once facing up; `flip` turns it to face down.
+ */
+function buildCap(loops: Loop[], surfaceY: (x: number, z: number, rimY: number, rho: number) => number): THREE.BufferGeometry {
   const pos: number[] = [];
   const uv: number[] = [];
-  const nrm: number[] = [];
-  const ny = facingUp ? 1 : -1;
+  const RINGS = 5;
   for (const loop of loops) {
     const r = Math.max(loop.radius, 1e-3);
     const c = loop.centre;
     const n = loop.points.length;
-    for (let i = 0; i < n; i++) {
-      const a = loop.points[i];
-      const b = loop.points[(i + 1) % n];
-      // wind each triangle so it faces the right way
-      const cross = (a.x - c.x) * (b.z - c.z) - (a.z - c.z) * (b.x - c.x);
-      const [p, q] = (cross < 0) === facingUp ? [a, b] : [b, a];
-      for (const v of [c, p, q]) {
-        pos.push(v.x, cutY, v.z);
+    // rings[k][j]: k = 0 on the rim .. RINGS at the middle
+    const rings: THREE.Vector3[][] = [];
+    for (let k = 0; k <= RINGS; k++) {
+      const rho = 1 - k / RINGS;
+      rings.push(loop.points.map((p) => {
+        const x = c.x + (p.x - c.x) * rho;
+        const z = c.z + (p.z - c.z) * rho;
+        return new THREE.Vector3(x, k === 0 ? p.y : surfaceY(x, z, p.y, rho), z);
+      }));
+    }
+    const tris: THREE.Vector3[][] = [];
+    for (let k = 0; k < RINGS; k++) {
+      for (let j = 0; j < n; j++) {
+        const j1 = (j + 1) % n;
+        const a = rings[k][j], b = rings[k][j1], c2 = rings[k + 1][j], d = rings[k + 1][j1];
+        if (k === RINGS - 1) tris.push([a, b, c2]); // the middle ring is a point
+        else tris.push([a, b, c2], [b, d, c2]);
+      }
+    }
+    // wind the whole loop to face up, whichever way round its points run
+    let up = 0;
+    const e1 = new THREE.Vector3();
+    const e2 = new THREE.Vector3();
+    for (const [a, b, c2] of tris) up += e1.subVectors(b, a).cross(e2.subVectors(c2, a)).y;
+    for (const t of tris) {
+      const [a, b, c2] = up >= 0 ? t : [t[0], t[2], t[1]];
+      for (const v of [a, b, c2]) {
+        pos.push(v.x, v.y, v.z);
         uv.push(0.5 + 0.5 * (v.x - c.x) / r, 0.5 + 0.5 * (v.z - c.z) / r);
-        nrm.push(0, ny, 0);
       }
     }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+  g.computeVertexNormals();
   return g;
+}
+
+/** The same cap turned over, to face down. */
+function flipCap(g: THREE.BufferGeometry): THREE.BufferGeometry {
+  const f = g.clone();
+  const pos = f.attributes.position as THREE.BufferAttribute;
+  const uv = f.attributes.uv as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i += 3) {
+    for (const attr of [pos, uv]) {
+      const s = attr.itemSize;
+      for (let c = 0; c < s; c++) {
+        const t = attr.getComponent(i + 1, c);
+        attr.setComponent(i + 1, c, attr.getComponent(i + 2, c));
+        attr.setComponent(i + 2, c, t);
+      }
+    }
+  }
+  f.computeVertexNormals();
+  return f;
+}
+
+/**
+ * The break's profile around the trunk: stepped per sector like splinters,
+ * some standing up out of the stump, some left hanging from the trunk, a
+ * couple of long ones. Signed height above the cut, by angle.
+ */
+function makeBreakProfile(seed: number, depth: number): (a: number) => number {
+  let s = (Math.floor(seed) * 7 + 101) % 233280;
+  const rnd = () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+  const sectors = 10;
+  const h: number[] = [];
+  for (let i = 0; i < sectors; i++) h.push((rnd() - 0.5) * depth * 0.9);
+  h[Math.floor(rnd() * sectors)] = depth;           // a tall splinter left on the stump
+  h[Math.floor(rnd() * sectors)] = -depth * 0.85;   // ...and one torn out with the trunk
+  if (rnd() > 0.4) h[Math.floor(rnd() * sectors)] = depth * 0.75;
+  return (a: number) => {
+    const x = (((a / (Math.PI * 2)) % 1) + 1) % 1 * sectors;
+    const i0 = Math.floor(x) % sectors;
+    const i1 = (i0 + 1) % sectors;
+    const f = x - Math.floor(x);
+    // flat across a sector, a short ramp to the next: splinters, not waves
+    const k = f < 0.7 ? 0 : (f - 0.7) / 0.3;
+    return h[i0] * (1 - k) + h[i1] * k;
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -260,10 +344,10 @@ function isLeafLike(material: THREE.Material | THREE.Material[]): boolean {
   });
 }
 
-/** Splits a crowd of leaf cards card by card. */
+/** Hands a crowd of leaf cards to the side most of them are on. */
 function splitInstanced(
   mesh: THREE.InstancedMesh,
-  cutY: number,
+  surfaceDist: (p: THREE.Vector3) => number,
   geometries: THREE.BufferGeometry[]
 ): { below: THREE.InstancedMesh | null; above: THREE.InstancedMesh | null } {
   const m = new THREE.Matrix4();
@@ -275,7 +359,18 @@ function splitInstanced(
     mesh.getMatrixAt(i, m);
     w.multiplyMatrices(mesh.matrixWorld, m);
     p.setFromMatrixPosition(w);
-    (p.y < cutY ? lowIds : highIds).push(i);
+    (surfaceDist(p) < 0 ? lowIds : highIds).push(i);
+  }
+  // The leaf cards all belong to the twigs that carry them, which go with the
+  // crown: a bush cut near the ground keeps none hanging over its stump.
+  if (highIds.length >= lowIds.length) {
+    highIds.push(...lowIds);
+    highIds.sort((a, b) => a - b);
+    lowIds.length = 0;
+  } else {
+    lowIds.push(...highIds);
+    lowIds.sort((a, b) => a - b);
+    highIds.length = 0;
   }
   const make = (ids: number[]): THREE.InstancedMesh | null => {
     if (ids.length === 0) return null;
@@ -321,9 +416,39 @@ function splitInstanced(
  * side. The pivot starts unrotated: the tree still looks whole until it is
  * turned.
  */
-export function cutTree(root: THREE.Object3D, cutY: number, endGrain: THREE.Material): CutResult {
+export function cutTree(root: THREE.Object3D, cutY: number, endGrain: THREE.Material, seed = 1): CutResult {
   root.updateMatrixWorld(true);
   const geometries: THREE.BufferGeometry[] = [];
+
+  // ---- where the trunk is at the cut: a first, level pass over the wood --
+  const levelSegments: Segment[] = [];
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || (o as THREE.InstancedMesh).isInstancedMesh || o.userData.ground) return;
+    if (isLeafLike(mesh.material)) return;
+    const b = new THREE.Box3().setFromObject(mesh);
+    if (b.isEmpty() || b.min.y > cutY || b.max.y < cutY) return;
+    const out = sliceGeometry(mesh.geometry, (p) => p.clone().applyMatrix4(mesh.matrixWorld).y - cutY, true);
+    out.segments.forEach((sg) =>
+      levelSegments.push({ a: sg.a.clone().applyMatrix4(mesh.matrixWorld), b: sg.b.clone().applyMatrix4(mesh.matrixWorld) })
+    );
+  });
+  const trunk = chainLoops(levelSegments).sort((a, b) => b.radius - a.radius)[0];
+  const trunkC = trunk ? trunk.centre : new THREE.Vector3(0, cutY, 0);
+  const trunkR = trunk ? trunk.radius : 0.1;
+
+  // ---- the break: a jagged surface round the trunk, level further out ---
+  // (other stems and roots crossing the cut are cut clean)
+  const depth = Math.min(trunkR * 0.9, cutY * 0.55);
+  const profile = makeBreakProfile(seed, depth);
+  const breakHeight = (x: number, z: number) => {
+    const d = Math.hypot(x - trunkC.x, z - trunkC.z);
+    const w = 1 - THREE.MathUtils.smoothstep(d, trunkR * 1.25, trunkR * 1.8);
+    return w > 0 ? profile(Math.atan2(z - trunkC.z, x - trunkC.x)) * w : 0;
+  };
+  const surfaceDist = (p: THREE.Vector3) => p.y - cutY - breakHeight(p.x, p.z);
+  const lowY = cutY - depth - 1e-3;
+  const highY = cutY + depth + 1e-3;
 
   const below = new THREE.Group();
   below.name = 'Cut_Stump';
@@ -332,7 +457,6 @@ export function cutTree(root: THREE.Object3D, cutY: number, endGrain: THREE.Mate
   root.add(below, above);
   root.updateMatrixWorld(true);
 
-  const worldPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -cutY);
   const allSegments: Segment[] = [];
   const box = new THREE.Box3();
   const size = new THREE.Vector3();
@@ -362,11 +486,11 @@ export function cutTree(root: THREE.Object3D, cutY: number, endGrain: THREE.Mate
       place(o, below);
       return;
     }
-    if (box.max.y <= cutY + 1e-4) {
+    if (box.max.y <= lowY) {
       place(o, below);
       return;
     }
-    if (box.min.y >= cutY - 1e-4) {
+    if (box.min.y >= highY) {
       place(o, above);
       return;
     }
@@ -378,7 +502,7 @@ export function cutTree(root: THREE.Object3D, cutY: number, endGrain: THREE.Mate
         return;
       }
       box.getCenter(centre);
-      place(o, centre.y < cutY ? below : above);
+      place(o, surfaceDist(centre) < 0 ? below : above);
       return;
     }
     // Small things (a mushroom, a grass tuft, a flower) are not cut in two:
@@ -387,7 +511,7 @@ export function cutTree(root: THREE.Object3D, cutY: number, endGrain: THREE.Mate
     box.getSize(size);
     if (Math.max(size.x, size.y, size.z) < 0.5 && !(o as THREE.InstancedMesh).isInstancedMesh) {
       box.getCenter(centre);
-      place(o, box.min.y < 0.05 || centre.y < cutY ? below : above);
+      place(o, box.min.y < 0.05 || surfaceDist(centre) < 0 ? below : above);
       return;
     }
     // children first (they would go along with the mesh otherwise)
@@ -395,7 +519,7 @@ export function cutTree(root: THREE.Object3D, cutY: number, endGrain: THREE.Mate
 
     if ((o as THREE.InstancedMesh).isInstancedMesh) {
       const inst = o as THREE.InstancedMesh;
-      const parts = splitInstanced(inst, cutY, geometries);
+      const parts = splitInstanced(inst, surfaceDist, geometries);
       if (parts.below) {
         inst.matrixWorld.decompose(parts.below.position, parts.below.quaternion, parts.below.scale);
         below.add(parts.below);
@@ -409,9 +533,9 @@ export function cutTree(root: THREE.Object3D, cutY: number, endGrain: THREE.Mate
     }
 
     const mesh = o as THREE.Mesh;
-    const inv = new THREE.Matrix4().copy(mesh.matrixWorld).invert();
-    const localPlane = worldPlane.clone().applyMatrix4(inv);
-    const out = sliceGeometry(mesh.geometry, localPlane);
+    const toWorld = mesh.matrixWorld;
+    const w = new THREE.Vector3();
+    const out = sliceGeometry(mesh.geometry, (p) => surfaceDist(w.copy(p).applyMatrix4(toWorld)));
     if (out.below) {
       geometries.push(out.below);
       below.add(cloneMeshWith(mesh, out.below));
@@ -443,8 +567,15 @@ export function cutTree(root: THREE.Object3D, cutY: number, endGrain: THREE.Mate
     if (!inside) kept.push(l);
   }
   if (kept.length > 0) {
-    const capBelow = buildCap(kept, cutY + 0.002, true);
-    const capAbove = buildCap(kept, cutY - 0.002, false);
+    // Inside the wood the break falls from the splinters at the bark toward a
+    // ragged middle, torn a little across the grain.
+    const surfaceY = (x: number, z: number, rimY: number, rho: number) => {
+      const a = Math.atan2(z - trunkC.z, x - trunkC.x);
+      const tear = Math.sin(a * 3 + seed) * 0.5 + Math.sin(a * 7 - seed * 0.7) * 0.25;
+      return cutY + (rimY - cutY) * Math.pow(rho, 1.4) + tear * depth * 0.18 * rho * (1 - rho) * 4;
+    };
+    const capBelow = buildCap(kept, surfaceY);
+    const capAbove = flipCap(capBelow);
     geometries.push(capBelow, capAbove);
     const stumpFace = new THREE.Mesh(capBelow, endGrain);
     stumpFace.name = 'Cut_StumpFace';
@@ -472,5 +603,5 @@ export function cutTree(root: THREE.Object3D, cutY: number, endGrain: THREE.Mate
   box.setFromObject(above);
   const topLength = box.isEmpty() ? 1 : Math.max(0.5, box.max.y - cutY);
 
-  return { pivot, cutY, hingeX, radius, topLength, geometries };
+  return { pivot, cutY, hingeX, radius, topLength, depth, geometries };
 }
