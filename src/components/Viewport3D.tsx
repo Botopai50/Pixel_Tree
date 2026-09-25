@@ -238,15 +238,28 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         const isFallen = treeConfig.growthStage === 'fallen' || treeConfig.species.endsWith('_fallen');
         const isSapling = treeConfig.growthStage === 'sapling' || treeConfig.species.endsWith('_sapling');
         const isShrub = treeConfig.growthStage === 'shrub';
+        const isLog = treeConfig.growthStage === 'log';
+        const isStump = isLog && treeConfig.species === 'tree_stump';
         const targetX = isFallen && treeConfig.showBrokenStump !== false ? (treeConfig.trunkHeight || 9.0) * 0.35 : 0;
-        const targetY = isFallen
+        const targetY = isLog
+          ? isStump ? Math.max(0.35, treeConfig.trunkHeight * 0.45) : Math.max(0.4, treeConfig.trunkRadiusBase * 0.9)
+          : isFallen
           ? 0.65
           : isSapling || isShrub
           ? Math.max(0.45, treeConfig.trunkHeight * 0.5)
           : treeConfig.trunkHeight * 0.52;
         controlsRef.current.target.set(targetX, targetY, 0);
 
-        if (isShrub) {
+        if (isLog) {
+          // logs lie low and long: frame the whole length from a little above
+          controlsRef.current.minDistance = 1.2;
+          const want = isStump ? 6 : Math.max(8, treeConfig.trunkHeight * 1.9);
+          const currentDist = cameraRef.current.position.distanceTo(controlsRef.current.target);
+          if (currentDist < want * 0.6 || currentDist > want * 1.6) {
+            const dir = cameraRef.current.position.clone().sub(controlsRef.current.target).normalize();
+            cameraRef.current.position.copy(controlsRef.current.target).addScaledVector(dir, want * portraitDistanceScale(cameraRef.current.aspect));
+          }
+        } else if (isShrub) {
           // a bush is a couple of metres across: frame it whole, a little closer
           // than a tree
           controlsRef.current.minDistance = 1.2;
@@ -372,7 +385,12 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         if (!cameraRef.current || !controlsRef.current) return;
         const isFallen = treeConfig.growthStage === 'fallen' || treeConfig.species.endsWith('_fallen');
         const isSapling = treeConfig.growthStage === 'sapling' || treeConfig.species.endsWith('_sapling');
-        if (isFallen) {
+        if (treeConfig.growthStage === 'log') {
+          const isStump = treeConfig.species === 'tree_stump';
+          const d = isStump ? 6 : Math.max(8, treeConfig.trunkHeight * 1.9);
+          cameraRef.current.position.set(0, d * 0.45, d * 0.9);
+          controlsRef.current.target.set(0, isStump ? Math.max(0.35, treeConfig.trunkHeight * 0.45) : 0.5, 0);
+        } else if (isFallen) {
           cameraRef.current.position.set(0, 3.2, 7.2);
           controlsRef.current.target.set(0, 0.5, 0);
         } else if (isSapling) {

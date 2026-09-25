@@ -11,6 +11,7 @@ import { buildProceduralSapling } from './saplingGenerator';
 import { buildProceduralDeadwood } from './deadwoodGenerator';
 import { createPixelBarkMaterial } from './pixelArtTextureSystem';
 import { buildHangingFruit } from './fruitSystem';
+import { buildProceduralLog, LogResult } from './logGenerator';
 
 export interface TreeInstance {
   group: THREE.Group;
@@ -312,15 +313,32 @@ export function createTree(config: TreeConfig): TreeInstance {
   // the broadleaf foliage, for the fruit to be set on (see buildHangingFruit)
   let fruitFoliage: THREE.Object3D | undefined;
 
-  const isPalm = config.species.startsWith('faron_palm') || config.foliageType === 'palm_frond';
-  const isPine = config.species.startsWith('hebra_pine') || config.foliageType === 'pine_cone';
-  const isCactus = config.species.startsWith('gerudo_cactus') || config.foliageType === 'cactus_bloom';
-  const isSwamp = config.species.startsWith('swamp_mangrove') || config.foliageType === 'swamp_weeping' || config.barkStyle === 'swamp';
+  // logs and stumps: lying or standing dead wood, no crown at all
+  const isLog = config.growthStage === 'log';
+  let logResult: LogResult | null = null;
+  const texturesToDispose: THREE.Texture[] = [];
+
+  const isPalm = !isLog && config.species.startsWith('faron_palm') || config.foliageType === 'palm_frond';
+  const isPine = !isLog && config.species.startsWith('hebra_pine') || config.foliageType === 'pine_cone';
+  const isCactus = !isLog && config.species.startsWith('gerudo_cactus') || config.foliageType === 'cactus_bloom';
+  const isSwamp = !isLog && config.species.startsWith('swamp_mangrove') || config.foliageType === 'swamp_weeping' || config.barkStyle === 'swamp';
   // (a bare bush grows like any other bush, just without leaves)
-  const isDeadwood = config.growthStage !== 'shrub' &&
+  const isDeadwood = !isLog && config.growthStage !== 'shrub' &&
     (config.species.startsWith('dry_withered') || config.foliageType === 'none' || config.barkStyle === 'deadwood');
 
-  if (isPalm) {
+  if (isLog) {
+    // The moss on the bark grows thickest low down and on surfaces facing
+    // up; measured against a tree's height the whole log counts as "low",
+    // so the moss settles on its top and flanks as it does on real logs.
+    const barkUniforms = (barkMaterial as THREE.ShaderMaterial).uniforms;
+    if (barkUniforms?.uTreeHeight) barkUniforms.uTreeHeight.value = 6;
+    logResult = buildProceduralLog(config, barkMaterial, rnd);
+    group.add(logResult.group);
+    materialsToDispose.push(...logResult.materialsToDispose);
+    geometriesToDispose.push(...logResult.geometriesToDispose);
+    texturesToDispose.push(...logResult.texturesToDispose);
+    branchTips.push(...logResult.branchTips);
+  } else if (isPalm) {
     if (config.useSpaceColonization) {
       scaData = runSpaceColonization(config);
     }
@@ -726,7 +744,8 @@ export function createTree(config: TreeConfig): TreeInstance {
   }
 
   // BotW Mushrooms around the trunk (placed naturally on the upper bark above roots)
-  if (config.showMushrooms && config.mushroomCount > 0 && !isSwamp) {
+  // (logs grow their own bracket fungi and toadstools)
+  if (config.showMushrooms && config.mushroomCount > 0 && !isSwamp && !isLog) {
     const shroomCapGeo = new THREE.ConeGeometry(0.22, 0.16, 8);
     const shroomStemGeo = new THREE.CylinderGeometry(0.035, 0.05, 0.18, 6);
 
@@ -875,10 +894,12 @@ export function createTree(config: TreeConfig): TreeInstance {
   const isShrubGround = config.growthStage === 'shrub';
   // A biome's bush stands on the same ground as that biome's tree.
   const biome = SHRUB_BIOME[config.species] ?? config.species;
-  const moundRadius = isShrubGround
+  const moundRadius = logResult
+    ? Math.max(2.8, logResult.extent + 0.9)
+    : isShrubGround
     ? 2.6
     : Math.max(config.rootSpread * 3.8 + config.trunkRadiusBase + 2.5, 5.0);
-  const moundDepth = isShrubGround ? 0.6 : 1.2;
+  const moundDepth = isShrubGround || logResult ? 0.6 : 1.2;
   const moundGeo = new THREE.CylinderGeometry(moundRadius, moundRadius * 1.15, moundDepth, 32);
   
   // Snow cover (the snowy pine) whitens the whole island.
@@ -938,23 +959,29 @@ export function createTree(config: TreeConfig): TreeInstance {
     materialsToDispose.push(grassBladeMat);
     geometriesToDispose.push(grassBladeGeo);
 
-    const grassTuftCount = biome.startsWith('dry_withered')
+    const grassTuftCount = logResult
+      ? 28 // grass grows up all round the fallen wood
+      : biome.startsWith('dry_withered')
       ? 10
       : biome.startsWith('savanna_acacia') ? 30 : 18; // savanna: grassland all round
     for (let g = 0; g < grassTuftCount; g++) {
       const grAngle = rnd() * Math.PI * 2;
-      const grDist = isShrubGround
+      const grDist = logResult
+        ? 0.5 + rnd() * (moundRadius * 0.8)
+        : isShrubGround
         ? 0.9 + rnd() * (moundRadius * 0.6)                         // round the bush, not under it
         : config.trunkRadiusBase * 1.2 + 0.4 + rnd() * (moundRadius * 0.7);
       const tuft = new THREE.Group();
       tuft.position.set(Math.cos(grAngle) * grDist, 0.0, Math.sin(grAngle) * grDist);
+      // not through the log: grass grows along it instead
+      if (logResult && logResult.occupies(tuft.position.x, tuft.position.z)) continue;
 
       // 3 blades per cluster
       for (let b = 0; b < 3; b++) {
         const blade = new THREE.Mesh(grassBladeGeo, grassBladeMat);
         blade.rotation.y = (b / 3) * Math.PI + (rnd() - 0.5) * 0.4;
         blade.rotation.x = 0.12 + (rnd() - 0.5) * 0.15;
-        const bladeScale = isShrubGround ? 0.55 : 1;
+        const bladeScale = isShrubGround ? 0.55 : logResult ? 0.75 : 1;
         blade.scale.set((0.8 + rnd() * 0.5) * bladeScale, (0.8 + rnd() * 0.5) * bladeScale, (0.8 + rnd() * 0.5) * bladeScale);
         blade.castShadow = true;
         tuft.add(blade);
@@ -1037,6 +1064,7 @@ export function createTree(config: TreeConfig): TreeInstance {
   const dispose = () => {
     geometriesToDispose.forEach((g) => g.dispose());
     materialsToDispose.forEach((m) => m.dispose());
+    texturesToDispose.forEach((t) => t.dispose());
     foliageMaterials.forEach((m) => m.dispose());
   };
 

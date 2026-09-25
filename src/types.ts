@@ -33,7 +33,11 @@ export type TreeSpecies =
   | 'korok_shrub'
   | 'swamp_shrub'
   | 'savanna_shrub'
-  | 'withered_shrub';
+  | 'withered_shrub'
+  | 'fallen_log'
+  | 'hollow_log'
+  | 'rooted_log'
+  | 'tree_stump';
 
 export type TimeOfDay = 'day' | 'sunset' | 'night' | 'misty';
 
@@ -43,7 +47,7 @@ export interface TreeConfig {
   id: string;
   name: string;
   species: TreeSpecies;
-  growthStage?: 'adult' | 'sapling' | 'shrub'; // full tree, young sapling or bush
+  growthStage?: 'adult' | 'sapling' | 'shrub' | 'log'; // full tree, young sapling, bush or log / stump
   seed: number;
   
   // Space Colonization Algorithm (SCA)

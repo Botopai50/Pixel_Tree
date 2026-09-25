@@ -67,6 +67,39 @@ const SHRUB_BASE: Omit<TreeConfig, 'id' | 'name' | 'species' | 'seed'> = {
   windSpeed: 1.0,
 };
 
+// What every log and stump below shares: dead wood with no crown, lying on or
+// standing in the forest floor (built by services/logGenerator.ts). Here
+// trunkHeight is the log's length (the stump's height), trunkRadiusBase /
+// trunkRadiusTop its radius at either end, branchCount the broken branch stubs
+// and mushroomCount the bracket fungi.
+const LOG_BASE: Omit<TreeConfig, 'id' | 'name' | 'species' | 'seed'> = {
+  ...SHRUB_BASE,
+  growthStage: 'log',
+  useSpaceColonization: false,
+  trunkHeight: 5.5,
+  trunkRadiusBase: 0.55,
+  trunkRadiusTop: 0.45,
+  trunkCurvature: 0.25,
+  trunkTwist: 0,
+  rootSpread: 1.0,
+  branchCount: 3,
+  branchLength: 0.6,
+  foliageType: 'none',
+  clusterCount: 0,
+  foliageDensity: 0,
+  patchDensity: 0,
+  foliageColorTop: '#6d8f3a', // the moss the wood carries (colour chip in the UI)
+  foliageColorBottom: '#3b4f22',
+  barkColor: '#5e4330',
+  barkRoughness: 0.9,
+  barkStyle: 'oak',
+  mossAmount: 0.45,
+  showMushrooms: true,
+  mushroomCount: 6,
+  windStrength: 0.15,
+  windSpeed: 0.8,
+};
+
 export const TREE_PRESETS: Record<string, TreeConfig> = {
   hyrule_oak: {
     id: 'hyrule_oak',
@@ -2008,5 +2041,64 @@ export const TREE_PRESETS: Record<string, TreeConfig> = {
     barkStyle: 'deadwood',
     mossAmount: 0,
     windStrength: 0.45,
+  },
+
+  fallen_log: {
+    ...LOG_BASE,
+    id: 'fallen_log',
+    name: 'Tronco Caído',
+    species: 'fallen_log',
+    seed: 2101,
+  },
+
+  hollow_log: {
+    ...LOG_BASE,
+    id: 'hollow_log',
+    name: 'Tronco Oco',
+    species: 'hollow_log',
+    seed: 2212,
+    trunkHeight: 4.2,
+    trunkRadiusBase: 0.72,
+    trunkRadiusTop: 0.66,
+    trunkCurvature: 0.12,
+    branchCount: 1,
+    foliageColorTop: '#7a9a3c',
+    barkColor: '#54402f',
+    mossAmount: 0.6,
+    mushroomCount: 9,
+  },
+
+  rooted_log: {
+    ...LOG_BASE,
+    id: 'rooted_log',
+    name: 'Tronco com Raízes',
+    species: 'rooted_log',
+    seed: 2323,
+    trunkHeight: 6.0,
+    trunkRadiusBase: 0.5,
+    trunkRadiusTop: 0.36,
+    rootSpread: 1.2,
+    branchCount: 4,
+    foliageColorTop: '#8a6a45', // the torn-up earth of its root plate
+    barkColor: '#6a4c34',
+    mossAmount: 0.25,
+    mushroomCount: 3,
+  },
+
+  tree_stump: {
+    ...LOG_BASE,
+    id: 'tree_stump',
+    name: 'Toco',
+    species: 'tree_stump',
+    seed: 2434,
+    trunkHeight: 0.9,
+    trunkRadiusBase: 0.62,
+    trunkRadiusTop: 0.58,
+    rootSpread: 1.0,
+    branchCount: 0,
+    foliageColorTop: '#c9a36b', // the pale cut face with its rings
+    barkColor: '#5a3f2b',
+    mossAmount: 0.35,
+    mushroomCount: 6,
   },
 };
