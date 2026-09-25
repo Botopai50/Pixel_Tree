@@ -231,6 +231,28 @@ export function mushroomSprite(capColor = '#e0782a', spots = false): THREE.Canva
 }
 
 /**
+ * Cap colours for a mixed patch of mushrooms: the red toadstool with its
+ * flecks, and plain caps from orange and brown to violet and blue.
+ */
+export const MUSHROOM_CAPS: { color: string; spots: boolean }[] = [
+  { color: '#d9452f', spots: true },   // red toadstool
+  { color: '#e0782a', spots: false },  // orange
+  { color: '#9a6236', spots: false },  // brown
+  { color: '#d8b27a', spots: false },  // tan
+  { color: '#e8c23a', spots: false },  // yellow
+  { color: '#8e4fc4', spots: true },   // violet
+  { color: '#3aa7e0', spots: false },  // blue
+  { color: '#e56a9a', spots: true },   // pink
+];
+
+/**
+ * Where a mushroom sprite stands: the foot of the big mushroom's stem (it
+ * is drawn left of the middle, with the small one to its right). Anchoring
+ * on the sprite's middle left a gap between the stem and the bark.
+ */
+export const MUSHROOM_FOOT = new THREE.Vector2(6.5 / 16, 0);
+
+/**
  * Bracket fungus seen from the side: three shelves stepped one over another,
  * each lit along its upper edge with a pale pore band beneath.
  */
@@ -259,6 +281,31 @@ export function bracketSprite(color = '#e0923e', rim = '#f3dfb4'): THREE.CanvasT
     p.outline(r.outline);
     return p;
   });
+}
+
+/**
+ * Holds a sprite ON a surface point (bark, a root): the returned group sits
+ * exactly on the point, and every frame the sprite is drawn a few
+ * centimetres from it TOWARD THE CAMERA. Pushed out along the surface normal
+ * instead, a sprite seen from the side hung beside the trunk with a gap under
+ * its foot; sunk into the bark, the bark in front of it hid it. This way it
+ * sits on the wood from the front, its foot meets the trunk's edge from the
+ * side, and from behind the trunk hides it.
+ */
+export function surfaceSprite(sprite: THREE.Sprite, at: THREE.Vector3, lift = 0.12): THREE.Group {
+  const holder = new THREE.Group();
+  holder.name = 'SurfaceSprite';
+  holder.position.copy(at);
+  holder.add(sprite);
+  const cam = new THREE.Vector3();
+  sprite.onBeforeRender = (_renderer, _scene, camera) => {
+    cam.setFromMatrixPosition(camera.matrixWorld);
+    holder.worldToLocal(cam);
+    const len = cam.length();
+    if (len > 1e-4) sprite.position.copy(cam).multiplyScalar(lift / len);
+    sprite.updateMatrixWorld();
+  };
+  return holder;
 }
 
 /** Unlit, cut-out sprite material, like the flowers. */

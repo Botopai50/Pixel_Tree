@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { TreeConfig } from '../types';
-import { bracketSprite, makeSprite, mushroomSprite, spriteMaterial } from './pixelSprites';
+import { bracketSprite, makeSprite, mushroomSprite, spriteMaterial, surfaceSprite, MUSHROOM_CAPS, MUSHROOM_FOOT } from './pixelSprites';
 
 /**
  * Logs and stumps (the "Troncos" category): dead wood lying on, or standing
@@ -809,15 +809,25 @@ export function buildProceduralLog(
 
   // ---- stump: toadstools at its foot -----------------------------------------
   if (kind === 'stump' && config.showMushrooms && config.mushroomCount > 0) {
-    // pixel-art toadstools (red, pale flecks) standing in the grass
-    const toadMat = spriteMaterial(mushroomSprite('#d9452f', true));
-    materialsToDispose.push(toadMat);
+    // pixel-art toadstools standing in the grass: mostly red with pale
+    // flecks, a few other caps among them
+    const toadMats = new Map<number, THREE.SpriteMaterial>();
+    const toadMatFor = (i: number) => {
+      let m = toadMats.get(i);
+      if (!m) {
+        m = spriteMaterial(mushroomSprite(MUSHROOM_CAPS[i].color, MUSHROOM_CAPS[i].spots));
+        toadMats.set(i, m);
+        materialsToDispose.push(m);
+      }
+      return m;
+    };
     const count = Math.min(10, config.mushroomCount);
     for (let m = 0; m < count; m++) {
       const a = (m * 2.39996 + knotPhase) % (Math.PI * 2);
       const d = r0 * (1.2 + rnd() * 0.5) + 0.15;
-      const toad = makeSprite(toadMat, 0.34 + rnd() * 0.16, new THREE.Vector2(0.5, 0.02));
-      toad.position.set(Math.cos(a) * d, 0, Math.sin(a) * d);
+      const cap = rnd() < 0.5 ? 0 : Math.floor(rnd() * MUSHROOM_CAPS.length);
+      const toad = makeSprite(toadMatFor(cap), 0.34 + rnd() * 0.16, MUSHROOM_FOOT);
+      toad.position.set(Math.cos(a) * d, -0.02, Math.sin(a) * d); // foot in the soil
       group.add(toad);
     }
     // and a shelf or two on the stump's own side
@@ -894,11 +904,11 @@ function addBracketFungi(
       const flank = f.t.clone().cross(new THREE.Vector3(0, 1, 0)).normalize().multiplyScalar(sideSign);
       out = flank.addScaledVector(new THREE.Vector3(0, 1, 0), (rnd() - 0.2) * 0.4).normalize();
     }
-    // set half into the wood, so the bark hides its inner edge from the side
+    // on the bark itself (see surfaceSprite)
     const shelf = makeSprite(shelfMat, rHere * (upright ? 0.55 : 0.75) * (0.9 + rnd() * 0.25));
-    shelf.position.copy(f.p)
-      .addScaledVector(out, rHere * 0.97)
+    const at = f.p.clone()
+      .addScaledVector(out, rHere)
       .addScaledVector(f.t, upright ? 0 : (rnd() - 0.5) * rHere * 0.5);
-    group.add(shelf);
+    group.add(surfaceSprite(shelf, at, 0.1));
   }
 }

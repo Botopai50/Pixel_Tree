@@ -497,7 +497,9 @@ export function cutTree(root: THREE.Object3D, cutY: number, endGrain: THREE.Mate
     // crossing the cut
     const isMesh = (o as THREE.Mesh).isMesh;
     if (!isMesh) {
-      if (o.children.length > 0) {
+      // a small group (a sprite on its holder) goes whole, by its middle
+      box.getSize(size);
+      if (o.children.length > 0 && Math.max(size.x, size.y, size.z) >= 0.8) {
         [...o.children].forEach(sort);
         return;
       }
