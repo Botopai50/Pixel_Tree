@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { TreeConfig } from '../types';
 import type { SCANode, SCATreeData } from './spaceColonization';
-import { createPixelPropMaterial } from './pixelArtTextureSystem';
+import { appleSprite, berrySprite, makeSprite, spriteMaterial } from './pixelSprites';
 
 export interface FruitOptions {
   /** Radius of one fruit, metres. */
@@ -156,25 +156,14 @@ export function buildHangingFruit(
   const r = options.radius;
   const perCluster = Math.max(1, options.perCluster ?? 1);
 
-  const fruitGeo = new THREE.SphereGeometry(r, 10, 8);
-  fruitGeo.scale(1, 0.92, 1);
-  const stalkGeo = new THREE.CylinderGeometry(r * 0.07, r * 0.09, 1, 5);
-  stalkGeo.translate(0, -0.5, 0);                               // hangs down from its top
-  const leafShape = new THREE.Shape();
-  leafShape.moveTo(0, 0);
-  leafShape.quadraticCurveTo(r * 0.55, r * 0.5, 0, r * 1.5);
-  leafShape.quadraticCurveTo(-r * 0.55, r * 0.5, 0, 0);
-  const leafGeo = new THREE.ShapeGeometry(leafShape);
-  geometries.push(fruitGeo, stalkGeo, leafGeo);
-
-  const fruitMat = usePixel
-    ? createPixelPropMaterial(config, sharedUniforms, options.color, 'smooth')
-    : new THREE.MeshToonMaterial({ color: options.color });
-  const stalkMat = usePixel
-    ? createPixelPropMaterial(config, sharedUniforms, '#5a3a22', 'smooth')
-    : new THREE.MeshToonMaterial({ color: 0x5a3a22 });
-  const leafMat = new THREE.MeshToonMaterial({ color: config.foliageColorTop, side: THREE.DoubleSide });
-  materials.push(fruitMat, stalkMat, leafMat);
+  // Fruit is a pixel-art sprite, like the flowers: an apple with its stalk
+  // and leaf, or a whole bunch of berries in one sprite. The sprite is wider
+  // than the fruit itself (the stalk, the leaf, the outline).
+  const isBunch = perCluster > 1;
+  const fruitMat = spriteMaterial(isBunch ? berrySprite(options.color) : appleSprite(options.color));
+  const fruitWidth = isBunch ? r * 5.8 : r * 2.8;
+  materials.push(fruitMat);
+  void sharedUniforms;
 
   // Flowers: a pixel sprite on a small quad (facing +Z).
   let flowerGeo: THREE.BufferGeometry | null = null;
@@ -315,73 +304,20 @@ export function buildHangingFruit(
       continue;
     }
 
+    // one sprite per twig: an apple, or a whole bunch of berries
+    placed += perCluster;
+    const size = fruitWidth * (0.9 + rnd() * 0.2);
     if (skin && skinDir) {
-      // a small bunch on the skin: the first fruit where the ray landed, the
-      // rest of a cluster beside it
-      for (let k = 0; k < perCluster && placed < count; k++, placed++) {
-        const side = new THREE.Vector3().crossVectors(skinDir, new THREE.Vector3(0, 1, 0));
-        if (side.lengthSq() < 1e-4) side.set(1, 0, 0);
-        side.normalize();
-        const pos = skin.clone()
-          // sunk into the leaves, only part of it showing (depth varies)
-          .addScaledVector(skinDir, -r * (0.5 + rnd() * 0.6))
-          .addScaledVector(side, perCluster > 1 ? (k - (perCluster - 1) / 2) * r * 1.7 : 0)
-          .add(new THREE.Vector3(0, k % 2 === 1 ? -r * 0.6 : 0, 0));
-        const fruit = new THREE.Mesh(fruitGeo, fruitMat);
-        fruit.position.copy(pos);
-        fruit.rotation.set((rnd() - 0.5) * 0.4, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.4);
-        fruit.scale.setScalar(0.9 + rnd() * 0.2);
-        fruit.castShadow = true;
-        group.add(fruit);
-
-        // stalk from the top of the fruit up and back into the leaves
-        const stalkLen = r * 0.9;
-        const stalkDir = new THREE.Vector3(0, 1, 0).addScaledVector(skinDir, -0.5).normalize();
-        const stalk = new THREE.Mesh(stalkGeo, stalkMat);
-        stalk.position.copy(pos).addScaledVector(stalkDir, r * 0.8 + stalkLen);
-        stalk.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), stalkDir.clone().negate());
-        stalk.scale.set(1, stalkLen, 1);
-        group.add(stalk);
-        if (k === 0) {
-          const leaf = new THREE.Mesh(leafGeo, leafMat);
-          leaf.position.copy(pos).addScaledVector(stalkDir, r * 0.85);
-          leaf.rotation.set(-0.7 + rnd() * 0.3, Math.atan2(skinDir.x, skinDir.z) + 0.6, 0.3);
-          group.add(leaf);
-        }
-      }
+      // on the crown's skin, set a little into the leaves so it sits among them
+      const fruit = makeSprite(fruitMat, size);
+      fruit.position.copy(skin).addScaledVector(skinDir, -r * (0.2 + rnd() * 0.3));
+      group.add(fruit);
       continue;
     }
-
-    for (let k = 0; k < perCluster && placed < count; k++, placed++) {
-      const stalkLen = r * (0.9 + rnd() * 0.8);
-      // cluster members fan out from the same twig
-      const spreadAngle = perCluster > 1 ? (k / perCluster) * Math.PI * 2 + rnd() : rnd() * Math.PI * 2;
-      const lean = new THREE.Vector3(Math.cos(spreadAngle), 0, Math.sin(spreadAngle))
-        .multiplyScalar(perCluster > 1 ? 0.45 : 0.15)
-        .addScaledVector(outward, 0.25);
-      const hangDir = down.clone().add(lean).normalize();
-
-      const top = anchor.position.clone();
-      const stalk = new THREE.Mesh(stalkGeo, stalkMat);
-      stalk.position.copy(top);
-      stalk.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), hangDir);
-      stalk.scale.set(1, stalkLen, 1);
-      group.add(stalk);
-
-      const fruit = new THREE.Mesh(fruitGeo, fruitMat);
-      fruit.position.copy(top).addScaledVector(hangDir, stalkLen + r * 0.85);
-      fruit.rotation.set((rnd() - 0.5) * 0.4, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.4);
-      fruit.scale.setScalar(0.9 + rnd() * 0.2);
-      fruit.castShadow = true;
-      group.add(fruit);
-
-      if (k === 0) {
-        const leaf = new THREE.Mesh(leafGeo, leafMat);
-        leaf.position.copy(top);
-        leaf.rotation.set(-0.9 + rnd() * 0.3, spreadAngle + Math.PI * 0.5, 0.4);
-        group.add(leaf);
-      }
-    }
+    // no leaves found: it hangs from the twig by the stalk drawn at its top
+    const fruit = makeSprite(fruitMat, size, new THREE.Vector2(0.5, 0.95));
+    fruit.position.copy(anchor.position).addScaledVector(down, r * 0.2).addScaledVector(outward, r * 0.3);
+    group.add(fruit);
   }
 
   return { group, geometries, materials };

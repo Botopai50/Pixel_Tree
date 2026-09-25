@@ -13,7 +13,6 @@ export interface SaplingGenerationResult {
   group: THREE.Group;
   materialsToDispose: (THREE.Material | THREE.Material[])[];
   geometriesToDispose: THREE.BufferGeometry[];
-  pinwheelBlades: THREE.Mesh | null;
   update: (time: number) => void;
 }
 
@@ -22,7 +21,7 @@ export interface SaplingGenerationResult {
  * Saplings are delicate, simple, and recognizable:
  * - Small scale (0.8m - 1.4m height, slender stem 0.04m - 0.08m radius)
  * - Individual distinct stylized leaves or young fronds on thin petioles
- * - Distinct germination relics (acorn shell, coconut seed, cactus nub, mangrove propagule, Korok pinwheel)
+ * - Distinct germination relics (acorn shell, coconut seed, cactus nub, mangrove propagule)
  * - Cel-shaded NPR shaders with gentle wind flutter
  */
 /**
@@ -603,7 +602,6 @@ export function buildProceduralSapling(
 
   const materialsToDispose: (THREE.Material | THREE.Material[])[] = [];
   const geometriesToDispose: THREE.BufferGeometry[] = [];
-  let pinwheelBlades: THREE.Mesh | null = null;
   const leafMeshes: { mesh: THREE.Object3D; baseRotation: THREE.Euler; phase: number; amp: number }[] = [];
 
   // Seeded PRNG
@@ -1692,8 +1690,6 @@ export function buildProceduralSapling(
       rootMesh.castShadow = true;
       group.add(rootMesh);
     }
-    // (The Korok sapling used to have a spinning pinwheel stuck in the soil
-    // beside it; it was removed on request.)
 
     // 2. Slender supple stem with organic gentle curve
     const stemCurve = new THREE.CatmullRomCurve3([
@@ -1820,11 +1816,6 @@ export function buildProceduralSapling(
   const update = (time: number) => {
     sharedUniforms.uTime.value = time;
 
-    // Spin Korok Pinwheel if present
-    if (pinwheelBlades) {
-      pinwheelBlades.rotation.z += 0.08 * (config.windSpeed || 1.0);
-    }
-
     // Gentle swaying of sapling leaves and fronds
     const windSpeed = config.windSpeed || 1.0;
     const windStr = config.windStrength || 0.35;
@@ -1840,7 +1831,6 @@ export function buildProceduralSapling(
     group,
     materialsToDispose,
     geometriesToDispose,
-    pinwheelBlades,
     update,
   };
 }

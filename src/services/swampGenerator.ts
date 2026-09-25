@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { bracketSprite, makeSprite, spriteMaterial } from './pixelSprites';
 import { TreeConfig } from '../types';
 import { SCATreeData, SCANode } from './spaceColonization';
 
@@ -273,92 +274,19 @@ export function buildSwampRootsAndAccessories(
   // -------------------------------------------------------------
   const showMushrooms = config.showShelfMushrooms ?? true;
   if (showMushrooms && mushroomAnchors.length > 0) {
-    const shelfMushroomMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        ...sharedUniforms,
-        uPurpleBase: { value: new THREE.Color('#28004d') },
-        uVioletMid: { value: new THREE.Color('#9c27b0') },
-        uLilacEdge: { value: new THREE.Color('#f3e5f5') },
-        uRimIntensity: { value: 1.45 },
-      },
-      vertexShader: `
-        varying vec3 vNormal;
-        varying vec3 vWorldPos;
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          vNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
-          vec4 worldPos = modelMatrix * vec4(position, 1.0);
-          vWorldPos = worldPos.xyz;
-          gl_Position = projectionMatrix * viewMatrix * worldPos;
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 uPurpleBase;
-        uniform vec3 uVioletMid;
-        uniform vec3 uLilacEdge;
-        uniform vec3 uLightDir;
-        uniform float uRimIntensity;
-        varying vec3 vNormal;
-        varying vec3 vWorldPos;
-        varying vec2 vUv;
+    // pixel-art shelves in the violet of the marsh, a lilac pore rim
+    const shelfMat = spriteMaterial(bracketSprite('#8e2fb0', '#ecc8f5'));
+    materialsToDispose.push(shelfMat);
 
-        void main() {
-          vec3 N = normalize(vNormal);
-          vec3 L = normalize(uLightDir);
-          vec3 V = normalize(cameraPosition - vWorldPos);
-
-          float dist = length(vUv - vec2(0.5, 0.0)) * 2.0;
-          float ripple = sin(dist * 22.0) * 0.06;
-
-          vec3 col = mix(uPurpleBase, uVioletMid, smoothstep(0.15, 0.75, dist + ripple));
-          col = mix(col, uLilacEdge, smoothstep(0.78, 0.98, dist));
-
-          float NdotL = dot(N, L);
-          float cel = NdotL > 0.2 ? 1.0 : (NdotL > -0.1 ? 0.72 : 0.48);
-          col *= cel;
-
-          float fresnel = pow(1.0 - max(dot(N, V), 0.0), 2.2);
-          col += vec3(0.85, 0.45, 1.0) * fresnel * uRimIntensity * 0.9;
-
-          gl_FragColor = vec4(col, 1.0);
-        }
-      `,
-      side: THREE.DoubleSide,
-    });
-    materialsToDispose.push(shelfMushroomMaterial);
-
+    // one sprite (three stepped shelves) for every three the count asks for
     const targetCount = Math.min(22, config.shelfMushroomCount ?? 14);
-    for (let m = 0; m < targetCount; m++) {
-      const anchor = mushroomAnchors[m % mushroomAnchors.length];
-      const tierIndex = m % 3;
-      const scale = 0.28 + rnd() * 0.22 - tierIndex * 0.05;
-
-      const fanGeo = new THREE.CylinderGeometry(
-        scale * 0.85,
-        scale * 1.0,
-        0.05 * scale,
-        10,
-        1,
-        false,
-        0,
-        Math.PI * 0.92
-      );
-      geometriesToDispose.push(fanGeo);
-
-      const shroomMesh = new THREE.Mesh(fanGeo, shelfMushroomMaterial);
-      const pos = anchor.pos.clone().add(
-        new THREE.Vector3(
-          (rnd() - 0.5) * 0.1,
-          tierIndex * 0.12 + (rnd() - 0.5) * 0.04,
-          (rnd() - 0.5) * 0.1
-        )
-      );
-      shroomMesh.position.copy(pos);
-
-      const lookDir = anchor.normal.clone().setY(0).normalize();
-      shroomMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), lookDir);
-      group.add(shroomMesh);
+    for (let m = 0; m < targetCount; m += 3) {
+      const anchor = mushroomAnchors[(m / 3) % mushroomAnchors.length | 0];
+      const shelf = makeSprite(shelfMat, 0.55 + rnd() * 0.25);
+      shelf.position.copy(anchor.pos)
+        .addScaledVector(anchor.normal.clone().setY(0).normalize(), 0.12)
+        .add(new THREE.Vector3((rnd() - 0.5) * 0.1, (rnd() - 0.5) * 0.08, (rnd() - 0.5) * 0.1));
+      group.add(shelf);
     }
   }
 

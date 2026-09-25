@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { coconutSprite, makeSprite, spriteMaterial } from './pixelSprites';
 import { TreeConfig } from '../types';
 import { SCATreeData, cleanStemPath, groundedRingFrame } from './spaceColonization';
 import { PIXEL_BLADE_FRAGMENT_SHADER, createPixelBladeUniforms } from './pixelArtTextureSystem';
@@ -209,7 +210,7 @@ export function buildProceduralPalm(
   const crownTop = trunkCurve.getPointAt(1.0);
   const crownTangent = trunkCurve.getTangentAt(1.0).normalize();
 
-  // Register crown top as a branch tip for interactive items (apples/pinwheel)
+  // Register crown top as a branch tip for interactive items (fruit)
   branchTips.push({
     position: crownTop.clone().add(new THREE.Vector3(0, 0.4, 0)),
     normal: crownTangent.clone(),
@@ -568,30 +569,21 @@ export function buildProceduralPalm(
     foliageGroup.add(spearMesh);
   }
 
-  // Realistic Coconuts clustered tightly under the crown collar
-  const coconutCount = 7;
-  const coconutGeo = new THREE.SphereGeometry(0.32, 10, 8);
-  // Slightly elongated egg shape
-  coconutGeo.scale(0.88, 1.25, 0.88);
-  geometriesToDispose.push(coconutGeo);
-
-  const coconutMat = new THREE.MeshToonMaterial({
-    color: 0x4e342e,
-  });
+  // Coconuts: pixel-art bunches hanging under the crown collar
+  const coconutMat = spriteMaterial(coconutSprite());
   materialsToDispose.push(coconutMat);
-
-  for (let c = 0; c < coconutCount; c++) {
-    const cAngle = (c / coconutCount) * Math.PI * 2 + (rnd() - 0.5) * 0.25;
-    const dist = 0.42 + (rnd() - 0.5) * 0.12;
-    const cMesh = new THREE.Mesh(coconutGeo, coconutMat);
-    cMesh.position.set(
+  const bunches = 3;
+  for (let c = 0; c < bunches; c++) {
+    const cAngle = (c / bunches) * Math.PI * 2 + (rnd() - 0.5) * 0.5;
+    // (below the frond bases and out from the trunk, or the crown hides them)
+    const dist = 0.75 + rnd() * 0.1;
+    const bunch = makeSprite(coconutMat, 1.1 + rnd() * 0.2, new THREE.Vector2(0.5, 1));
+    bunch.position.set(
       crownTop.x + Math.cos(cAngle) * dist,
-      crownTop.y - 0.35 - (c % 2) * 0.18,
+      crownTop.y - 0.45 - rnd() * 0.2,
       crownTop.z + Math.sin(cAngle) * dist
     );
-    cMesh.rotation.set(0.3 * Math.cos(cAngle), cAngle, 0.3 * Math.sin(cAngle));
-    cMesh.castShadow = true;
-    foliageGroup.add(cMesh);
+    foliageGroup.add(bunch);
   }
 
   const update = (time: number, windStrength: number, windSpeed: number) => {

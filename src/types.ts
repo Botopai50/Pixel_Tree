@@ -160,7 +160,6 @@ export interface TreeConfig {
   accentColor?: string;
   showMushrooms: boolean;
   mushroomCount: number;
-  showKorokPinwheel: boolean;
   showFallingLeaves: boolean;
   fallingLeafCount: number;
   
