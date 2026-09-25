@@ -130,10 +130,12 @@ export function appleSprite(color = '#d8342b'): THREE.CanvasTexture {
   return cached(`apple:${color}`, () => {
     const p = new Pix(16, 16);
     const r = ramp(color);
-    ball(p, 8, 10, 6.4, 5.6, r);
-    // the shoulders either side of the dimple
+    // The shoulders either side of the dimple go down first and the body
+    // over them: drawn the other way round, each shoulder's own shaded lower
+    // edge was left lying across the middle of the apple as a dark streak.
     ball(p, 5.6, 8.2, 3.4, 3.2, r, false);
     ball(p, 10.4, 8.2, 3.4, 3.2, r, false);
+    ball(p, 8, 10, 6.4, 5.6, r, false);
     p.set(8, 5, r.deep);
     p.set(7, 5, r.dark);
     // highlight over the left shoulder
