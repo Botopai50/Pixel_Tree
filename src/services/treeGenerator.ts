@@ -11,7 +11,7 @@ import { buildProceduralSapling } from './saplingGenerator';
 import { buildProceduralDeadwood } from './deadwoodGenerator';
 import { createPixelBarkMaterial } from './pixelArtTextureSystem';
 import { buildHangingFruit } from './fruitSystem';
-import { makeSprite, mushroomSprite, spriteMaterial, surfaceSprite, MUSHROOM_CAPS, MUSHROOM_FOOT } from './pixelSprites';
+import { bracketSprite, makeSprite, mushroomSprite, spriteMaterial, surfaceSprite, MUSHROOM_CAPS, MUSHROOM_FOOT } from './pixelSprites';
 import { buildProceduralLog, LogResult, makeEndGrainTexture } from './logGenerator';
 import { cutTree, CutResult } from './treeCutter';
 
@@ -862,10 +862,15 @@ function buildTree(config: TreeConfig): TreeInstance {
     }
   }
 
-  // BotW Mushrooms around the trunk (placed naturally on the upper bark above roots)
+  // Mushrooms and bracket fungi at the trunk.
+  //
+  // A capped mushroom is drawn standing up, so it can only stand on something
+  // level: on the vertical bark, seen from the side, it stood beside the trunk
+  // touching it at one corner of its foot. So the capped ones grow in little
+  // clumps on the ground against the foot of the trunk, and the bark carries
+  // bracket fungi, which really do grow out sideways and are drawn in profile.
   // (logs grow their own bracket fungi and toadstools)
   if (config.showMushrooms && config.mushroomCount > 0 && !isSwamp && !isLog) {
-    // pixel-art mushroom sprites (a big cap and a small one), like the flowers
     // A mixed patch: every mushroom picks its own cap colour (the sacred
     // grove leans to the cool ones). One material per colour in use.
     const caps = config.species.startsWith('satori_sakura')
@@ -881,38 +886,34 @@ function buildTree(config: TreeConfig): TreeInstance {
       }
       return m;
     };
+    const shelfColors: [string, string][] = [
+      ['#e0923e', '#f3dfb4'],
+      ['#b8743a', '#ecd2a4'],
+      ['#d8b27a', '#f5ead0'],
+      ['#c8553a', '#f0d0b0'],
+    ];
+    const shelfMats = new Map<number, THREE.SpriteMaterial>();
+    const shelfMatFor = (i: number) => {
+      let m = shelfMats.get(i);
+      if (!m) {
+        m = spriteMaterial(bracketSprite(shelfColors[i][0], shelfColors[i][1]));
+        shelfMats.set(i, m);
+        materialsToDispose.push(m);
+      }
+      return m;
+    };
 
-    const trunkUpperNodes = scaData
-      ? scaData.allNodes.filter((n) => n.isTrunk && n.position.y >= 0.8 && n.position.y <= config.trunkHeight * 0.45)
-      : [];
-
-    // Mushrooms sit on the bark that is actually RENDERED. The node radius is
-    // not that surface - the mesh is tapered, flared at the foot and, on some
-    // species, rebuilt with its own radii - so a mushroom placed from it ends
-    // up half buried. A ray cast in toward the trunk finds the real surface
-    // and its normal instead.
+    // Everything sits on the bark that is actually RENDERED. The node radius
+    // is not that surface - the mesh is tapered, flared at the foot and, on
+    // some species, rebuilt with its own radii. A ray cast in toward the
+    // trunk finds the real surface and its normal instead.
     const woodMeshes = group.children.filter(
       (o) => (o as THREE.Mesh).isMesh && /Wood|Trunk|Fork/i.test(o.name)
     ) as THREE.Mesh[];
     group.updateMatrixWorld(true);
     const raycaster = new THREE.Raycaster();
-
-    for (let m = 0; m < config.mushroomCount; m++) {
-      const angle = (m * 2.39996) % (Math.PI * 2);
-      const around = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-
-      let axisPoint: THREE.Vector3;
-      let guessRadius: number;
-      if (trunkUpperNodes.length > 0) {
-        const node = trunkUpperNodes[m % trunkUpperNodes.length];
-        axisPoint = node.position.clone();
-        guessRadius = node.radius;
-      } else {
-        axisPoint = new THREE.Vector3(0, 0.9 + (m / config.mushroomCount) * 1.6, 0);
-        guessRadius = config.trunkRadiusBase * 0.82;
-      }
-
-      let surface = axisPoint.clone().addScaledVector(around, guessRadius);
+    const barkAt = (axisPoint: THREE.Vector3, around: THREE.Vector3, guess: number) => {
+      let surface = axisPoint.clone().addScaledVector(around, guess);
       let outward = around.clone();
       if (woodMeshes.length > 0) {
         raycaster.set(axisPoint.clone().addScaledVector(around, 8), around.clone().negate());
@@ -927,11 +928,56 @@ function buildTree(config: TreeConfig): TreeInstance {
           }
         }
       }
+      return { surface, outward };
+    };
 
-      // the foot of the stem on the bark itself (see surfaceSprite)
-      const cap = Math.floor(rnd() * caps.length);
-      const shroom = makeSprite(shroomMatFor(cap), 0.45 + rnd() * 0.2, MUSHROOM_FOOT);
-      group.add(surfaceSprite(shroom, surface.clone().addScaledVector(outward, -0.02)));
+    const trunkNodes = scaData ? scaData.allNodes.filter((n) => n.isTrunk) : [];
+    const foot = trunkNodes.length > 0
+      ? trunkNodes.reduce((a, b) => (b.position.y < a.position.y ? b : a)).position
+      : new THREE.Vector3();
+    const trunkUpperNodes = trunkNodes.filter(
+      (n) => n.position.y >= 0.8 && n.position.y <= config.trunkHeight * 0.4
+    );
+
+    // about a third of the count as brackets on the bark, the rest on the ground
+    const shelfCount = config.mushroomCount >= 3 ? Math.round(config.mushroomCount / 3) : 0;
+    const groundCount = config.mushroomCount - shelfCount;
+
+    // -- clumps of capped mushrooms at the foot of the trunk -----------------
+    let placed = 0;
+    let clump = 0;
+    while (placed < groundCount) {
+      const clumpAngle = clump * 2.39996 + rnd() * 0.4;
+      const inClump = Math.min(groundCount - placed, 2 + Math.floor(rnd() * 2));
+      for (let k = 0; k < inClump; k++, placed++) {
+        const angle = clumpAngle + (k - (inClump - 1) / 2) * 0.16 + (rnd() - 0.5) * 0.06;
+        const around = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+        // where the bark (or the root flare) meets the ground on this side
+        const { surface } = barkAt(
+          new THREE.Vector3(foot.x, 0.12, foot.z),
+          around,
+          config.trunkRadiusBase * 1.1
+        );
+        const at = surface.clone().addScaledVector(around, 0.05 + rnd() * 0.22);
+        at.y = -0.02; // foot in the soil
+        const cap = Math.floor(rnd() * caps.length);
+        const shroom = makeSprite(shroomMatFor(cap), (0.34 + rnd() * 0.26) * (k === 0 ? 1.15 : 1), MUSHROOM_FOOT);
+        const holder = surfaceSprite(shroom, at, 0.06);
+        holder.userData.ground = true;   // stays with the stump when the tree is felled
+        group.add(holder);
+      }
+      clump++;
+    }
+
+    // -- bracket fungi out of the bark ---------------------------------------
+    for (let m = 0; m < shelfCount; m++) {
+      const angle = (m * 2.39996 + 1.3) % (Math.PI * 2);
+      const around = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+      const node = trunkUpperNodes.length > 0 ? trunkUpperNodes[(m * 3) % trunkUpperNodes.length] : null;
+      const axisPoint = node ? node.position.clone() : new THREE.Vector3(foot.x, 1.0 + m * 0.5, foot.z);
+      const { surface } = barkAt(axisPoint, around, node ? node.radius : config.trunkRadiusBase * 0.82);
+      const shelf = makeSprite(shelfMatFor(Math.floor(rnd() * shelfColors.length)), 0.45 + rnd() * 0.2);
+      group.add(surfaceSprite(shelf, surface, 0.1));
     }
   }
 
