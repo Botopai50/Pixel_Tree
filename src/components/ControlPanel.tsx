@@ -12,7 +12,8 @@ import {
   RotateCcw,
   Sprout,
   Leaf,
-  Palette
+  Palette,
+  Axe
 } from 'lucide-react';
 import { TreeConfig, EnvironmentConfig, TreeSpecies, TimeOfDay, CrownShape } from '../types';
 import { TREE_PRESETS } from '../constants/presets';
@@ -44,7 +45,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   // Default directly to 'sliders' so procedural controls are immediately visible!
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('sliders');
   const [activeSection, setActiveSection] = useState<SliderSection>('all');
-  const [stageFilter, setStageFilter] = useState<'all' | 'adult' | 'sapling' | 'shrub'>('all');
+  const [stageFilter, setStageFilter] = useState<'all' | 'adult' | 'sapling' | 'shrub' | 'log'>('all');
   // On a phone the panel would cover the whole tree, so there it starts closed
   // and opens as a sheet from the bottom.
   const isMobile = useIsMobile();
@@ -465,14 +466,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   {/* Trunk Height */}
                   <div>
                     <div className="flex justify-between text-stone-300 mb-1">
-                      <span>Altura do Tronco</span>
+                      <span>
+                        {treeConfig.growthStage === 'log'
+                          ? treeConfig.species === 'tree_stump' ? 'Altura do Toco' : 'Comprimento do Tronco'
+                          : 'Altura do Tronco'}
+                      </span>
                       <span className="font-mono text-emerald-300 font-semibold">{treeConfig.trunkHeight.toFixed(1)}m</span>
                     </div>
                     <input
                       type="range"
-                      min="5"
-                      max="16"
-                      step="0.5"
+                      min={treeConfig.growthStage === 'log' ? (treeConfig.species === 'tree_stump' ? 0.3 : 2) : 5}
+                      max={treeConfig.growthStage === 'log' ? (treeConfig.species === 'tree_stump' ? 2 : 9) : 16}
+                      step={treeConfig.growthStage === 'log' ? 0.1 : 0.5}
                       value={treeConfig.trunkHeight}
                       onChange={(e) =>
                         onUpdateTreeConfig((prev) => ({ ...prev, trunkHeight: parseFloat(e.target.value) }))
@@ -480,8 +485,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                       className="w-full accent-emerald-500 cursor-pointer"
                     />
                     <div className="flex justify-between text-[10px] text-stone-400">
-                      <span>5.0m</span>
-                      <span>16.0m</span>
+                      <span>{treeConfig.growthStage === 'log' ? (treeConfig.species === 'tree_stump' ? '0.3m' : '2.0m') : '5.0m'}</span>
+                      <span>{treeConfig.growthStage === 'log' ? (treeConfig.species === 'tree_stump' ? '2.0m' : '9.0m') : '16.0m'}</span>
                     </div>
                   </div>
 
@@ -1787,7 +1792,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               </p>
 
               {/* Stage Filter Buttons */}
-              <div className="grid grid-cols-4 gap-1 p-1 bg-stone-900/90 rounded-lg border border-stone-800 text-[11px]">
+              <div className="grid grid-cols-5 gap-1 p-1 bg-stone-900/90 rounded-lg border border-stone-800 text-[11px]">
                 <button
                   onClick={() => setStageFilter('all')}
                   className={`py-1 rounded font-medium transition cursor-pointer text-center ${
@@ -1831,19 +1836,31 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   <Leaf className="w-3 h-3" />
                   <span>Arbustos</span>
                 </button>
+                <button
+                  onClick={() => setStageFilter('log')}
+                  className={`py-1 rounded font-medium transition flex items-center justify-center gap-1 cursor-pointer ${
+                    stageFilter === 'log'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  <Axe className="w-3 h-3" />
+                  <span>Troncos</span>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 gap-2 pt-1 max-h-[60vh] overflow-y-auto pr-1">
                 {presetsList
                   .filter((p) => {
                     if (stageFilter === 'all') return true;
-                    const stage = p.growthStage === 'shrub' ? 'shrub' : (p.growthStage === 'sapling' || p.species.endsWith('_sapling') ? 'sapling' : 'adult');
+                    const stage = p.growthStage === 'shrub' || p.growthStage === 'log' ? p.growthStage : (p.growthStage === 'sapling' || p.species.endsWith('_sapling') ? 'sapling' : 'adult');
                     return stage === stageFilter;
                   })
                   .map((preset) => {
                     const isSelected = treeConfig.species === preset.species;
                     const isSapling = preset.growthStage === 'sapling' || preset.species.endsWith('_sapling');
                     const isShrub = preset.growthStage === 'shrub';
+                    const isLog = preset.growthStage === 'log';
 
                     return (
                       <button
@@ -1876,7 +1893,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                                     : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                                 }`}
                               >
-                                {isShrub ? 'Arbusto' : isSapling ? 'Muda' : 'Adulta'} • {preset.trunkHeight}m
+                                {isLog ? 'Tronco' : isShrub ? 'Arbusto' : isSapling ? 'Muda' : 'Adulta'} • {preset.trunkHeight}m
                               </span>
                             </div>
                             <div className="text-[10px] text-stone-400 truncate">
@@ -1885,7 +1902,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                               {preset.foliageType === 'palm_frond' && 'Palmeira Tropical de Faron'}
                               {preset.foliageType === 'cactus_bloom' && 'Cacto de Gerudo (Florescente)'}
                               {preset.foliageType === 'swamp_weeping' && 'Manguezal do Pântano (Raízes Escoras)'}
-                              {preset.foliageType === 'none' && 'Árvore Seca / Deadwood (Sem Folhas, Galhos Retorcidos)'}
+                              {preset.foliageType === 'none' && !isLog && 'Árvore Seca / Deadwood (Sem Folhas, Galhos Retorcidos)'}
+                              {isLog && 'Madeira Caída no Chão da Floresta (Musgo & Fungos)'}
                             </div>
                           </div>
                         </div>
