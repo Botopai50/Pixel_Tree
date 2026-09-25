@@ -14,6 +14,7 @@ import { buildHangingFruit } from './fruitSystem';
 import { bracketSprite, makeSprite, mushroomSprite, spriteMaterial, surfaceSprite, MUSHROOM_CAPS, MUSHROOM_FOOT } from './pixelSprites';
 import { buildProceduralLog, LogResult, makeEndGrainTexture } from './logGenerator';
 import { cutTree, CutResult } from './treeCutter';
+import { buildPixelRocks } from './rockSystem';
 
 export interface TreeInstance {
   group: THREE.Group;
@@ -1087,26 +1088,23 @@ function buildTree(config: TreeConfig): TreeInstance {
       group.add(tuft);
     }
 
-    // Weathered low-poly stones nestled by the roots for dry withered trees
+    // Weathered stones by the roots of the dry tree: pixel-art boulders,
+    // seeded - some trees have none, others a cluster or three.
     if (biome.startsWith('dry_withered')) {
-      const stoneMat = new THREE.MeshToonMaterial({ color: 0x786e65 });
-      materialsToDispose.push(stoneMat);
-
-      for (let s = 0; s < 5; s++) {
-        const stoneR = (0.22 + rnd() * 0.25) * (isShrubGround ? 0.5 : 1);
-        const stoneGeo = new THREE.DodecahedronGeometry(stoneR, 0);
-        geometriesToDispose.push(stoneGeo);
-        const stoneMesh = new THREE.Mesh(stoneGeo, stoneMat);
-        const sAngle = (s / 5) * Math.PI * 2 + rnd() * 0.5;
-        const sDist = isShrubGround ? 0.8 + rnd() * 0.7 : config.trunkRadiusBase * 1.3 + 0.3 + rnd() * 0.8;
-        stoneMesh.position.set(Math.cos(sAngle) * sDist, stoneR * 0.4 - 0.05, Math.sin(sAngle) * sDist);
-        stoneMesh.rotation.set(rnd() * Math.PI, rnd() * Math.PI, rnd() * Math.PI);
-        stoneMesh.scale.set(1.2, 0.7, 1.0);
-        stoneMesh.castShadow = true;
-        stoneMesh.receiveShadow = true;
-        stoneMesh.userData.ground = true;
-        group.add(stoneMesh);
-      }
+      const rocks = buildPixelRocks(config, {
+        color: '#8c8171',
+        mossColor: '#a39a55',          // dry ochre lichen, not green moss
+        moss: 0.18,
+        chance: 0.6,
+        maxClusters: 3,
+        scale: isShrubGround ? 0.5 : 1,
+        minDist: isShrubGround ? 0.7 : config.trunkRadiusBase * 1.4 + 0.4,
+        maxDist: isShrubGround ? 1.5 : Math.min(moundRadius - 0.8, config.trunkRadiusBase * 1.4 + 2.2),
+      });
+      group.add(rocks.group);
+      geometriesToDispose.push(...rocks.geometries);
+      materialsToDispose.push(...rocks.materials);
+      texturesToDispose.push(...rocks.textures);
     }
   }
 

@@ -505,40 +505,8 @@ export function buildProceduralDeadwood(
   woodMesh.castShadow = true;
   woodMesh.receiveShadow = true;
 
-  // -------------------------------------------------------------
-  // 6. ENVIRONMENT ACCESSORIES: WEATHERED STEPPE BOULDERS & DEADWOOD DETRITUS
-  // -------------------------------------------------------------
-  const rockGroup = new THREE.Group();
-  rockGroup.name = 'SteppeRelicRocks';
-
-  const rockGeoMaster = new THREE.DodecahedronGeometry(1.0, 1);
-  geometriesToDispose.push(rockGeoMaster);
-  const rockMat = new THREE.MeshToonMaterial({
-    color: 0x756b5e,
-  });
-  materialsToDispose.push(rockMat);
-
-  const rockCount = 5 + Math.floor(rnd() * 4);
-  for (let r = 0; r < rockCount; r++) {
-    const rAngle = (r / rockCount) * Math.PI * 2 + (rnd() - 0.5) * 0.6;
-    const rDist = trunkRadiusBase * 1.35 + rnd() * (rootSpread * 1.2);
-    const rScaleX = 0.45 + rnd() * 0.65;
-    const rScaleY = 0.25 + rnd() * 0.4;
-    const rScaleZ = 0.45 + rnd() * 0.65;
-
-    const rockMesh = new THREE.Mesh(rockGeoMaster, rockMat);
-    rockMesh.position.set(
-      Math.cos(rAngle) * rDist,
-      rScaleY * 0.4,
-      Math.sin(rAngle) * rDist
-    );
-    rockMesh.scale.set(rScaleX, rScaleY, rScaleZ);
-    rockMesh.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
-    rockMesh.castShadow = true;
-    rockMesh.receiveShadow = true;
-    rockGroup.add(rockMesh);
-  }
-  foliageGroup.add(rockGroup);
+  // (The steppe boulders by its roots are laid out with the ground, by the
+  // rock system: seeded, in the pixel style, and never part of the tree.)
 
   // -------------------------------------------------------------
   // 7. WIND SWAY ANIMATOR FOR DEADWOOD SKELETON
