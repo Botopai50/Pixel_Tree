@@ -11,6 +11,7 @@ import { buildProceduralSapling } from './saplingGenerator';
 import { buildProceduralDeadwood } from './deadwoodGenerator';
 import { createPixelBarkMaterial } from './pixelArtTextureSystem';
 import { buildHangingFruit } from './fruitSystem';
+import { makeSprite, mushroomSprite, spriteMaterial } from './pixelSprites';
 import { buildProceduralLog, LogResult, makeEndGrainTexture } from './logGenerator';
 import { cutTree, CutResult } from './treeCutter';
 
@@ -18,7 +19,6 @@ export interface TreeInstance {
   group: THREE.Group;
   foliageMaterials: THREE.ShaderMaterial[];
   barkMaterial: THREE.ShaderMaterial;
-  pinwheelBlades: THREE.Mesh | null;
   update: (time: number) => void;
   dispose: () => void;
   /** false for what is already dead wood on the ground (the logs) */
@@ -201,7 +201,6 @@ function buildTree(config: TreeConfig): TreeInstance {
       group,
       foliageMaterials: [],
       barkMaterial: new THREE.ShaderMaterial(),
-      pinwheelBlades: saplingResult.pinwheelBlades,
       update: (time: number) => {
         saplingResult.update(time);
       },
@@ -831,9 +830,8 @@ function buildTree(config: TreeConfig): TreeInstance {
   }
 
   // -------------------------------------------------------------
-  // 6. BOTW ACCENTS (Apples, Mushrooms, Korok Pinwheel)
+  // 6. BOTW ACCENTS (Apples, Mushrooms)
   // -------------------------------------------------------------
-  let pinwheelBladesMesh: THREE.Mesh | null = null;
 
   // Fruit (not on the palm: it grows its own coconuts)
   if (config.showApples && config.appleCount > 0 && !isCactus && !isSwamp && !isPalm) {
@@ -867,15 +865,11 @@ function buildTree(config: TreeConfig): TreeInstance {
   // BotW Mushrooms around the trunk (placed naturally on the upper bark above roots)
   // (logs grow their own bracket fungi and toadstools)
   if (config.showMushrooms && config.mushroomCount > 0 && !isSwamp && !isLog) {
-    const shroomCapGeo = new THREE.ConeGeometry(0.22, 0.16, 8);
-    const shroomStemGeo = new THREE.CylinderGeometry(0.035, 0.05, 0.18, 6);
-
-    const shroomCapMat = new THREE.MeshToonMaterial({
-      color: config.species.startsWith('satori_sakura') ? 0x29b6f6 : 0xffa726,
-    });
-    const shroomStemMat = new THREE.MeshToonMaterial({ color: 0xf5f5dc });
-    materialsToDispose.push(shroomCapMat, shroomStemMat);
-    geometriesToDispose.push(shroomCapGeo, shroomStemGeo);
+    // pixel-art mushroom sprites (a big cap and a small one), like the flowers
+    const shroomMat = spriteMaterial(
+      mushroomSprite(config.species.startsWith('satori_sakura') ? '#3aa7e0' : '#e0782a')
+    );
+    materialsToDispose.push(shroomMat);
 
     const trunkUpperNodes = scaData
       ? scaData.allNodes.filter((n) => n.isTrunk && n.position.y >= 0.8 && n.position.y <= config.trunkHeight * 0.45)
@@ -891,8 +885,6 @@ function buildTree(config: TreeConfig): TreeInstance {
     ) as THREE.Mesh[];
     group.updateMatrixWorld(true);
     const raycaster = new THREE.Raycaster();
-    const worldUp = new THREE.Vector3(0, 1, 0);
-    const outwardTilt = THREE.MathUtils.degToRad(50); // from vertical: shows the cap from the side and above
 
     for (let m = 0; m < config.mushroomCount; m++) {
       const angle = (m * 2.39996) % (Math.PI * 2);
@@ -925,87 +917,12 @@ function buildTree(config: TreeConfig): TreeInstance {
         }
       }
 
-      // Growing out of the bark and tipped up, never into the trunk. (The old
-      // Euler pair - yaw by -angle, then roll by ~81 degrees - applied the roll
-      // first in three's XYZ order, which laid every mushroom pointing inward.)
-      const growDir = outward.clone().multiplyScalar(Math.sin(outwardTilt))
-        .addScaledVector(worldUp, Math.cos(outwardTilt))
-        .normalize();
-
-      const shroomGroup = new THREE.Group();
-      shroomGroup.position.copy(surface).addScaledVector(outward, -0.03);
-      shroomGroup.quaternion.setFromUnitVectors(worldUp, growDir);
-
-      const capMesh = new THREE.Mesh(shroomCapGeo, shroomCapMat);
-      capMesh.position.set(0, 0.19, 0);
-      const stemMesh = new THREE.Mesh(shroomStemGeo, shroomStemMat);
-      stemMesh.position.set(0, 0.07, 0); // stem base just inside the bark
-
-      shroomGroup.add(stemMesh);
-      shroomGroup.add(capMesh);
-      group.add(shroomGroup);
+      // Standing on the bark, out far enough that the trunk does not cut
+      // through the sprite as the camera goes round.
+      const shroom = makeSprite(shroomMat, 0.5 + rnd() * 0.15, new THREE.Vector2(0.5, 0.05));
+      shroom.position.copy(surface).addScaledVector(outward, 0.1);
+      group.add(shroom);
     }
-  }
-
-  // Korok Pinwheel! (Placed on prominent branch tip)
-  if (config.showKorokPinwheel) {
-    const pinwheelGroup = new THREE.Group();
-    pinwheelGroup.name = 'KorokPinwheel';
-
-    const stickGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.8, 6);
-    const stickMat = new THREE.MeshToonMaterial({ color: 0x8d6e63 });
-    const stick = new THREE.Mesh(stickGeo, stickMat);
-    stick.position.set(0, 0.4, 0);
-    pinwheelGroup.add(stick);
-    geometriesToDispose.push(stickGeo);
-    materialsToDispose.push(stickMat);
-
-    const bladeGeo = new THREE.BufferGeometry();
-    const bladeVerts: number[] = [];
-    const bladeColors: number[] = [];
-
-    const bladePalette = [
-      new THREE.Color(0xf44336),
-      new THREE.Color(0xffeb3b),
-      new THREE.Color(0x2196f3),
-      new THREE.Color(0x4caf50),
-    ];
-
-    for (let b = 0; b < 4; b++) {
-      const angle = (b * Math.PI) / 2;
-      const nextAngle = angle + Math.PI / 4;
-      const rBlade = 0.28;
-
-      bladeVerts.push(0, 0, 0);
-      bladeVerts.push(Math.cos(angle) * rBlade, Math.sin(angle) * rBlade, 0.02);
-      bladeVerts.push(Math.cos(nextAngle) * (rBlade * 0.7), Math.sin(nextAngle) * (rBlade * 0.7), -0.02);
-
-      const col = bladePalette[b];
-      for (let k = 0; k < 3; k++) {
-        bladeColors.push(col.r, col.g, col.b);
-      }
-    }
-
-    bladeGeo.setAttribute('position', new THREE.Float32BufferAttribute(bladeVerts, 3));
-    bladeGeo.setAttribute('color', new THREE.Float32BufferAttribute(bladeColors, 3));
-    bladeGeo.computeVertexNormals();
-
-    const bladeMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
-    const blades = new THREE.Mesh(bladeGeo, bladeMat);
-    blades.position.set(0, 0.8, 0.04);
-    pinwheelGroup.add(blades);
-
-    pinwheelBladesMesh = blades;
-    geometriesToDispose.push(bladeGeo);
-    materialsToDispose.push(bladeMat);
-
-    // Place on highest or first branch tip
-    const anchorTip = branchTips[0] || { position: new THREE.Vector3(1, config.trunkHeight * 0.6, 0) };
-    pinwheelGroup.position.copy(anchorTip.position);
-    pinwheelGroup.position.y += 0.2;
-    pinwheelGroup.rotation.y = rnd() * Math.PI;
-
-    group.add(pinwheelGroup);
   }
 
   // -------------------------------------------------------------
@@ -1183,9 +1100,6 @@ function buildTree(config: TreeConfig): TreeInstance {
       foliageUpdater(time);
     }
 
-    if (pinwheelBladesMesh) {
-      pinwheelBladesMesh.rotation.z += 0.08 * (config.windSpeed * 1.5 + 0.2);
-    }
   };
 
   const dispose = () => {
@@ -1199,7 +1113,6 @@ function buildTree(config: TreeConfig): TreeInstance {
     group,
     foliageMaterials,
     barkMaterial,
-    pinwheelBlades: pinwheelBladesMesh,
     update,
     dispose,
   };

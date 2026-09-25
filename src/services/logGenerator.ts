@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TreeConfig } from '../types';
+import { bracketSprite, makeSprite, mushroomSprite, spriteMaterial } from './pixelSprites';
 
 /**
  * Logs and stumps (the "Troncos" category): dead wood lying on, or standing
@@ -800,14 +801,6 @@ export function buildProceduralLog(
     }
     frames.forEach((f) => (extent = Math.max(extent, Math.hypot(f.p.x, f.p.z) + r0)));
 
-    // tip for the Korok pinwheel: on top of the log, near its middle
-    const mid = frames[Math.floor(frames.length * 0.55)];
-    branchTips.unshift({
-      position: mid.p.clone().add(new THREE.Vector3(0, THREE.MathUtils.lerp(r0, r1, 0.55) * 0.95 - 0.2, 0)),
-      normal: new THREE.Vector3(0, 1, 0),
-      scale: 1,
-    });
-
     // ---- bracket fungi on the flanks ---------------------------------------
     if (config.showMushrooms && config.mushroomCount > 0) {
       addBracketFungi(config, frames, r0, r1, rnd, group, materialsToDispose, geometriesToDispose);
@@ -816,37 +809,16 @@ export function buildProceduralLog(
 
   // ---- stump: toadstools at its foot -----------------------------------------
   if (kind === 'stump' && config.showMushrooms && config.mushroomCount > 0) {
-    const capGeo = new THREE.SphereGeometry(0.14, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-    const stemGeo = new THREE.CylinderGeometry(0.035, 0.05, 0.16, 6);
-    const capMat = new THREE.MeshToonMaterial({ color: 0xd9452f });
-    const dotMat = new THREE.MeshToonMaterial({ color: 0xfff4e0 });
-    const stemMat = new THREE.MeshToonMaterial({ color: 0xf2e6cf });
-    const dotGeo = new THREE.SphereGeometry(0.025, 5, 4);
-    geometriesToDispose.push(capGeo, stemGeo, dotGeo);
-    materialsToDispose.push(capMat, dotMat, stemMat);
+    // pixel-art toadstools (red, pale flecks) standing in the grass
+    const toadMat = spriteMaterial(mushroomSprite('#d9452f', true));
+    materialsToDispose.push(toadMat);
     const count = Math.min(10, config.mushroomCount);
     for (let m = 0; m < count; m++) {
       const a = (m * 2.39996 + knotPhase) % (Math.PI * 2);
-      const d = r0 * (1.2 + rnd() * 0.5) + 0.1;
-      const sc = 0.7 + rnd() * 0.6;
-      const g = new THREE.Group();
-      g.position.set(Math.cos(a) * d, 0, Math.sin(a) * d);
-      g.scale.setScalar(sc);
-      g.rotation.set((rnd() - 0.5) * 0.3, rnd() * Math.PI, (rnd() - 0.5) * 0.3);
-      const stem = new THREE.Mesh(stemGeo, stemMat);
-      stem.position.y = 0.08;
-      const cap = new THREE.Mesh(capGeo, capMat);
-      cap.position.y = 0.14;
-      cap.scale.y = 0.75;
-      g.add(stem, cap);
-      for (let k = 0; k < 3; k++) {
-        const dot = new THREE.Mesh(dotGeo, dotMat);
-        const da = k * 2.1 + rnd();
-        dot.position.set(Math.cos(da) * 0.08, 0.14 + 0.075, Math.sin(da) * 0.08);
-        g.add(dot);
-      }
-      g.traverse((o) => ((o as THREE.Mesh).castShadow = true));
-      group.add(g);
+      const d = r0 * (1.2 + rnd() * 0.5) + 0.15;
+      const toad = makeSprite(toadMat, 0.34 + rnd() * 0.16, new THREE.Vector2(0.5, 0.02));
+      toad.position.set(Math.cos(a) * d, 0, Math.sin(a) * d);
+      group.add(toad);
     }
     // and a shelf or two on the stump's own side
     const f: Frame[] = framesAlong(
@@ -902,11 +874,10 @@ function addBracketFungi(
   geometriesToDispose: THREE.BufferGeometry[],
   upright = false
 ) {
-  const shelfGeo = new THREE.CylinderGeometry(1, 1.06, 0.3, 12, 1, false, 0, Math.PI);
-  geometriesToDispose.push(shelfGeo);
-  const topMat = new THREE.MeshToonMaterial({ color: 0xe8a04a });
-  const paleMat = new THREE.MeshToonMaterial({ color: 0xf1dcb0 });
-  materialsToDispose.push(topMat, paleMat);
+  // pixel-art shelves, one sprite per cluster
+  const shelfMat = spriteMaterial(bracketSprite());
+  materialsToDispose.push(shelfMat);
+  void geometriesToDispose;
 
   const clusters = Math.max(1, Math.round(config.mushroomCount / 3));
   for (let c = 0; c < clusters; c++) {
@@ -921,24 +892,13 @@ function addBracketFungi(
     } else {
       const sideSign = rnd() > 0.5 ? 1 : -1;
       const flank = f.t.clone().cross(new THREE.Vector3(0, 1, 0)).normalize().multiplyScalar(sideSign);
-      out = flank.addScaledVector(new THREE.Vector3(0, 1, 0), (rnd() - 0.2) * 0.5).normalize();
+      out = flank.addScaledVector(new THREE.Vector3(0, 1, 0), (rnd() - 0.2) * 0.4).normalize();
     }
-    const horiz = out.clone().setY(0).normalize();
-    const yaw = Math.atan2(-horiz.z, horiz.x);
-    const shelves = 2 + Math.floor(rnd() * 2);
-    for (let k = 0; k < shelves; k++) {
-      const size = rHere * (0.28 + rnd() * 0.12) * (1 - k * 0.2);
-      const shelf = new THREE.Mesh(shelfGeo, k % 2 ? paleMat : topMat);
-      const along = (rnd() - 0.5) * rHere * 0.5;
-      shelf.position.copy(f.p)
-        .addScaledVector(out, rHere * 0.92)
-        .addScaledVector(f.t, upright ? 0 : along)
-        .add(new THREE.Vector3(0, k * size * 0.55 - size * 0.3, 0));
-      if (upright) shelf.position.addScaledVector(horiz, 0.02);
-      shelf.scale.set(size, size * 0.35, size);
-      shelf.rotation.set(0, yaw, 0);
-      shelf.castShadow = true;
-      group.add(shelf);
-    }
+    // set half into the wood, so the bark hides its inner edge from the side
+    const shelf = makeSprite(shelfMat, rHere * (upright ? 0.55 : 0.75) * (0.9 + rnd() * 0.25));
+    shelf.position.copy(f.p)
+      .addScaledVector(out, rHere * 0.97)
+      .addScaledVector(f.t, upright ? 0 : (rnd() - 0.5) * rHere * 0.5);
+    group.add(shelf);
   }
 }

@@ -1258,22 +1258,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     )}
                   </div>
 
-                  {/* Korok Pinwheel */}
-                  <div className="p-2.5 rounded-lg bg-stone-900/60 border border-stone-800 flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-stone-200">Cata-Vento Korok</div>
-                      <div className="text-[10px] text-stone-400">Gira dinamicamente com a brisa</div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={treeConfig.showKorokPinwheel}
-                      onChange={(e) =>
-                        onUpdateTreeConfig((prev) => ({ ...prev, showKorokPinwheel: e.target.checked }))
-                      }
-                      className="accent-emerald-500 w-4 h-4 cursor-pointer"
-                    />
-                  </div>
-
                   {/* Falling Leaves Particles */}
                   <div className="p-2.5 rounded-lg bg-stone-900/60 border border-stone-800 space-y-2">
                     <div className="flex items-center justify-between">
