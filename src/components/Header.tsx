@@ -8,7 +8,8 @@ import {
   VolumeX, 
   RotateCw, 
   Focus, 
-  Maximize2 
+  Maximize2,
+  Axe
 } from 'lucide-react';
 import { TreeConfig, EnvironmentConfig } from '../types';
 import { audioSystem } from '../services/audioSynthesizer';
@@ -25,6 +26,9 @@ interface HeaderProps {
   onFocusTrunk: () => void;
   onScreenshot: () => void;
   onExportOBJ: () => void;
+  onFell: () => void;
+  /** the tree on screen has been felled already */
+  isFelled: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -39,7 +43,11 @@ export const Header: React.FC<HeaderProps> = ({
   onFocusTrunk,
   onScreenshot,
   onExportOBJ,
+  onFell,
+  isFelled,
 }) => {
+  // what is already a log or a stump has nothing left to fell
+  const canFell = treeConfig.growthStage !== 'log' && !isFelled;
   return (
     <header
       id="botw-header"
@@ -145,6 +153,28 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         <div className="hidden sm:block h-4 w-[1px] bg-stone-700" />
+
+        {/* Fell the tree */}
+        <button
+          id="btn-fell-tree"
+          onClick={onFell}
+          disabled={!canFell}
+          className={`p-2 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border ${
+            canFell
+              ? 'bg-orange-600/25 hover:bg-orange-600/40 border-orange-500/50 text-orange-200 cursor-pointer active:scale-95'
+              : 'bg-stone-800/40 border-stone-700/40 text-stone-500 cursor-not-allowed'
+          }`}
+          title={
+            isFelled
+              ? 'Árvore já cortada: mude a semente ou a espécie para uma nova'
+              : treeConfig.growthStage === 'log'
+              ? 'Troncos e tocos já estão cortados'
+              : 'Cortar a árvore: separa o toco e o tronco'
+          }
+        >
+          <Axe className={`w-4 h-4 ${canFell ? 'text-orange-400' : ''}`} />
+          <span className="hidden sm:inline">{isFelled ? 'Cortada' : 'Cortar'}</span>
+        </button>
 
         {/* Screenshot */}
         <button

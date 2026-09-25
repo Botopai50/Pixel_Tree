@@ -11,6 +11,8 @@ export interface Viewport3DHandle {
   resetCamera: () => void;
   focusCanopy: () => void;
   focusTrunk: () => void;
+  /** fells the tree on screen; false when it cannot be felled */
+  fellTree: () => boolean;
 }
 
 // The camera's vertical field of view. On a wide screen it is a fixed 42
@@ -26,6 +28,17 @@ function fovForAspect(aspect: number): number {
 // ...and past that cap, a tall narrow screen frames the tree from further back.
 function portraitDistanceScale(aspect: number): number {
   return aspect >= 1 ? 1 : Math.min(1.4, 1 / Math.sqrt(aspect * 1.4));
+}
+
+/** Sizes the sun's shadow box to cover `half` metres each way. */
+function setShadowSpan(light: THREE.DirectionalLight, half: number) {
+  const cam = light.shadow.camera;
+  cam.left = -half;
+  cam.right = half;
+  cam.top = half + 4;
+  cam.bottom = -Math.max(4, half * 0.6);
+  cam.far = Math.max(50, half * 4);
+  cam.updateProjectionMatrix();
 }
 
 interface Viewport3DProps {
@@ -220,6 +233,10 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         particleSystemRef.current.dispose();
         particleSystemRef.current = null;
       }
+
+      // a new tree stands whole: the light's shadow box back to its size
+      if (dirLightRef.current) setShadowSpan(dirLightRef.current, 12);
+      if (controlsRef.current) controlsRef.current.maxDistance = 38;
 
       // Generate new procedural tree
       const newTree = createTree(treeConfig);
@@ -422,6 +439,24 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
           cameraRef.current.position.set(0, targetY + 1.5, treeConfig.clusterRadius * 4.5 + 4);
         }
         controlsRef.current.update();
+      },
+      fellTree: () => {
+        const tree = treeInstanceRef.current;
+        if (!tree?.fell || !tree.canFell) return false;
+        const info = tree.fell();
+        if (!info) return false;
+        // frame the stump and the whole felled tree beside it
+        if (cameraRef.current && controlsRef.current) {
+          const target = info.centre.clone().setY(Math.min(1.5, 0.6 + info.span * 0.03));
+          const dist = Math.min(58, info.span * 1.1 + Math.min(4, info.span * 0.4)) * portraitDistanceScale(cameraRef.current.aspect);
+          controlsRef.current.maxDistance = 60;
+          controlsRef.current.target.copy(target);
+          cameraRef.current.position.copy(target).add(new THREE.Vector3(0, 0.45, 1).normalize().multiplyScalar(dist));
+          controlsRef.current.update();
+        }
+        // the felled tree reaches past the light's usual shadow box
+        if (dirLightRef.current) setShadowSpan(dirLightRef.current, Math.max(12, info.span * 0.75 + 4));
+        return true;
       },
       focusTrunk: () => {
         if (!cameraRef.current || !controlsRef.current) return;

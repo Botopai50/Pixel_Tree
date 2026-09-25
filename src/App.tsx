@@ -21,6 +21,16 @@ export default function App() {
   // the phone settings sheet, while open, covers the lower part of the scene
   const [sheetOpen, setSheetOpen] = useState(false);
   const viewportRef = useRef<Viewport3DHandle>(null);
+  // the tree on screen has been felled; a new tree (any change) stands whole
+  const [isFelled, setIsFelled] = useState(false);
+  useEffect(() => setIsFelled(false), [treeConfig]);
+
+  const handleFell = () => {
+    if (viewportRef.current?.fellTree()) {
+      audioSystem.playLeafRustle();
+      setIsFelled(true);
+    }
+  };
 
   // Quick preset selector
   const handleSelectPreset = (species: TreeSpecies) => {
@@ -86,6 +96,8 @@ export default function App() {
         onFocusTrunk={() => viewportRef.current?.focusTrunk()}
         onScreenshot={() => viewportRef.current?.takeScreenshot()}
         onExportOBJ={() => viewportRef.current?.exportOBJ()}
+        onFell={handleFell}
+        isFelled={isFelled}
       />
 
       {/* Floating Control & Customization Panel */}
