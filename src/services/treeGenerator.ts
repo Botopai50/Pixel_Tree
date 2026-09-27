@@ -17,6 +17,7 @@ import { createPixelEndGrainMaterial } from './endGrainMaterial';
 import { cutTree, CutResult } from './treeCutter';
 import { buildPixelRocks } from './rockSystem';
 import { buildGroundPlant, GroundPlantResult } from './groundPlantGenerator';
+import { buildRockFormation, RockFormationResult } from './rockFormationGenerator';
 
 export interface TreeInstance {
   group: THREE.Group;
@@ -62,7 +63,7 @@ export function createTree(sourceConfig: TreeConfig): TreeInstance {
   const config: TreeConfig = { ...sourceConfig };
   const tree = buildTree(config);
   // (what is already a log or a stump, or a plant on the ground, has nothing to fell)
-  const canFell = config.growthStage !== 'log' && config.growthStage !== 'plant';
+  const canFell = config.growthStage !== 'log' && config.growthStage !== 'plant' && config.growthStage !== 'rock';
 
   const extraGeometries: THREE.BufferGeometry[] = [];
   const extraMaterials: THREE.Material[] = [];
@@ -157,6 +158,12 @@ const SHRUB_BIOME: Record<string, string> = {
   fern_plant: 'korok_ancient',
   wildflower_patch: 'hyrule_oak',
   reed_clump: 'marsh',
+  rock_slate: 'hebra_pine',   // mountain soil
+  rock_spire: 'hebra_pine',
+  rock_mossy: 'korok_ancient',
+  rock_arctic: 'tundra',
+  rock_shore: 'faron_palm',   // shore sand
+  rock_river: 'marsh',
   satori_shrub: 'satori_sakura',
   akkala_shrub: 'akkala_birch',
   hebra_shrub: 'hebra_pine',
@@ -450,6 +457,9 @@ function buildTree(config: TreeConfig): TreeInstance {
   // ground plants: fern, wildflowers, reeds
   const isPlant = config.growthStage === 'plant';
   let plantResult: GroundPlantResult | null = null;
+  // rock formations
+  const isRock = config.growthStage === 'rock';
+  let rockResult: RockFormationResult | null = null;
   const texturesToDispose: THREE.Texture[] = [];
 
   const isPalm = !isLog && config.species.startsWith('faron_palm') || config.foliageType === 'palm_frond';
@@ -457,10 +467,16 @@ function buildTree(config: TreeConfig): TreeInstance {
   const isCactus = !isLog && config.species.startsWith('gerudo_cactus') || config.foliageType === 'cactus_bloom';
   const isSwamp = !isLog && config.species.startsWith('swamp_mangrove') || config.foliageType === 'swamp_weeping' || config.barkStyle === 'swamp';
   // (a bare bush grows like any other bush, just without leaves)
-  const isDeadwood = !isLog && !isPlant && config.growthStage !== 'shrub' &&
+  const isDeadwood = !isLog && !isPlant && !isRock && config.growthStage !== 'shrub' &&
     (config.species.startsWith('dry_withered') || config.foliageType === 'none' || config.barkStyle === 'deadwood');
 
-  if (isPlant) {
+  if (isRock) {
+    rockResult = buildRockFormation(config, rnd);
+    group.add(rockResult.group);
+    geometriesToDispose.push(...rockResult.geometries);
+    materialsToDispose.push(...rockResult.materials);
+    texturesToDispose.push(...rockResult.textures);
+  } else if (isPlant) {
     plantResult = buildGroundPlant(config, sharedUniforms, rnd);
     group.add(plantResult.group);
     geometriesToDispose.push(...plantResult.geometries);
@@ -890,7 +906,7 @@ function buildTree(config: TreeConfig): TreeInstance {
   // clumps on the ground against the foot of the trunk, and the bark carries
   // bracket fungi, which really do grow out sideways and are drawn in profile.
   // (logs grow their own bracket fungi and toadstools)
-  if (config.showMushrooms && config.mushroomCount > 0 && !isSwamp && !isLog && !isPlant) {
+  if (config.showMushrooms && config.mushroomCount > 0 && !isSwamp && !isLog && !isPlant && !isRock) {
     // A mixed patch: every mushroom picks its own cap colour (the sacred
     // grove leans to the cool ones). One material per colour in use.
     const caps = config.species.startsWith('satori_sakura')
@@ -1005,13 +1021,15 @@ function buildTree(config: TreeConfig): TreeInstance {
   // 7. PEDESTAL & HYRULE GROUND ISLAND (ILHA DE TERRA E RAÍZES BOTW)
   // -------------------------------------------------------------
   // a bush stands on a small island of its own size
-  const isShrubGround = config.growthStage === 'shrub' || isPlant;
+  const isShrubGround = config.growthStage === 'shrub' || isPlant || isRock;
   // A biome's bush stands on the same ground as that biome's tree.
   const biome = SHRUB_BIOME[config.species] ?? config.species;
   const moundRadius = logResult
     ? Math.max(2.8, logResult.extent + 0.9)
     : isPlant
     ? 2.2
+    : isRock
+    ? Math.max(2.4, config.trunkHeight * 1.6 + 1.2)
     : isShrubGround
     ? 2.6
     : Math.max(config.rootSpread * 3.8 + config.trunkRadiusBase + 2.5, 5.0);
@@ -1107,6 +1125,7 @@ function buildTree(config: TreeConfig): TreeInstance {
       // not through the log (or the plant): grass grows round it instead
       if (logResult && logResult.occupies(tuft.position.x, tuft.position.z)) continue;
       if (plantResult && plantResult.occupies(tuft.position.x, tuft.position.z)) continue;
+      if (rockResult && rockResult.occupies(tuft.position.x, tuft.position.z)) continue;
 
       // 3 blades per cluster
       for (let b = 0; b < 3; b++) {

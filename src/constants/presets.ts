@@ -188,6 +188,21 @@ const PLANT_BASE: Omit<TreeConfig, 'id' | 'name' | 'species' | 'seed'> = {
   windSpeed: 1.0,
 };
 
+// Rock formations: built by services/rockFormationGenerator.ts in the pixel
+// stone style. barkColor is the stone, foliageColorTop its moss or lichen,
+// mossAmount how much of it, trunkHeight the rock's size.
+const ROCK_BASE: Omit<TreeConfig, 'id' | 'name' | 'species' | 'seed'> = {
+  ...PLANT_BASE,
+  growthStage: 'rock',
+  trunkHeight: 1.2,
+  barkColor: '#7d8088',
+  barkStyle: 'oak',
+  foliageColorTop: '#8c9a55',
+  foliageColorBottom: '#3c4a25',
+  mossAmount: 0.12,
+  windStrength: 0,
+};
+
 export const TREE_PRESETS: Record<string, TreeConfig> = {
   hyrule_oak: {
     id: 'hyrule_oak',
@@ -2253,5 +2268,92 @@ export const TREE_PRESETS: Record<string, TreeConfig> = {
     foliageColorTop: '#6f9e3c', // reed green, a little yellow
     foliageColorBottom: '#274a20',
     windStrength: 0.55,
+  },
+
+  rock_boulder: {
+    ...ROCK_BASE,
+    id: 'rock_boulder',
+    name: 'Rocha Arredondada',
+    species: 'rock_boulder',
+    seed: 5101,
+  },
+
+  rock_pebbles: {
+    ...ROCK_BASE,
+    id: 'rock_pebbles',
+    name: 'Pedregulhos',
+    species: 'rock_pebbles',
+    seed: 5212,
+    trunkHeight: 0.9,
+    barkColor: '#80827f',
+  },
+
+  rock_slate: {
+    ...ROCK_BASE,
+    id: 'rock_slate',
+    name: 'Laje de Ardósia',
+    species: 'rock_slate',
+    seed: 5323,
+    trunkHeight: 1.3,
+    barkColor: '#5f6670', // blue-grey slate
+    mossAmount: 0.18,
+  },
+
+  rock_spire: {
+    ...ROCK_BASE,
+    id: 'rock_spire',
+    name: 'Agulha de Pedra',
+    species: 'rock_spire',
+    seed: 5434,
+    trunkHeight: 3.2,
+    barkColor: '#767680',
+    mossAmount: 0.2,
+  },
+
+  rock_mossy: {
+    ...ROCK_BASE,
+    id: 'rock_mossy',
+    name: 'Rocha com Musgo',
+    species: 'rock_mossy',
+    seed: 5545,
+    barkColor: '#6f7278',
+    foliageColorTop: '#5f9a35', // deep forest moss
+    foliageColorBottom: '#23461c',
+    mossAmount: 0.85,
+  },
+
+  rock_arctic: {
+    ...ROCK_BASE,
+    id: 'rock_arctic',
+    name: 'Rocha Ártica',
+    species: 'rock_arctic',
+    seed: 5656,
+    barkColor: '#93a9ba', // the cold blue-grey of tundra rock
+    foliageColorTop: '#c8d2b4', // pale frost lichen
+    foliageColorBottom: '#6c7a6c',
+    mossAmount: 0.2,
+  },
+
+  rock_shore: {
+    ...ROCK_BASE,
+    id: 'rock_shore',
+    name: 'Rocha de Praia',
+    species: 'rock_shore',
+    seed: 5767,
+    barkColor: '#565c68', // dark, sea-worn
+    foliageColorTop: '#b8b07a', // salt-bleached lichen
+    mossAmount: 0.08,
+  },
+
+  rock_river: {
+    ...ROCK_BASE,
+    id: 'rock_river',
+    name: 'Seixo de Rio',
+    species: 'rock_river',
+    seed: 5878,
+    trunkHeight: 0.85,
+    barkColor: '#6e6446', // olive-brown river stone
+    foliageColorTop: '#6d8a3a',
+    mossAmount: 0.1,
   },
 };
