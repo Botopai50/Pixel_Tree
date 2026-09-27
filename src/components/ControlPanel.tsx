@@ -13,7 +13,8 @@ import {
   Sprout,
   Leaf,
   Palette,
-  Axe
+  Axe,
+  Flower2
 } from 'lucide-react';
 import { TreeConfig, EnvironmentConfig, TreeSpecies, TimeOfDay, CrownShape } from '../types';
 import { TREE_PRESETS } from '../constants/presets';
@@ -45,7 +46,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   // Default directly to 'sliders' so procedural controls are immediately visible!
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('sliders');
   const [activeSection, setActiveSection] = useState<SliderSection>('all');
-  const [stageFilter, setStageFilter] = useState<'all' | 'adult' | 'sapling' | 'shrub' | 'log'>('all');
+  const [stageFilter, setStageFilter] = useState<'all' | 'adult' | 'sapling' | 'shrub' | 'log' | 'plant'>('all');
   // On a phone the panel would cover the whole tree, so there it starts closed
   // and opens as a sheet from the bottom.
   const isMobile = useIsMobile();
@@ -463,32 +464,46 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     <span className="text-[10px] text-stone-400 uppercase tracking-wider font-mono">Geometria</span>
                   </div>
 
-                  {/* Trunk Height */}
-                  <div>
-                    <div className="flex justify-between text-stone-300 mb-1">
-                      <span>
-                        {treeConfig.growthStage === 'log'
-                          ? treeConfig.species === 'tree_stump' ? 'Altura do Toco' : 'Comprimento do Tronco'
-                          : 'Altura do Tronco'}
-                      </span>
-                      <span className="font-mono text-emerald-300 font-semibold">{treeConfig.trunkHeight.toFixed(1)}m</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={treeConfig.growthStage === 'log' ? (treeConfig.species === 'tree_stump' ? 0.3 : 2) : 5}
-                      max={treeConfig.growthStage === 'log' ? (treeConfig.species === 'tree_stump' ? 2 : 9) : 16}
-                      step={treeConfig.growthStage === 'log' ? 0.1 : 0.5}
-                      value={treeConfig.trunkHeight}
-                      onChange={(e) =>
-                        onUpdateTreeConfig((prev) => ({ ...prev, trunkHeight: parseFloat(e.target.value) }))
-                      }
-                      className="w-full accent-emerald-500 cursor-pointer"
-                    />
-                    <div className="flex justify-between text-[10px] text-stone-400">
-                      <span>{treeConfig.growthStage === 'log' ? (treeConfig.species === 'tree_stump' ? '0.3m' : '2.0m') : '5.0m'}</span>
-                      <span>{treeConfig.growthStage === 'log' ? (treeConfig.species === 'tree_stump' ? '2.0m' : '9.0m') : '16.0m'}</span>
-                    </div>
-                  </div>
+                  {/* Trunk Height: its range and name follow what is being grown */}
+                  {(() => {
+                    const g = treeConfig.growthStage;
+                    const isSapling = g === 'sapling' || treeConfig.species.endsWith('_sapling');
+                    const [min, max, step, label] =
+                      g === 'log'
+                        ? treeConfig.species === 'tree_stump'
+                          ? [0.3, 2, 0.1, 'Altura do Toco']
+                          : [2, 9, 0.1, 'Comprimento do Tronco']
+                        : g === 'plant'
+                        ? [0.2, 2.5, 0.05, 'Altura da Planta']
+                        : g === 'shrub'
+                        ? [0.3, 3, 0.05, 'Altura do Arbusto']
+                        : isSapling
+                        ? [0.4, 2.5, 0.05, 'Altura da Muda']
+                        : [5, 16, 0.5, 'Altura do Tronco'];
+                    return (
+                      <div>
+                        <div className="flex justify-between text-stone-300 mb-1">
+                          <span>{label}</span>
+                          <span className="font-mono text-emerald-300 font-semibold">{treeConfig.trunkHeight.toFixed(step < 0.1 ? 2 : 1)}m</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={min}
+                          max={max}
+                          step={step}
+                          value={treeConfig.trunkHeight}
+                          onChange={(e) =>
+                            onUpdateTreeConfig((prev) => ({ ...prev, trunkHeight: parseFloat(e.target.value) }))
+                          }
+                          className="w-full accent-emerald-500 cursor-pointer"
+                        />
+                        <div className="flex justify-between text-[10px] text-stone-400">
+                          <span>{Number(min).toFixed(1)}m</span>
+                          <span>{Number(max).toFixed(1)}m</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Base Radius */}
                   <div>
@@ -1776,7 +1791,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               </p>
 
               {/* Stage Filter Buttons */}
-              <div className="grid grid-cols-5 gap-1 p-1 bg-stone-900/90 rounded-lg border border-stone-800 text-[11px]">
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1 bg-stone-900/90 rounded-lg border border-stone-800 text-[11px]">
                 <button
                   onClick={() => setStageFilter('all')}
                   className={`py-1 rounded font-medium transition cursor-pointer text-center ${
@@ -1831,13 +1846,24 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   <Axe className="w-3 h-3" />
                   <span>Troncos</span>
                 </button>
+                <button
+                  onClick={() => setStageFilter('plant')}
+                  className={`py-1 rounded font-medium transition flex items-center justify-center gap-1 cursor-pointer ${
+                    stageFilter === 'plant'
+                      ? 'bg-rose-600 text-white shadow-sm'
+                      : 'text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  <Flower2 className="w-3 h-3" />
+                  <span>Rasteiras</span>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 gap-2 pt-1 max-h-[60vh] overflow-y-auto pr-1">
                 {presetsList
                   .filter((p) => {
                     if (stageFilter === 'all') return true;
-                    const stage = p.growthStage === 'shrub' || p.growthStage === 'log' ? p.growthStage : (p.growthStage === 'sapling' || p.species.endsWith('_sapling') ? 'sapling' : 'adult');
+                    const stage = p.growthStage === 'shrub' || p.growthStage === 'log' || p.growthStage === 'plant' ? p.growthStage : (p.growthStage === 'sapling' || p.species.endsWith('_sapling') ? 'sapling' : 'adult');
                     return stage === stageFilter;
                   })
                   .map((preset) => {
@@ -1845,6 +1871,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     const isSapling = preset.growthStage === 'sapling' || preset.species.endsWith('_sapling');
                     const isShrub = preset.growthStage === 'shrub';
                     const isLog = preset.growthStage === 'log';
+                    const isPlant = preset.growthStage === 'plant';
 
                     return (
                       <button
@@ -1877,7 +1904,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                                     : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                                 }`}
                               >
-                                {isLog ? 'Tronco' : isShrub ? 'Arbusto' : isSapling ? 'Muda' : 'Adulta'} • {preset.trunkHeight}m
+                                {isPlant ? 'Rasteira' : isLog ? 'Tronco' : isShrub ? 'Arbusto' : isSapling ? 'Muda' : 'Adulta'} • {preset.trunkHeight}m
                               </span>
                             </div>
                             <div className="text-[10px] text-stone-400 truncate">
@@ -1886,7 +1913,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                               {preset.foliageType === 'palm_frond' && 'Palmeira Tropical de Faron'}
                               {preset.foliageType === 'cactus_bloom' && 'Cacto de Gerudo (Florescente)'}
                               {preset.foliageType === 'swamp_weeping' && 'Manguezal do Pântano (Raízes Escoras)'}
-                              {preset.foliageType === 'none' && !isLog && 'Árvore Seca / Deadwood (Sem Folhas, Galhos Retorcidos)'}
+                              {preset.foliageType === 'none' && !isLog && !isPlant && preset.growthStage !== 'shrub' && 'Árvore Seca / Deadwood (Sem Folhas, Galhos Retorcidos)'}
+                              {isPlant && 'Planta Rasteira (Folhas em Pixel Art)'}
                               {isLog && 'Madeira Caída no Chão da Floresta (Musgo & Fungos)'}
                             </div>
                           </div>

@@ -37,7 +37,14 @@ export type TreeSpecies =
   | 'fallen_log'
   | 'hollow_log'
   | 'rooted_log'
-  | 'tree_stump';
+  | 'tree_stump'
+  | 'maple_red'
+  | 'maple_orange'
+  | 'maple_yellow'
+  | 'arctic_willow'
+  | 'fern_plant'
+  | 'wildflower_patch'
+  | 'reed_clump';
 
 export type TimeOfDay = 'day' | 'sunset' | 'night' | 'misty';
 
@@ -47,7 +54,7 @@ export interface TreeConfig {
   id: string;
   name: string;
   species: TreeSpecies;
-  growthStage?: 'adult' | 'sapling' | 'shrub' | 'log'; // full tree, young sapling, bush or log / stump
+  growthStage?: 'adult' | 'sapling' | 'shrub' | 'log' | 'plant'; // tree, sapling, bush, log / stump or ground plant
   seed: number;
   
   // Space Colonization Algorithm (SCA)

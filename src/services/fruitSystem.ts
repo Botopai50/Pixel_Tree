@@ -84,7 +84,7 @@ const flowerSpriteCache = new Map<string, THREE.CanvasTexture>();
  * own shade - the same hard-stepped look as the rest of the tree, where a
  * smooth petal shape read as a vector sticker.
  */
-function flowerSprite(color: string): THREE.CanvasTexture {
+export function flowerSprite(color: string): THREE.CanvasTexture {
   const hit = flowerSpriteCache.get(color);
   if (hit) return hit;
   const N = 12;

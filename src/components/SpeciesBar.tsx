@@ -12,6 +12,7 @@ import {
   X,
   Check,
   Axe,
+  Flower2,
 } from 'lucide-react';
 
 interface SpeciesBarProps {
@@ -19,7 +20,7 @@ interface SpeciesBarProps {
   onSelectPreset: (species: TreeSpecies) => void;
 }
 
-type Stage = 'adult' | 'sapling' | 'shrub' | 'log';
+type Stage = 'adult' | 'sapling' | 'shrub' | 'log' | 'plant';
 
 interface PresetItem {
   id: string;
@@ -34,6 +35,7 @@ function stageOf(p: TreeConfig | undefined): Stage {
   if (!p) return 'adult';
   if (p.growthStage === 'shrub') return 'shrub';
   if (p.growthStage === 'log') return 'log';
+  if (p.growthStage === 'plant') return 'plant';
   if (p.growthStage === 'sapling' || p.species.endsWith('_sapling')) return 'sapling';
   return 'adult';
 }
@@ -84,6 +86,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
   const saplingPresets = presetsOf('sapling');
   const shrubPresets = presetsOf('shrub');
   const logPresets = presetsOf('log');
+  const plantPresets = presetsOf('plant');
 
   const displayedPresets =
     activeTab === 'adult'
@@ -92,7 +95,9 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
       ? saplingPresets
       : activeTab === 'shrub'
       ? shrubPresets
-      : logPresets;
+      : activeTab === 'log'
+      ? logPresets
+      : plantPresets;
 
   const handleSelect = (species: TreeSpecies) => {
     audioSystem.playKorokJingle();
@@ -268,6 +273,39 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
                 })}
               </div>
             </div>
+
+            {/* Ground plants */}
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-400 mb-2">
+                <Flower2 className="w-4 h-4" />
+                <span>Plantas Rasteiras ({plantPresets.length})</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {plantPresets.map((item) => {
+                  const isSelected = currentSpecies === item.species;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleSelect(item.species)}
+                      className={`p-2 rounded-xl text-left border text-xs font-medium transition cursor-pointer flex flex-col gap-1 ${
+                        isSelected
+                          ? 'bg-rose-600/30 border-rose-500 text-rose-100 shadow-sm'
+                          : 'bg-stone-900/80 border-stone-800 text-stone-300 hover:text-white hover:bg-stone-800 hover:border-stone-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span
+                          className="w-3 h-3 rounded-full border border-black/40 shadow-sm shrink-0"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        {isSelected && <Check className="w-3.5 h-3.5 text-rose-400" />}
+                      </div>
+                      <span className="truncate font-sans">{item.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -287,7 +325,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
             title="Exibir árvores adultas"
           >
             <TreePine className="w-3.5 h-3.5" />
-            <span>Árvores</span>
+            <span className={activeTab === 'adult' ? '' : 'hidden sm:inline'}>Árvores</span>
             <span className="hidden sm:inline text-[10px] opacity-75">{adultPresets.length}</span>
           </button>
 
@@ -302,7 +340,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
             title="Exibir mudas e brotos"
           >
             <Sprout className="w-3.5 h-3.5" />
-            <span>Mudas</span>
+            <span className={activeTab === 'sapling' ? '' : 'hidden sm:inline'}>Mudas</span>
             <span className="hidden sm:inline text-[10px] opacity-75">{saplingPresets.length}</span>
           </button>
 
@@ -317,7 +355,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
             title="Exibir arbustos"
           >
             <Leaf className="w-3.5 h-3.5" />
-            <span>Arbustos</span>
+            <span className={activeTab === 'shrub' ? '' : 'hidden sm:inline'}>Arbustos</span>
             <span className="hidden sm:inline text-[10px] opacity-75">{shrubPresets.length}</span>
           </button>
 
@@ -332,8 +370,23 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
             title="Exibir troncos e tocos"
           >
             <Axe className="w-3.5 h-3.5" />
-            <span>Troncos</span>
+            <span className={activeTab === 'log' ? '' : 'hidden sm:inline'}>Troncos</span>
             <span className="hidden sm:inline text-[10px] opacity-75">{logPresets.length}</span>
+          </button>
+
+          <button
+            id="tab-select-plant"
+            onClick={() => setActiveTab('plant')}
+            className={`flex-1 md:flex-none justify-center px-1.5 sm:px-2.5 py-1.5 md:py-1 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition cursor-pointer ${
+              activeTab === 'plant'
+                ? 'bg-rose-600 text-white shadow-md shadow-rose-950/60'
+                : 'text-stone-400 hover:text-stone-200'
+            }`}
+            title="Exibir plantas rasteiras"
+          >
+            <Flower2 className="w-3.5 h-3.5" />
+            <span className={activeTab === 'plant' ? '' : 'hidden sm:inline'}>Rasteiras</span>
+            <span className="hidden sm:inline text-[10px] opacity-75">{plantPresets.length}</span>
           </button>
         </div>
 
@@ -368,6 +421,8 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
                       ? 'bg-teal-600 text-white shadow-md shadow-teal-900/50'
                       : activeTab === 'log'
                       ? 'bg-amber-600 text-white shadow-md shadow-amber-900/50'
+                      : activeTab === 'plant'
+                      ? 'bg-rose-600 text-white shadow-md shadow-rose-900/50'
                       : 'bg-emerald-600 text-white shadow-md shadow-emerald-900/50'
                     : 'bg-stone-900/60 text-stone-300 hover:text-white hover:bg-stone-800/80 border border-stone-800/60'
                 }`}
@@ -442,6 +497,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
 }
 
 function formatShortName(fullName: string, stage: Stage): string {
+  if (stage === 'plant') return fullName;
   if (stage === 'log') {
     return fullName.replace('Tronco com Raízes', 'Com Raízes');
   }
@@ -458,7 +514,8 @@ function formatShortName(fullName: string, stage: Stage): string {
       .replace('Arbusto Korok', 'Korok')
       .replace('Arbusto do Pântano', 'Pântano')
       .replace('Arbusto da Savana', 'Savana')
-      .replace('Arbusto Seco', 'Seco');
+      .replace('Arbusto Seco', 'Seco')
+      .replace('Salgueiro-anão Ártico', 'Salgueiro Ártico');
   }
   if (stage === 'sapling') {
     return fullName
@@ -486,7 +543,8 @@ function formatShortName(fullName: string, stage: Stage): string {
     .replace('Cacto de Gerudo', 'Cacto Gerudo')
     .replace('Árvore do Pântano (Manguezal)', 'Manguezal')
     .replace('Árvore Seca de Hyrule', 'Árvore Seca')
-    .replace('Acácia da Savana', 'Acácia');
+    .replace('Acácia da Savana', 'Acácia')
+    .replace(/Bordo Outonal \((\w+)\)/, 'Bordo $1');
 }
 
 
