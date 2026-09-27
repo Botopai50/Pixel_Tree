@@ -99,6 +99,95 @@ const LOG_BASE: Omit<TreeConfig, 'id' | 'name' | 'species' | 'seed'> = {
   windSpeed: 0.8,
 };
 
+// The autumn maples: broadleaf crowns grown like the oak's, rounder and a
+// little narrower, on a short straight trunk, in the three colours of a
+// maple wood in October. Only the leaf colours differ between them.
+const MAPLE_BASE: Omit<TreeConfig, 'id' | 'name' | 'species' | 'seed'> = {
+  growthStage: 'adult',
+  useSpaceColonization: true,
+  scaAttractorCount: 380,
+  scaAttractionRadius: 3.8,
+  scaKillDistance: 0.66,
+  scaStepSize: 0.4,
+  scaCrownShape: 'sphere',
+  showAttractors: false,
+  trunkHeight: 8.5,
+  trunkRadiusBase: 0.95,
+  trunkRadiusTop: 0.42,
+  trunkCurvature: 0.12,
+  trunkTwist: 0.15,
+  rootSpread: 1.1,
+  branchCount: 5,
+  branchLength: 3.6,
+  branchAngle: 0.62,
+  branchStartHeight: 0.46,
+  canopySpread: 1.05,
+  subBranchDensity: 0.55,
+  foliageType: 'cloud',
+  clusterCount: 28,
+  clusterRadius: 1.35,
+  clusterDetail: 2,
+  foliageColorTop: '#d8452b',
+  foliageColorBottom: '#6e1a12',
+  foliageRoughness: 0.35,
+  celSteps: 3,
+  rimLightIntensity: 0.4,
+  foliageDensity: 0.78,
+  patchRadius: 1.1,
+  patchRadiusVariance: 0.26,
+  patchSpacing: 0.95,
+  patchDensity: 0.78,
+  terminalBranchBias: 0.9,
+  crownWidth: 0.95,
+  crownHeight: 1.2,
+  noiseScale: 0.32,
+  noiseStrength: 0.5,
+  noiseThreshold: 0.4,
+  clustersPerPatch: 4,
+  cardsPerClusterMin: 2,
+  cardsPerClusterMax: 4,
+  leafCardSize: 1.5,
+  leafCardSizeVariance: 0.22,
+  alphaTest: 0.4,
+  interiorDarkening: 0.5,
+  flutterStrength: 0.04,
+  barkColor: '#3f2e24',
+  barkRoughness: 0.8,
+  barkStyle: 'oak',
+  mossAmount: 0.1,
+  showApples: false,
+  appleCount: 0,
+  showMushrooms: true,
+  mushroomCount: 4,
+  showFallingLeaves: true,
+  fallingLeafCount: 70,   // an autumn tree sheds all the time
+  windStrength: 0.5,
+  windSpeed: 1.0,
+};
+
+// Ground plants (fern, wildflowers, reeds): built by
+// services/groundPlantGenerator.ts, no wood or crown. trunkHeight is the
+// plant's height; the foliage colours are its greens.
+const PLANT_BASE: Omit<TreeConfig, 'id' | 'name' | 'species' | 'seed'> = {
+  ...SHRUB_BASE,
+  growthStage: 'plant',
+  useSpaceColonization: false,
+  trunkHeight: 1.0,
+  foliageType: 'none',
+  clusterCount: 0,
+  foliageDensity: 0,
+  patchDensity: 0,
+  mossAmount: 0,
+  showApples: false,
+  appleCount: 0,
+  showMushrooms: false,
+  mushroomCount: 0,
+  showFallingLeaves: false,
+  fallingLeafCount: 0,
+  windStrength: 0.45,
+  windSpeed: 1.0,
+};
+
 export const TREE_PRESETS: Record<string, TreeConfig> = {
   hyrule_oak: {
     id: 'hyrule_oak',
@@ -2073,5 +2162,96 @@ export const TREE_PRESETS: Record<string, TreeConfig> = {
     barkColor: '#5a3f2b',
     mossAmount: 0.35,
     mushroomCount: 6,
+  },
+
+  maple_red: {
+    ...MAPLE_BASE,
+    id: 'maple_red',
+    name: 'Bordo Outonal (Vermelho)',
+    species: 'maple_red',
+    seed: 3101,
+    foliageColorTop: '#dc4a2c',
+    foliageColorBottom: '#6a1911',
+  },
+
+  maple_orange: {
+    ...MAPLE_BASE,
+    id: 'maple_orange',
+    name: 'Bordo Outonal (Laranja)',
+    species: 'maple_orange',
+    seed: 3212,
+    foliageColorTop: '#f08c26',
+    foliageColorBottom: '#86370d',
+  },
+
+  maple_yellow: {
+    ...MAPLE_BASE,
+    id: 'maple_yellow',
+    name: 'Bordo Outonal (Amarelo)',
+    species: 'maple_yellow',
+    seed: 3323,
+    foliageColorTop: '#e9c83c',
+    foliageColorBottom: '#7f6112',
+  },
+
+  arctic_willow: {
+    ...SHRUB_BASE,
+    id: 'arctic_willow',
+    name: 'Salgueiro-anão Ártico',
+    species: 'arctic_willow',
+    seed: 3434,
+    // a low mat hugging the tundra: many creeping stems, wide and flat
+    scaAttractorCount: 520,
+    trunkHeight: 0.5,
+    trunkCurvature: 0.3,
+    branchCount: 8,
+    branchAngle: 1.1,
+    branchStartHeight: 0.02,
+    canopySpread: 1.2,
+    crownWidth: 1.45,
+    crownHeight: 0.45,
+    foliageDensity: 0.95,
+    patchDensity: 0.95,
+    leafCardSize: 0.45,
+    foliageColorTop: '#4f6d42', // the dark dusty sage of the tundra willow
+    foliageColorBottom: '#15271a',
+    barkColor: '#5b4637',
+    mossAmount: 0.1,
+    windStrength: 0.35,
+  },
+
+  fern_plant: {
+    ...PLANT_BASE,
+    id: 'fern_plant',
+    name: 'Samambaia',
+    species: 'fern_plant',
+    seed: 4101,
+    trunkHeight: 1.0,
+    foliageColorTop: '#5fae3a', // the forest floor's fresh green
+    foliageColorBottom: '#1f4f1c',
+  },
+
+  wildflower_patch: {
+    ...PLANT_BASE,
+    id: 'wildflower_patch',
+    name: 'Flores Silvestres',
+    species: 'wildflower_patch',
+    seed: 4212,
+    trunkHeight: 0.5,
+    foliageColorTop: '#7ab84a',
+    foliageColorBottom: '#2f5a24',
+    windStrength: 0.5,
+  },
+
+  reed_clump: {
+    ...PLANT_BASE,
+    id: 'reed_clump',
+    name: 'Juncos',
+    species: 'reed_clump',
+    seed: 4323,
+    trunkHeight: 1.7,
+    foliageColorTop: '#6f9e3c', // reed green, a little yellow
+    foliageColorBottom: '#274a20',
+    windStrength: 0.55,
   },
 };

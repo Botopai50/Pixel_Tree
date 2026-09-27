@@ -16,6 +16,7 @@ import { buildProceduralLog, LogResult } from './logGenerator';
 import { createPixelEndGrainMaterial } from './endGrainMaterial';
 import { cutTree, CutResult } from './treeCutter';
 import { buildPixelRocks } from './rockSystem';
+import { buildGroundPlant, GroundPlantResult } from './groundPlantGenerator';
 
 export interface TreeInstance {
   group: THREE.Group;
@@ -60,7 +61,8 @@ export function createTree(sourceConfig: TreeConfig): TreeInstance {
   // touching the settings the panel shows.
   const config: TreeConfig = { ...sourceConfig };
   const tree = buildTree(config);
-  const canFell = config.growthStage !== 'log';
+  // (what is already a log or a stump, or a plant on the ground, has nothing to fell)
+  const canFell = config.growthStage !== 'log' && config.growthStage !== 'plant';
 
   const extraGeometries: THREE.BufferGeometry[] = [];
   const extraMaterials: THREE.Material[] = [];
@@ -147,6 +149,14 @@ function fellInfo(cut: CutResult, gap: number): FellInfo {
 // The ground, grass and stones a biome's bush stands on: the same as that
 // biome's tree.
 const SHRUB_BIOME: Record<string, string> = {
+  // (and the ground plants and the new trees: where each one grows)
+  arctic_willow: 'tundra',
+  maple_red: 'maple',
+  maple_orange: 'maple',
+  maple_yellow: 'maple',
+  fern_plant: 'korok_ancient',
+  wildflower_patch: 'hyrule_oak',
+  reed_clump: 'marsh',
   satori_shrub: 'satori_sakura',
   akkala_shrub: 'akkala_birch',
   hebra_shrub: 'hebra_pine',
@@ -437,6 +447,9 @@ function buildTree(config: TreeConfig): TreeInstance {
   // logs and stumps: lying or standing dead wood, no crown at all
   const isLog = config.growthStage === 'log';
   let logResult: LogResult | null = null;
+  // ground plants: fern, wildflowers, reeds
+  const isPlant = config.growthStage === 'plant';
+  let plantResult: GroundPlantResult | null = null;
   const texturesToDispose: THREE.Texture[] = [];
 
   const isPalm = !isLog && config.species.startsWith('faron_palm') || config.foliageType === 'palm_frond';
@@ -444,10 +457,16 @@ function buildTree(config: TreeConfig): TreeInstance {
   const isCactus = !isLog && config.species.startsWith('gerudo_cactus') || config.foliageType === 'cactus_bloom';
   const isSwamp = !isLog && config.species.startsWith('swamp_mangrove') || config.foliageType === 'swamp_weeping' || config.barkStyle === 'swamp';
   // (a bare bush grows like any other bush, just without leaves)
-  const isDeadwood = !isLog && config.growthStage !== 'shrub' &&
+  const isDeadwood = !isLog && !isPlant && config.growthStage !== 'shrub' &&
     (config.species.startsWith('dry_withered') || config.foliageType === 'none' || config.barkStyle === 'deadwood');
 
-  if (isLog) {
+  if (isPlant) {
+    plantResult = buildGroundPlant(config, sharedUniforms, rnd);
+    group.add(plantResult.group);
+    geometriesToDispose.push(...plantResult.geometries);
+    materialsToDispose.push(...plantResult.materials);
+    texturesToDispose.push(...plantResult.textures);
+  } else if (isLog) {
     // The moss on the bark grows thickest low down and on surfaces facing
     // up; measured against a tree's height the whole log counts as "low",
     // so the moss settles on its top and flanks as it does on real logs.
@@ -871,7 +890,7 @@ function buildTree(config: TreeConfig): TreeInstance {
   // clumps on the ground against the foot of the trunk, and the bark carries
   // bracket fungi, which really do grow out sideways and are drawn in profile.
   // (logs grow their own bracket fungi and toadstools)
-  if (config.showMushrooms && config.mushroomCount > 0 && !isSwamp && !isLog) {
+  if (config.showMushrooms && config.mushroomCount > 0 && !isSwamp && !isLog && !isPlant) {
     // A mixed patch: every mushroom picks its own cap colour (the sacred
     // grove leans to the cool ones). One material per colour in use.
     const caps = config.species.startsWith('satori_sakura')
@@ -986,11 +1005,13 @@ function buildTree(config: TreeConfig): TreeInstance {
   // 7. PEDESTAL & HYRULE GROUND ISLAND (ILHA DE TERRA E RAÍZES BOTW)
   // -------------------------------------------------------------
   // a bush stands on a small island of its own size
-  const isShrubGround = config.growthStage === 'shrub';
+  const isShrubGround = config.growthStage === 'shrub' || isPlant;
   // A biome's bush stands on the same ground as that biome's tree.
   const biome = SHRUB_BIOME[config.species] ?? config.species;
   const moundRadius = logResult
     ? Math.max(2.8, logResult.extent + 0.9)
+    : isPlant
+    ? 2.2
     : isShrubGround
     ? 2.6
     : Math.max(config.rootSpread * 3.8 + config.trunkRadiusBase + 2.5, 5.0);
@@ -1017,6 +1038,12 @@ function buildTree(config: TreeConfig): TreeInstance {
     ? 0x2e271f // Swamp marsh mud
     : biome.startsWith('dry_withered')
     ? 0x6e5c49 // Arid scorched steppe soil
+    : biome === 'tundra'
+    ? 0x7b7d62 // Cold tundra: grey-olive moss and lichen
+    : biome === 'maple'
+    ? 0x7d5a31 // Autumn forest floor, deep in fallen leaves
+    : biome === 'marsh'
+    ? 0x4a4630 // Damp mud at the water's edge
     : 0x588e36; // Lush Hyrule field green
 
   const moundMat = new THREE.MeshToonMaterial({
@@ -1050,6 +1077,12 @@ function buildTree(config: TreeConfig): TreeInstance {
         ? 0xa89368 // Dry golden savannah grass
         : biome.startsWith('hebra_pine')
         ? 0x6e9970
+        : biome === 'tundra'
+        ? 0x9aa17a // Pale tundra sedge
+        : biome === 'maple'
+        ? 0xc98a3a // Autumn grass, gone gold
+        : biome === 'marsh'
+        ? 0x6f9a44 // Lush marsh grass
         : 0x7cb342, // Vibrant Hyrule green
       side: THREE.DoubleSide,
     });
@@ -1071,8 +1104,9 @@ function buildTree(config: TreeConfig): TreeInstance {
       const tuft = new THREE.Group();
       tuft.userData.ground = true;
       tuft.position.set(Math.cos(grAngle) * grDist, 0.0, Math.sin(grAngle) * grDist);
-      // not through the log: grass grows along it instead
+      // not through the log (or the plant): grass grows round it instead
       if (logResult && logResult.occupies(tuft.position.x, tuft.position.z)) continue;
+      if (plantResult && plantResult.occupies(tuft.position.x, tuft.position.z)) continue;
 
       // 3 blades per cluster
       for (let b = 0; b < 3; b++) {
