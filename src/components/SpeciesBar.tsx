@@ -13,7 +13,6 @@ import {
   Check,
   Axe,
   Flower2,
-  Mountain,
 } from 'lucide-react';
 
 interface SpeciesBarProps {
@@ -21,7 +20,7 @@ interface SpeciesBarProps {
   onSelectPreset: (species: TreeSpecies) => void;
 }
 
-type Stage = 'adult' | 'sapling' | 'shrub' | 'log' | 'plant' | 'rock';
+type Stage = 'adult' | 'sapling' | 'shrub' | 'log' | 'plant';
 
 interface PresetItem {
   id: string;
@@ -37,7 +36,6 @@ function stageOf(p: TreeConfig | undefined): Stage {
   if (p.growthStage === 'shrub') return 'shrub';
   if (p.growthStage === 'log') return 'log';
   if (p.growthStage === 'plant') return 'plant';
-  if (p.growthStage === 'rock') return 'rock';
   if (p.growthStage === 'sapling' || p.species.endsWith('_sapling')) return 'sapling';
   return 'adult';
 }
@@ -81,8 +79,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
         name: p.name,
         shortName: formatShortName(p.name, stage),
         species: p.species as TreeSpecies,
-        // (a rock's chip shows its stone, not its moss)
-        color: (stage === 'rock' ? p.barkColor : p.foliageColorTop) || '#7ec832',
+        color: p.foliageColorTop || '#7ec832',
         growthStage: stage,
       }));
   const adultPresets = presetsOf('adult');
@@ -90,7 +87,6 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
   const shrubPresets = presetsOf('shrub');
   const logPresets = presetsOf('log');
   const plantPresets = presetsOf('plant');
-  const rockPresets = presetsOf('rock');
 
   const displayedPresets =
     activeTab === 'adult'
@@ -101,9 +97,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
       ? shrubPresets
       : activeTab === 'log'
       ? logPresets
-      : activeTab === 'plant'
-      ? plantPresets
-      : rockPresets;
+      : plantPresets;
 
   const handleSelect = (species: TreeSpecies) => {
     audioSystem.playKorokJingle();
@@ -312,39 +306,6 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
                 })}
               </div>
             </div>
-
-            {/* Rock formations */}
-            <div>
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 mb-2">
-                <Mountain className="w-4 h-4" />
-                <span>Pedras ({rockPresets.length})</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                {rockPresets.map((item) => {
-                  const isSelected = currentSpecies === item.species;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleSelect(item.species)}
-                      className={`p-2 rounded-xl text-left border text-xs font-medium transition cursor-pointer flex flex-col gap-1 ${
-                        isSelected
-                          ? 'bg-slate-500/30 border-slate-400 text-slate-100 shadow-sm'
-                          : 'bg-stone-900/80 border-stone-800 text-stone-300 hover:text-white hover:bg-stone-800 hover:border-stone-700'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span
-                          className="w-3 h-3 rounded-full border border-black/40 shadow-sm shrink-0"
-                          style={{ backgroundColor: item.color }}
-                        />
-                        {isSelected && <Check className="w-3.5 h-3.5 text-slate-300" />}
-                      </div>
-                      <span className="truncate font-sans">{item.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -427,21 +388,6 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
             <span className={activeTab === 'plant' ? '' : 'hidden sm:inline'}>Rasteiras</span>
             <span className="hidden sm:inline text-[10px] opacity-75">{plantPresets.length}</span>
           </button>
-
-          <button
-            id="tab-select-rock"
-            onClick={() => setActiveTab('rock')}
-            className={`flex-1 md:flex-none justify-center px-1.5 sm:px-2.5 py-1.5 md:py-1 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition cursor-pointer ${
-              activeTab === 'rock'
-                ? 'bg-slate-500 text-white shadow-md shadow-slate-950/60'
-                : 'text-stone-400 hover:text-stone-200'
-            }`}
-            title="Exibir pedras"
-          >
-            <Mountain className="w-3.5 h-3.5" />
-            <span className={activeTab === 'rock' ? '' : 'hidden sm:inline'}>Pedras</span>
-            <span className="hidden sm:inline text-[10px] opacity-75">{rockPresets.length}</span>
-          </button>
         </div>
 
         {/* Scroll Left Button */}
@@ -477,8 +423,6 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
                       ? 'bg-amber-600 text-white shadow-md shadow-amber-900/50'
                       : activeTab === 'plant'
                       ? 'bg-rose-600 text-white shadow-md shadow-rose-900/50'
-                      : activeTab === 'rock'
-                      ? 'bg-slate-500 text-white shadow-md shadow-slate-900/50'
                       : 'bg-emerald-600 text-white shadow-md shadow-emerald-900/50'
                     : 'bg-stone-900/60 text-stone-300 hover:text-white hover:bg-stone-800/80 border border-stone-800/60'
                 }`}
@@ -553,7 +497,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
 }
 
 function formatShortName(fullName: string, stage: Stage): string {
-  if (stage === 'plant' || stage === 'rock') return fullName;
+  if (stage === 'plant') return fullName;
   if (stage === 'log') {
     return fullName.replace('Tronco com Raízes', 'Com Raízes');
   }

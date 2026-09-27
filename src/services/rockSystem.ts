@@ -26,15 +26,13 @@ function stoneRamp(baseHex: string, steps: number): RGB[] {
   // violet, and the rocks came out tinted.)
   const base = new THREE.Color(baseHex);
   const shadow = new THREE.Color('#262a36');
-  // the light end stays close to the stone's own colour: a grey rock lit by
-  // the sun is a pale grey, not cream
-  const light = base.clone().lerp(new THREE.Color('#ece6d6'), 0.5);
+  const light = new THREE.Color('#efe4c9');
   const out: RGB[] = [];
   for (let i = 0; i < steps; i++) {
     const t = i / (steps - 1);
     const c = t < 0.5
       ? shadow.clone().lerp(base, t / 0.5)
-      : base.clone().lerp(light, (t - 0.5) / 0.5);
+      : base.clone().lerp(light, (t - 0.5) / 0.5 * 0.85);
     out.push([Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)]);
   }
   return out;
@@ -47,7 +45,7 @@ function mossRamp(hex: string, steps: number): RGB[] {
   const out: RGB[] = [];
   for (let i = 0; i < steps; i++) {
     const t = i / (steps - 1);
-    const c = new THREE.Color().setHSL(hsl.h + (t - 0.5) * 0.05, hsl.s * (0.75 + t * 0.15), THREE.MathUtils.lerp(0.12, Math.min(0.52, hsl.l + 0.18), t));
+    const c = new THREE.Color().setHSL(hsl.h + (t - 0.5) * 0.05, hsl.s * (0.8 + t * 0.2), THREE.MathUtils.lerp(0.14, 0.62, t));
     out.push([Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)]);
   }
   return out;
@@ -206,26 +204,10 @@ export interface RockResult {
 }
 
 /**
- * Pushes every corner of a flat-faced (non-indexed) geometry in or out from
- * its centre by up to `amount`. The corner's own position picks the amount,
- * so the copies of one corner in its neighbouring faces move together and no
- * crack opens.
- */
-export function jitterCorners(geo: THREE.BufferGeometry, amount: number, seed: number) {
-  const pos = geo.attributes.position as THREE.BufferAttribute;
-  const v = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i);
-    const h = Math.sin(v.x * 12.9898 + v.y * 78.233 + v.z * 37.719 + seed) * 43758.5453;
-    v.multiplyScalar(1 + ((h - Math.floor(h)) - 0.5) * 2 * amount);
-    pos.setXYZ(i, v.x, v.y, v.z);
-  }
-}
-
-/**
  * A faceted boulder: a jittered icosahedron, closed, with big flat faces,
- * already scaled and turned (so the edge distances are in metres), with the
- * lit-edge attributes (see addStoneEdges).
+ * already scaled and turned (so the edge distances below are in metres),
+ * carrying for every triangle its distance to each edge and which edges face
+ * the light (see the lit edges in the shader).
  */
 function boulderGeometry(
   rnd: () => number,
@@ -234,28 +216,22 @@ function boulderGeometry(
   light: THREE.Vector3
 ): THREE.BufferGeometry {
   const geo = new THREE.IcosahedronGeometry(1, 0);
-  jitterCorners(geo, 0.17, rnd() * 100);
   const pos = geo.attributes.position as THREE.BufferAttribute;
+  // The polyhedron repeats each corner once per face: jitter by the corner's
+  // position, so the copies move together and no crack opens.
+  const seed = rnd() * 100;
+  const v = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
-    if (pos.getY(i) < 0) pos.setY(i, pos.getY(i) * 0.6);   // a flatter underside
+    v.fromBufferAttribute(pos, i);
+    const h = Math.sin(v.x * 12.9898 + v.y * 78.233 + v.z * 37.719 + seed) * 43758.5453;
+    const k = 1 + ((h - Math.floor(h)) - 0.5) * 0.34;
+    v.multiplyScalar(k);
+    if (v.y < 0) v.y *= 0.6;          // a flatter underside, to sit on the ground
+    pos.setXYZ(i, v.x, v.y, v.z);
   }
   geo.scale(size.x, size.y, size.z);
   geo.rotateY(yaw);
-  return addStoneEdges(geo, light);
-}
-
-/**
- * Gives a flat-faced (non-indexed) stone, already in its final size and
- * orientation, what the stone shader needs for its lit edges: for every
- * triangle, the distance to each edge and whether that edge is drawn lit, as
- * a crease, or not at all. Also sets flat normals.
- */
-export function addStoneEdges(input: THREE.BufferGeometry, light: THREE.Vector3): THREE.BufferGeometry {
-  const geo = input.index ? input.toNonIndexed() : input;
-  if (geo !== input) input.dispose();
-  geo.deleteAttribute('uv');
   geo.computeVertexNormals();
-  const pos = geo.attributes.position as THREE.BufferAttribute;
 
   const edge = new Float32Array(pos.count * 3);
   const flag = new Float32Array(pos.count * 3);
@@ -322,37 +298,6 @@ export function addStoneEdges(input: THREE.BufferGeometry, light: THREE.Vector3)
   return geo;
 }
 
-/** The pixel stone material, in a given stone and moss colour. */
-export function createPixelStoneMaterial(
-  config: TreeConfig,
-  opts: { color?: string; mossColor?: string; moss?: number }
-): { material: THREE.ShaderMaterial; palette: THREE.Texture; lightDir: THREE.Vector3 } {
-  const params = resolvePixelTextureParams(config);
-  const lightDir = pixelTextureLightDir(params);
-  const steps = 6;
-  const palette = paletteTexture(
-    stoneRamp(opts.color ?? '#8a8175', steps),
-    mossRamp(opts.mossColor ?? '#7d8a3a', steps)
-  );
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      uPalette: { value: palette },
-      uSteps: { value: steps },
-      uTexLightDir: { value: lightDir },
-      // Finer than the bark (as the other small props are): a boulder has to
-      // be some twenty texels across for its facets to take one-texel lit
-      // edges; at the bark's density a facet was barely four texels tall and
-      // an edge line filled it.
-      uTexelsPerMetre: { value: params.barkTexelsPerMetre * 2.8 },
-      uMoss: { value: opts.moss ?? 0.35 },
-      uSeed: { value: (config.seed % 997) * 0.37 },
-    },
-    vertexShader: STONE_VERTEX,
-    fragmentShader: STONE_FRAGMENT,
-  });
-  return { material, palette, lightDir };
-}
-
 /**
  * Seeded rocks around a tree: maybe none, maybe a few clusters of one
  * boulder with a pebble or two beside it.
@@ -374,10 +319,30 @@ export function buildPixelRocks(config: TreeConfig, opts: RockOptions): RockResu
 
   if (rnd() > (opts.chance ?? 0.6)) return { group, geometries, materials, textures };
 
-  const stone = createPixelStoneMaterial(config, opts);
-  const lightDir = stone.lightDir;
-  const mat = stone.material;
-  textures.push(stone.palette);
+  const params = resolvePixelTextureParams(config);
+  const lightDir = pixelTextureLightDir(params);
+  const steps = 6;
+  const palette = paletteTexture(
+    stoneRamp(opts.color ?? '#8a8175', steps),
+    mossRamp(opts.mossColor ?? '#7d8a3a', steps)
+  );
+  textures.push(palette);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uPalette: { value: palette },
+      uSteps: { value: steps },
+      uTexLightDir: { value: lightDir },
+      // Finer than the bark (as the other small props are): a boulder has to
+      // be some twenty texels across for its facets to take one-texel lit
+      // edges; at the bark's density a facet was barely four texels tall and
+      // an edge line filled it.
+      uTexelsPerMetre: { value: params.barkTexelsPerMetre * 2.8 },
+      uMoss: { value: opts.moss ?? 0.35 },
+      uSeed: { value: (config.seed % 997) * 0.37 },
+    },
+    vertexShader: STONE_VERTEX,
+    fragmentShader: STONE_FRAGMENT,
+  });
   materials.push(mat);
 
   const scale = opts.scale ?? 1;

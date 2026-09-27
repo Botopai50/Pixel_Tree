@@ -255,7 +255,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         const isFallen = treeConfig.growthStage === 'fallen' || treeConfig.species.endsWith('_fallen');
         const isSapling = treeConfig.growthStage === 'sapling' || treeConfig.species.endsWith('_sapling');
         // (a ground plant is framed like a bush)
-        const isShrub = treeConfig.growthStage === 'shrub' || treeConfig.growthStage === 'plant' || treeConfig.growthStage === 'rock';
+        const isShrub = treeConfig.growthStage === 'shrub' || treeConfig.growthStage === 'plant';
         const isLog = treeConfig.growthStage === 'log';
         const isStump = isLog && treeConfig.species === 'tree_stump';
         const targetX = isFallen && treeConfig.showBrokenStump !== false ? (treeConfig.trunkHeight || 9.0) * 0.35 : 0;
@@ -414,7 +414,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         } else if (isSapling) {
           cameraRef.current.position.set(0, 1.2, 3.2);
           controlsRef.current.target.set(0, 0.5, 0);
-        } else if (treeConfig.growthStage === 'shrub' || treeConfig.growthStage === 'plant' || treeConfig.growthStage === 'rock') {
+        } else if (treeConfig.growthStage === 'shrub' || treeConfig.growthStage === 'plant') {
           cameraRef.current.position.set(0, 2.0, 5.5);
           controlsRef.current.target.set(0, Math.max(0.45, treeConfig.trunkHeight * 0.5), 0);
         } else {

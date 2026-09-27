@@ -14,8 +14,7 @@ import {
   Leaf,
   Palette,
   Axe,
-  Flower2,
-  Mountain
+  Flower2
 } from 'lucide-react';
 import { TreeConfig, EnvironmentConfig, TreeSpecies, TimeOfDay, CrownShape } from '../types';
 import { TREE_PRESETS } from '../constants/presets';
@@ -47,7 +46,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   // Default directly to 'sliders' so procedural controls are immediately visible!
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('sliders');
   const [activeSection, setActiveSection] = useState<SliderSection>('all');
-  const [stageFilter, setStageFilter] = useState<'all' | 'adult' | 'sapling' | 'shrub' | 'log' | 'plant' | 'rock'>('all');
+  const [stageFilter, setStageFilter] = useState<'all' | 'adult' | 'sapling' | 'shrub' | 'log' | 'plant'>('all');
   // On a phone the panel would cover the whole tree, so there it starts closed
   // and opens as a sheet from the bottom.
   const isMobile = useIsMobile();
@@ -476,8 +475,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                           : [2, 9, 0.1, 'Comprimento do Tronco']
                         : g === 'plant'
                         ? [0.2, 2.5, 0.05, 'Altura da Planta']
-                        : g === 'rock'
-                        ? [0.3, 4, 0.05, 'Tamanho da Pedra']
                         : g === 'shrub'
                         ? [0.3, 3, 0.05, 'Altura do Arbusto']
                         : isSapling
@@ -1794,7 +1791,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               </p>
 
               {/* Stage Filter Buttons */}
-              <div className="grid grid-cols-4 gap-1 p-1 bg-stone-900/90 rounded-lg border border-stone-800 text-[11px]">
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1 bg-stone-900/90 rounded-lg border border-stone-800 text-[11px]">
                 <button
                   onClick={() => setStageFilter('all')}
                   className={`py-1 rounded font-medium transition cursor-pointer text-center ${
@@ -1860,24 +1857,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   <Flower2 className="w-3 h-3" />
                   <span>Rasteiras</span>
                 </button>
-                <button
-                  onClick={() => setStageFilter('rock')}
-                  className={`py-1 rounded font-medium transition flex items-center justify-center gap-1 cursor-pointer ${
-                    stageFilter === 'rock'
-                      ? 'bg-slate-500 text-white shadow-sm'
-                      : 'text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  <Mountain className="w-3 h-3" />
-                  <span>Pedras</span>
-                </button>
               </div>
 
               <div className="grid grid-cols-1 gap-2 pt-1 max-h-[60vh] overflow-y-auto pr-1">
                 {presetsList
                   .filter((p) => {
                     if (stageFilter === 'all') return true;
-                    const stage = p.growthStage === 'shrub' || p.growthStage === 'log' || p.growthStage === 'plant' || p.growthStage === 'rock' ? p.growthStage : (p.growthStage === 'sapling' || p.species.endsWith('_sapling') ? 'sapling' : 'adult');
+                    const stage = p.growthStage === 'shrub' || p.growthStage === 'log' || p.growthStage === 'plant' ? p.growthStage : (p.growthStage === 'sapling' || p.species.endsWith('_sapling') ? 'sapling' : 'adult');
                     return stage === stageFilter;
                   })
                   .map((preset) => {
@@ -1886,7 +1872,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     const isShrub = preset.growthStage === 'shrub';
                     const isLog = preset.growthStage === 'log';
                     const isPlant = preset.growthStage === 'plant';
-                    const isRock = preset.growthStage === 'rock';
 
                     return (
                       <button
@@ -1919,7 +1904,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                                     : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                                 }`}
                               >
-                                {isRock ? 'Pedra' : isPlant ? 'Rasteira' : isLog ? 'Tronco' : isShrub ? 'Arbusto' : isSapling ? 'Muda' : 'Adulta'} • {preset.trunkHeight}m
+                                {isPlant ? 'Rasteira' : isLog ? 'Tronco' : isShrub ? 'Arbusto' : isSapling ? 'Muda' : 'Adulta'} • {preset.trunkHeight}m
                               </span>
                             </div>
                             <div className="text-[10px] text-stone-400 truncate">
@@ -1928,9 +1913,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                               {preset.foliageType === 'palm_frond' && 'Palmeira Tropical de Faron'}
                               {preset.foliageType === 'cactus_bloom' && 'Cacto de Gerudo (Florescente)'}
                               {preset.foliageType === 'swamp_weeping' && 'Manguezal do Pântano (Raízes Escoras)'}
-                              {preset.foliageType === 'none' && !isLog && !isPlant && !isRock && preset.growthStage !== 'shrub' && 'Árvore Seca / Deadwood (Sem Folhas, Galhos Retorcidos)'}
+                              {preset.foliageType === 'none' && !isLog && !isPlant && preset.growthStage !== 'shrub' && 'Árvore Seca / Deadwood (Sem Folhas, Galhos Retorcidos)'}
                               {isPlant && 'Planta Rasteira (Folhas em Pixel Art)'}
-                              {isRock && 'Pedra em Pixel Art (Quinas Iluminadas)'}
                               {isLog && 'Madeira Caída no Chão da Floresta (Musgo & Fungos)'}
                             </div>
                           </div>
