@@ -47,13 +47,15 @@ interface Viewport3DProps {
   onFpsUpdate?: (fps: number) => void;
   // share of the screen height covered from below by an overlay (0 = none)
   viewInsetBottom?: number;
+  viewInsetRight?: number;
 }
 
 export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
-  ({ treeConfig, envConfig, onFpsUpdate, viewInsetBottom = 0 }, ref) => {
+  ({ treeConfig, envConfig, onFpsUpdate, viewInsetBottom = 0, viewInsetRight = 0 }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const viewInsetRef = useRef(viewInsetBottom);
+    const viewRightRef = useRef(viewInsetRight);
 
     // Zooms the picture out to the height left uncovered and shifts the
     // rendered window down, so the whole tree sits in what is still visible
@@ -64,9 +66,10 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
       if (!camera || !renderer) return;
       const inset = viewInsetRef.current;
       const size = renderer.getSize(new THREE.Vector2());
-      camera.zoom = 1 - inset * 0.9;
-      if (inset > 0 && size.x > 0 && size.y > 0) {
-        camera.setViewOffset(size.x, size.y, 0, size.y * inset * 0.4, size.x, size.y);
+      const right = Math.min(viewRightRef.current, size.x * 0.48);
+      camera.zoom = Math.min(1 - inset * 0.9, 1 - right / size.x * 0.7);
+      if ((inset > 0 || right > 0) && size.x > 0 && size.y > 0) {
+        camera.setViewOffset(size.x, size.y, right * 0.5, size.y * (inset * 0.4 + (right > 0 ? 0.06 : 0)), size.x, size.y);
       } else {
         camera.clearViewOffset();
       }
@@ -81,6 +84,28 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
     const particleSystemRef = useRef<LeafParticleSystem | null>(null);
     const dirLightRef = useRef<THREE.DirectionalLight | null>(null);
     const hemiLightRef = useRef<THREE.HemisphereLight | null>(null);
+    const rockFrameRef = useRef('');
+
+    const frameRock = (group: THREE.Group, detail = false) => {
+      const camera = cameraRef.current;
+      const controls = controlsRef.current;
+      if (!camera || !controls) return;
+      const object = detail ? group.getObjectByName('RockAsset') ?? group : group;
+      const box = new THREE.Box3().setFromObject(object);
+      if (box.isEmpty()) box.setFromObject(group);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      center.y = Math.max(0.3, center.y);
+      const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
+      const limitingTan = Math.tan(halfFov) * Math.min(1, camera.aspect);
+      const distance = Math.max(size.x, size.y, size.z) / (2 * limitingTan) * (detail ? 1.2 : 1.35);
+      controls.minDistance = 0.6;
+      controls.maxDistance = Math.max(38, distance * 2);
+      controls.target.copy(center);
+      camera.position.copy(center).add(new THREE.Vector3(1, 0.7, 1.6).normalize().multiplyScalar(distance));
+      controls.update();
+      if (dirLightRef.current) setShadowSpan(dirLightRef.current, Math.max(12, size.x, size.z));
+    };
 
     // -------------------------------------------------------------
     // SETUP SCENE & RENDERER ONCE
@@ -251,7 +276,13 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
       }
 
       // Adjust controls target height and camera distance based on growth stage
-      if (controlsRef.current && cameraRef.current) {
+      if (treeConfig.growthStage === 'rock' || treeConfig.prop) {
+        const rock = treeConfig.rock!;
+        const frameKey = treeConfig.prop ? [treeConfig.species,treeConfig.prop.count,treeConfig.prop.size,treeConfig.prop.spread].join('|') : [treeConfig.species, rock.width, rock.height, rock.depth, rock.count, rock.spread, rock.shape].join('|');
+        if (frameKey !== rockFrameRef.current) frameRock(newTree.group);
+        rockFrameRef.current = frameKey;
+      } else if (controlsRef.current && cameraRef.current) {
+        rockFrameRef.current = '';
         const isFallen = treeConfig.growthStage === 'fallen' || treeConfig.species.endsWith('_fallen');
         const isSapling = treeConfig.growthStage === 'sapling' || treeConfig.species.endsWith('_sapling');
         // (a ground plant is framed like a bush)
@@ -372,12 +403,19 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
       }
     }, [envConfig.timeOfDay, envConfig.autoRotate]);
 
+    useEffect(() => {
+      if (treeConfig.growthStage !== 'rock' && !treeConfig.prop) return;
+      const grass = treeInstanceRef.current?.group.getObjectByName('RockGrass');
+      if (grass) grass.visible = envConfig.showGrass;
+    }, [treeConfig, envConfig.showGrass]);
+
     // While the phone's settings sheet covers the bottom of the screen, the
     // scene is drawn raised into the part still visible.
     useEffect(() => {
       viewInsetRef.current = viewInsetBottom;
+      viewRightRef.current = viewInsetRight;
       applyViewInset();
-    }, [viewInsetBottom]);
+    }, [viewInsetBottom, viewInsetRight]);
 
     // -------------------------------------------------------------
     // EXPOSE IMPERATIVE METHODS (EXPORT, CAMERA CONTROLS)
@@ -387,7 +425,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         if (!treeInstanceRef.current) return;
         const { exportTreeAsOBJ } = await import('../services/exportService');
         exportTreeAsOBJ(
-          treeInstanceRef.current.group,
+          treeConfig.growthStage === 'rock' || treeConfig.prop ? treeInstanceRef.current.group.getObjectByName('RockAsset') as THREE.Group : treeInstanceRef.current.group,
           `zelda_${treeConfig.species}_seed${treeConfig.seed}.obj`
         );
       },
@@ -400,6 +438,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         );
       },
       resetCamera: () => {
+        if ((treeConfig.growthStage === 'rock' || treeConfig.prop) && treeInstanceRef.current) { frameRock(treeInstanceRef.current.group); return; }
         if (!cameraRef.current || !controlsRef.current) return;
         const isFallen = treeConfig.growthStage === 'fallen' || treeConfig.species.endsWith('_fallen');
         const isSapling = treeConfig.growthStage === 'sapling' || treeConfig.species.endsWith('_sapling');
@@ -429,6 +468,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         controlsRef.current.update();
       },
       focusCanopy: () => {
+        if ((treeConfig.growthStage === 'rock' || treeConfig.prop) && treeInstanceRef.current) { frameRock(treeInstanceRef.current.group, true); return; }
         if (!cameraRef.current || !controlsRef.current) return;
         const isFallen = treeConfig.growthStage === 'fallen' || treeConfig.species.endsWith('_fallen');
         if (isFallen) {
@@ -460,6 +500,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         return true;
       },
       focusTrunk: () => {
+        if ((treeConfig.growthStage === 'rock' || treeConfig.prop) && treeInstanceRef.current) { frameRock(treeInstanceRef.current.group, true); return; }
         if (!cameraRef.current || !controlsRef.current) return;
         const isFallen = treeConfig.growthStage === 'fallen' || treeConfig.species.endsWith('_fallen');
         if (isFallen) {

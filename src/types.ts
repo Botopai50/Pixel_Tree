@@ -44,7 +44,56 @@ export type TreeSpecies =
   | 'arctic_willow'
   | 'fern_plant'
   | 'wildflower_patch'
-  | 'reed_clump';
+  | 'reed_clump'
+  | 'hyrule_rock' | 'satori_rock' | 'akkala_rock' | 'hebra_rock'
+  | 'hebra_snowy_rock' | 'faron_rock' | 'korok_rock' | 'swamp_rock'
+  | 'gerudo_rock' | 'savanna_rock' | 'withered_rock' | 'tundra_rock'
+  | `${RockBiome}_ore` | `${RockBiome}_gravel` | `${RockBiome}_${GroundPropKind}`;
+
+export type GroundPropKind = 'flowers' | 'crystals' | 'leaves';
+export interface GroundPropConfig {
+  kind: GroundPropKind;
+  biome: RockBiome;
+  count: number;
+  size: number;
+  spread: number;
+  color: string;
+  flowerShape: 'daisy' | 'poppy' | 'bell' | 'star';
+  crystal: OreKind;
+  density: number;
+}
+
+export type RockBiome = 'hyrule' | 'satori' | 'akkala' | 'hebra' | 'hebra_snowy'
+  | 'faron' | 'korok' | 'swamp' | 'gerudo' | 'savanna' | 'withered' | 'tundra';
+export type RockShape = 'boulder' | 'slab' | 'spire' | 'cluster';
+export type OreKind = 'iron' | 'copper' | 'quartz' | 'gold' | 'diamond' | 'mithril'
+  | 'orichalcum' | 'lead' | 'coal' | 'tin' | 'silver' | 'amethyst' | 'ruby' | 'emerald' | 'sapphire';
+export interface RockConfig {
+  biome: RockBiome;
+  shape: RockShape;
+  width: number;
+  height: number;
+  depth: number;
+  irregularity: number;
+  detail: number;
+  count: number;
+  spread: number;
+  color: string;
+  mossColor: string;
+  moss: number;
+  snow: number;
+  cracks: number;
+  gravel?: boolean;
+  gravelCount?: number;
+  gravelSize?: number;
+  gravelSpread?: number;
+  mushrooms?: boolean;
+  mushroomCount?: number;
+  mushroomSize?: number;
+  ore?: OreKind;
+  oreCount?: number;
+  oreSize?: number;
+}
 
 export type TimeOfDay = 'day' | 'sunset' | 'night' | 'misty';
 
@@ -54,7 +103,9 @@ export interface TreeConfig {
   id: string;
   name: string;
   species: TreeSpecies;
-  growthStage?: 'adult' | 'sapling' | 'shrub' | 'log' | 'plant'; // tree, sapling, bush, log / stump or ground plant
+  growthStage?: 'adult' | 'sapling' | 'shrub' | 'log' | 'plant' | 'rock' | 'prop';
+  rock?: RockConfig;
+  prop?: GroundPropConfig;
   seed: number;
   
   // Space Colonization Algorithm (SCA)

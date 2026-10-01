@@ -47,7 +47,8 @@ export const Header: React.FC<HeaderProps> = ({
   isFelled,
 }) => {
   // what is already a log or a stump has nothing left to fell
-  const canFell = treeConfig.growthStage !== 'log' && !isFelled;
+  const isRock = treeConfig.growthStage === 'rock' || !!treeConfig.prop;
+  const canFell = !isRock && treeConfig.growthStage !== 'log' && treeConfig.growthStage !== 'plant' && !isFelled;
   return (
     <header
       id="botw-header"
@@ -64,7 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
               The Legend of Zelda
             </h1>
             <span className="hidden sm:inline text-[10px] font-sans px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider font-semibold">
-              BotW Tree.js
+              BotW Nature.js
             </span>
           </div>
           <p className="text-xs text-stone-300 font-sans tracking-wide truncate">
@@ -106,19 +107,19 @@ export const Header: React.FC<HeaderProps> = ({
           id="btn-camera-canopy"
           onClick={onFocusCanopy}
           className="p-2 sm:p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800/80 transition cursor-pointer text-xs flex items-center gap-1"
-          title="Focar na Copa da Árvore"
+          title={treeConfig.prop ? "Focar no conjunto" : isRock ? "Focar nas pedras" : "Focar na Copa da Árvore"}
         >
           <Focus className="w-4 h-4 text-emerald-400" />
-          <span className="text-[11px] hidden lg:inline">Copa</span>
+          <span className="text-[11px] hidden lg:inline">{treeConfig.prop ? "Conjunto" : isRock ? "Pedras" : "Copa"}</span>
         </button>
         <button
           id="btn-camera-trunk"
           onClick={onFocusTrunk}
           className="p-2 sm:p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800/80 transition cursor-pointer text-xs flex items-center gap-1"
-          title="Focar no Tronco & Raízes"
+          title={treeConfig.prop ? "Focar nos detalhes" : isRock ? "Focar nos detalhes da pedra" : "Focar no Tronco & Raízes"}
         >
           <Focus className="w-4 h-4 text-amber-600" />
-          <span className="text-[11px] hidden lg:inline">Tronco</span>
+          <span className="text-[11px] hidden lg:inline">{isRock ? "Detalhes" : "Tronco"}</span>
         </button>
 
         <button

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TreeConfig } from '../types';
-import { pixelTextureLightDir, resolvePixelTextureParams } from './pixelArtTextureSystem';
+import { buildPixelMossRamp, pixelTextureLightDir, resolvePixelTextureParams } from './pixelArtTextureSystem';
+import { pixelMossNoiseGLSL } from './mossStyle';
 
 /**
  * Pixel-art rocks for the ground around a tree.
@@ -19,7 +20,7 @@ import { pixelTextureLightDir, resolvePixelTextureParams } from './pixelArtTextu
 
 type RGB = [number, number, number];
 
-function stoneRamp(baseHex: string, steps: number): RGB[] {
+function stoneRamp(baseHex: string, steps: number, displayColors = false): RGB[] {
   // Mixed in colour, not swept round the hue wheel: shadows fall to a cool
   // blue-grey, lights rise to a warm pale stone, the middle is the stone's
   // own colour. (Sweeping the hue from blue to warm passed through green or
@@ -27,6 +28,9 @@ function stoneRamp(baseHex: string, steps: number): RGB[] {
   const base = new THREE.Color(baseHex);
   const shadow = new THREE.Color('#262a36');
   const light = new THREE.Color('#efe4c9');
+  // Independent assets use authored display colours, like the tree palettes.
+  // The shader writes raw palette values, so linear RGB here would crush the shadows.
+  if (displayColors) { base.convertLinearToSRGB(); shadow.convertLinearToSRGB(); light.convertLinearToSRGB(); }
   const out: RGB[] = [];
   for (let i = 0; i < steps; i++) {
     const t = i / (steps - 1);
@@ -38,7 +42,8 @@ function stoneRamp(baseHex: string, steps: number): RGB[] {
   return out;
 }
 
-function mossRamp(hex: string, steps: number): RGB[] {
+function mossRamp(hex: string, steps: number, displayColors = false): RGB[] {
+  if (displayColors) return buildPixelMossRamp(steps, hex);
   const base = new THREE.Color(hex);
   const hsl = { h: 0, s: 0, l: 0 };
   base.getHSL(hsl);
@@ -73,11 +78,14 @@ const STONE_VERTEX = /* glsl */ `
   // on the side toward the light (1) or away from it (0)
   attribute vec3 aEdge;
   attribute vec3 aEdgeFlag;
+  attribute vec3 aMossNormal;
+  varying vec3 vMossNormal;
   varying vec3 vEdge;
   varying vec3 vEdgeFlag;
   varying vec3 vNormal;
   varying vec3 vWorldPos;
   void main() {
+    vMossNormal = mat3(modelMatrix) * aMossNormal;
     vEdge = aEdge;
     vEdgeFlag = aEdgeFlag;
     vNormal = normalize(mat3(modelMatrix) * normal);
@@ -94,6 +102,13 @@ const STONE_FRAGMENT = /* glsl */ `
   uniform float uTexelsPerMetre;
   uniform float uMoss;
   uniform float uSeed;
+  uniform float uSnow;
+  uniform float uSnowRim;
+  uniform vec3 uSnowColors[4];
+  uniform float uCracks;
+  uniform float uNaturalStone;
+  uniform float uMossSeed;
+  varying vec3 vMossNormal;
   varying vec3 vEdge;
   varying vec3 vEdgeFlag;
   varying vec3 vNormal;
@@ -110,6 +125,16 @@ const STONE_FRAGMENT = /* glsl */ `
       mix(mix(h3(i + vec3(0.0, 0.0, 1.0)), h3(i + vec3(1.0, 0.0, 1.0)), f.x),
           mix(h3(i + vec3(0.0, 1.0, 1.0)), h3(i + vec3(1.0, 1.0, 1.0)), f.x), f.y),
       f.z);
+  }
+
+  ${pixelMossNoiseGLSL('uMossSeed')}
+
+  float snowField(vec3 p) {
+    return mnoise3(p / 16.0 + 91.0) * 0.78
+      + mnoise3(p / 5.0 + 113.0) * 0.17 + mhash3(floor(p) + 71.0) * 0.05;
+  }
+  float snowCoverage(vec3 p, vec3 normal) {
+    return min(0.94, uSnow * (0.32 + max(0.0, normalize(normal).y) * 0.9)) - snowField(p);
   }
 
   void main() {
@@ -141,11 +166,73 @@ const STONE_FRAGMENT = /* glsl */ `
 
     // lichen / moss in cushions on the faces turned to the sky
     float m = vnoise(vec3(cc * 3.2, 11.0 + uSeed)) * 0.8 + h3(cellId + 3.0) * 0.2;
-    if (n.y > 0.3 && m < uMoss * (0.25 + n.y * 0.7)) {
+    if (uNaturalStone < 0.5 && n.y > 0.3 && m < uMoss * (0.25 + n.y * 0.7)) {
       row = 0.25;
       float mi = N1 * 0.45 + ndl * N1 * 0.4 + (h3(cellId + 9.0) - 0.5) * 1.4;
       if (m > uMoss * (0.25 + n.y * 0.7) - 0.04) mi -= 1.0;   // a darker rim to each cushion
       idx = clamp(floor(mi + 0.5), 0.0, N1);
+    }
+    vec3 surfaceP = vec3(cc, 0.0) * uTexelsPerMetre;
+    vec3 surfaceN = n;
+    vec3 surfaceDown = vec3(0.0, -1.0, 0.0);
+    vec3 surfaceDownN = vec3(0.0);
+    vec3 surfaceAcross = vec3(1.0, 0.0, 0.0);
+    vec3 surfaceAcrossN = vec3(0.0);
+    if (uNaturalStone > 0.5) {
+      // A continuous spatial field, sampled at each surface texel's centre.
+      // Coverage uses welded smooth normals, not the stone's flat face normal:
+      // a patch can cross a triangle edge instead of being cut off diagonally.
+      vec3 mossWorld = vWorldPos;
+      vec3 mossNormal = vMossNormal;
+      vec2 du = dFdx(uv);
+      vec2 dv = dFdy(uv);
+      float mossDet = du.x * dv.y - du.y * dv.x;
+      if (abs(mossDet) > 1e-8) {
+        vec2 delta = cc - uv;
+        vec2 screenOffset = vec2(dv.y * delta.x - dv.x * delta.y,
+          -du.y * delta.x + du.x * delta.y) / mossDet;
+        mossWorld += dFdx(vWorldPos) * screenOffset.x + dFdy(vWorldPos) * screenOffset.y;
+        mossNormal += dFdx(vMossNormal) * screenOffset.x + dFdy(vMossNormal) * screenOffset.y;
+        // Move by one actual surface texel, including the change in slope.
+        // Keeping the current normal for the neighbour missed snow edges
+        // formed by accumulation thinning out down the side of the rock.
+        vec2 downUV = axis > 1.5 && axis < 2.5
+          ? -normalize(uTexLightDir.xz) : vec2(0.0, -1.0);
+        vec2 downScreen = vec2(dv.y * downUV.x - dv.x * downUV.y,
+          -du.y * downUV.x + du.x * downUV.y) / mossDet;
+        surfaceDown = dFdx(vWorldPos) * downScreen.x + dFdy(vWorldPos) * downScreen.y;
+        surfaceDownN = (dFdx(vMossNormal) * downScreen.x + dFdy(vMossNormal) * downScreen.y) / uTexelsPerMetre;
+        vec2 acrossUV = vec2(-downUV.y, downUV.x);
+        vec2 acrossScreen = vec2(dv.y * acrossUV.x - dv.x * acrossUV.y,
+          -du.y * acrossUV.x + du.x * acrossUV.y) / mossDet;
+        surfaceAcross = dFdx(vWorldPos) * acrossScreen.x + dFdy(vWorldPos) * acrossScreen.y;
+        surfaceAcrossN = (dFdx(vMossNormal) * acrossScreen.x + dFdy(vMossNormal) * acrossScreen.y) / uTexelsPerMetre;
+      }
+      vec3 mossP = mossWorld * uTexelsPerMetre;
+      vec3 mossUp = vec3(0.0, 1.0, 0.0);
+      vec3 mossN = normalize(mossNormal);
+      surfaceP = mossP;
+      surfaceN = mossN;
+      float mossNdl = dot(mossN, normalize(uTexLightDir));
+      float damp = clamp(dot(mossN, vec3(0.0, 0.25, -0.95)), 0.0, 1.0);
+      float up = clamp(mossN.y, 0.0, 1.0);
+      float crackField = abs(mnoise3(mossP / 8.0 + 57.0) - 0.5);
+      float groove = (1.0 - smoothstep(0.015, 0.12, crackField)) * uCracks;
+      float mossGroove = 0.35 + groove * 0.65;
+      float mossWant = min(0.5, (0.1 + damp * 0.45 + up * 0.3) * uMoss * 1.6 + groove * 0.15 * uMoss)
+        * (0.55 + mossGroove * 0.9);
+      if (mossWant > 0.04 && mossField(mossP) < mossWant) {
+        row = 0.25;
+        float qs = N1 / 5.0;
+        bool topEdge = mossField(mossP + mossUp) >= mossWant;
+        bool bottomEdge = mossField(mossP - mossUp) >= mossWant;
+        float mi = N1 * 0.35 + (mossNdl > 0.15 ? qs * 0.8 : -qs * 0.6)
+          + (mnoise3(mossP / 3.0 + 41.0) - 0.5) * qs * 1.6
+          + (0.5 - mossGroove) * qs * 2.4;
+        if (topEdge) mi += qs;
+        if (bottomEdge) mi -= qs * 1.2;
+        idx = clamp(floor(mi + 0.5), 0.0, N1);
+      }
     }
 
     // Lit edges and dark creases, the way rocks are drawn in pixel art: the
@@ -169,12 +256,76 @@ const STONE_FRAGMENT = /* glsl */ `
     }
     e *= uTexelsPerMetre;                        // in texels
     float nearest = min(e.x, min(e.y, e.z));
-    if (nearest < 1.0) {
+    if (uNaturalStone < 0.5 && nearest < 1.0) {
       float flag = e.x <= e.y && e.x <= e.z ? vEdgeFlag.x : (e.y <= e.z ? vEdgeFlag.y : vEdgeFlag.z);
       if (flag > 0.75 && ndl > -0.15) idx = min(N1, idx + (ndl > 0.35 ? 2.0 : 1.0));
       else if (flag < 0.25) idx = max(0.0, idx - 1.0);
     }
-    gl_FragColor = vec4(texture2D(uPalette, vec2((idx + 0.5) / uSteps, row)).rgb, 1.0);
+    // Painted ridge strokes: one quiet palette step on selected sunlit
+    // crests, rather than a bright outline around every triangle. A coherent
+    // wear mask interrupts the stroke in patches, keeping it hand-painted.
+    if (uNaturalStone > 0.5 && row > 0.5 && ndl > 0.35 && facing > 0.3 && nearest >= -0.15 && nearest < 1.0) {
+      float ridge = e.x <= e.y && e.x <= e.z ? vEdgeFlag.x : (e.y <= e.z ? vEdgeFlag.y : vEdgeFlag.z);
+      float strokeWear = vnoise(vec3(cc * 2.1, uSeed + 123.0));
+      if (ridge > 0.75 && strokeWear > 0.38) idx = min(N1, idx + 1.0);
+    }
+    // Thin stepped fissures, sampled on the same grid as the painted facets.
+    float fissure = abs(vnoise(vec3(cc * 2.5, uSeed + 57.0)) - 0.5);
+    if (uCracks > 0.0 && row > 0.5 && fissure < 0.025 * uCracks) idx = max(0.0, idx - 2.0);
+    vec3 color = texture2D(uPalette, vec2((idx + 0.5) / uSteps, row)).rgb;
+    // Broad pale blankets with small exposed islands, blue-grey broken
+    // shadows and a stepped rim. Continuous coverage crosses stone facets.
+    float snowMask = snowCoverage(surfaceP, surfaceN);
+    float belowSnow = snowCoverage(surfaceP + surfaceDown, surfaceN + surfaceDownN);
+    float belowSnow2 = snowCoverage(surfaceP + surfaceDown * 2.0, surfaceN + surfaceDownN * 2.0);
+    float aboveSnow = snowCoverage(surfaceP - surfaceDown, surfaceN - surfaceDownN);
+    // Find the border in every direction, not just below a snow patch. The
+    // same two-texel broken fringe surrounds both islands and outer edges.
+    bool onSnow = snowMask > 0.0;
+    float borderDistance = 3.0;
+    if (uSnow > 0.0) {
+    for (int i = 1; i <= 2; i++) {
+      float r = float(i);
+      bool down = snowCoverage(surfaceP + surfaceDown * r, surfaceN + surfaceDownN * r) > 0.0;
+      bool up = snowCoverage(surfaceP - surfaceDown * r, surfaceN - surfaceDownN * r) > 0.0;
+      bool left = snowCoverage(surfaceP - surfaceAcross * r, surfaceN - surfaceAcrossN * r) > 0.0;
+      bool right = snowCoverage(surfaceP + surfaceAcross * r, surfaceN + surfaceAcrossN * r) > 0.0;
+      if (down != onSnow || up != onSnow || left != onSnow || right != onSnow) borderDistance = min(borderDistance, r);
+    }
+    }
+    vec3 exposedColor = color;
+    // Small connected chips rather than independent salt-and-pepper pixels.
+    float fringe = mnoise3(surfaceP / 3.0 + 173.0) * 0.65
+      + mhash3(floor(surfaceP) + 173.0) * 0.35;
+    if (uSnow > 0.0 && snowMask > 0.0) {
+      float snowLight = dot(surfaceN, normalize(uTexLightDir));
+      float pigment = mnoise3(surfaceP / 9.0 + 137.0);
+      float speckle = mhash3(floor(surfaceP) + 151.0);
+      bool lowerRim = belowSnow <= 0.0 || belowSnow2 <= 0.0;
+      bool upperRim = aboveSnow <= 0.0;
+      color = uSnowColors[2];
+      if (pigment < 0.38 || snowLight < -0.1) color = uSnowColors[1];
+      if (pigment > 0.65 && snowLight > 0.25) color = uSnowColors[3];
+      // Sparse one-pixel flecks interrupt the shaded bands, as in the reference.
+      if (speckle < 0.12 && pigment < 0.57) color = uSnowColors[1];
+      if (speckle > 0.88 && pigment < 0.44) color = uSnowColors[2];
+      if (uSnowRim > 0.5 && borderDistance < 2.5) {
+        float band = (3.0 - borderDistance) / 2.0;
+        // Broken dark pixels retain thickness without a solid painted stripe.
+        if (fringe < band * 0.12) color = exposedColor;
+        else if (fringe < band * (lowerRim ? 0.54 : 0.38)) color = uSnowColors[0];
+        else if (fringe < band * 0.78) color = uSnowColors[1];
+        else if (upperRim && snowLight > 0.1) color = uSnowColors[3];
+      }
+    } else if (uSnowRim > 0.5 && uSnow > 0.0 && borderDistance < 2.5) {
+      float band = (3.0 - borderDistance) / 2.0;
+      // Detached pale and grey pixels cross onto the exposed surface, with
+      // sparse contact-shadow pixels tucked between them.
+      if (fringe < band * 0.18) color = uSnowColors[2];
+      else if (fringe < band * 0.3) color = uSnowColors[1];
+      else if (fringe < band * (aboveSnow > 0.0 ? 0.62 : 0.43)) color = mix(exposedColor, uSnowColors[0] * 0.75, 0.8);
+    }
+    gl_FragColor = vec4(color, 1.0);
   }
 `;
 
@@ -209,13 +360,14 @@ export interface RockResult {
  * carrying for every triangle its distance to each edge and which edges face
  * the light (see the lit edges in the shader).
  */
-function boulderGeometry(
+export function boulderGeometry(
   rnd: () => number,
   size: THREE.Vector3,
   yaw: number,
-  light: THREE.Vector3
+  light: THREE.Vector3,
+  options: { irregularity?: number; detail?: number; shape?: string; grounded?: boolean } = {}
 ): THREE.BufferGeometry {
-  const geo = new THREE.IcosahedronGeometry(1, 0);
+  const geo = new THREE.IcosahedronGeometry(1, options.grounded ? (options.detail ?? 0) + 1 : options.detail ?? 0);
   const pos = geo.attributes.position as THREE.BufferAttribute;
   // The polyhedron repeats each corner once per face: jitter by the corner's
   // position, so the copies move together and no crack opens.
@@ -224,13 +376,36 @@ function boulderGeometry(
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
     const h = Math.sin(v.x * 12.9898 + v.y * 78.233 + v.z * 37.719 + seed) * 43758.5453;
-    const k = 1 + ((h - Math.floor(h)) - 0.5) * 0.34;
+    const irregularity = options.irregularity ?? 0.35;
+    const broadNoise = Math.sin(v.x * 2.6 + seed) * Math.cos(v.y * 2.2 - seed * 0.7)
+      + Math.sin(v.z * 3.1 + seed * 0.4) * 0.55;
+    const k = options.grounded
+      ? 1 + broadNoise * irregularity * 0.24 + ((h - Math.floor(h)) - 0.5) * irregularity * 0.12
+      : 1 + ((h - Math.floor(h)) - 0.5) * 0.34;
     v.multiplyScalar(k);
     if (v.y < 0) v.y *= 0.6;          // a flatter underside, to sit on the ground
+    if (options.shape === 'slab') v.y = Math.min(0.6 + Math.sin(v.x * 3 + seed) * 0.08, v.y);
+    if (options.shape === 'spire') {
+      const taper = 1 - Math.max(0, v.y) * 0.25;
+      v.x *= taper; v.z *= taper;
+      v.x += Math.max(0, v.y) * Math.sin(seed) * 0.16;
+      v.z += Math.max(0, v.y) * Math.cos(seed * 0.7) * 0.12;
+    }
+    // A broad, flat contact patch makes a boulder sit in the earth rather
+    // than balance on the polyhedron's bottom point.
+    if (options.grounded) v.y = Math.max(-0.28, v.y);
     pos.setXYZ(i, v.x, v.y, v.z);
   }
   geo.scale(size.x, size.y, size.z);
   geo.rotateY(yaw);
+  if (options.grounded) {
+    geo.computeBoundingBox();
+    const box = geo.boundingBox!;
+    const span = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    geo.translate(-center.x, -box.min.y, -center.z);
+    geo.scale(size.x / span.x, size.y / span.y, size.z / span.z);
+  }
   geo.computeVertexNormals();
 
   const edge = new Float32Array(pos.count * 3);
@@ -242,10 +417,17 @@ function boulderGeometry(
   const triCount = pos.count / 3;
   const faceN: THREE.Vector3[] = [];
   const key = (a: THREE.Vector3) => `${Math.round(a.x * 1e4)},${Math.round(a.y * 1e4)},${Math.round(a.z * 1e4)}`;
+  const mossNormals = new Map<string, THREE.Vector3>();
   const edgeOwners = new Map<string, number[]>();
   for (let t = 0; t < triCount; t++) {
     for (let k = 0; k < 3; k++) p[k].fromBufferAttribute(pos, t * 3 + k);
     faceN.push(new THREE.Vector3().subVectors(p[1], p[0]).cross(new THREE.Vector3().subVectors(p[2], p[0])).normalize());
+    for (const corner of p) {
+      const id = key(corner);
+      const sum = mossNormals.get(id) ?? new THREE.Vector3();
+      sum.add(faceN[t]);
+      mossNormals.set(id, sum);
+    }
     for (let k = 0; k < 3; k++) {
       const ka = key(p[(k + 1) % 3]);
       const kb = key(p[(k + 2) % 3]);
@@ -255,6 +437,13 @@ function boulderGeometry(
       edgeOwners.set(ek, list);
     }
   }
+  const mossNormal = new Float32Array(pos.count * 3);
+  for (const sum of mossNormals.values()) sum.normalize();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    mossNormals.get(key(v))!.toArray(mossNormal, i * 3);
+  }
+  geo.setAttribute('aMossNormal', new THREE.BufferAttribute(mossNormal, 3));
   geo.computeBoundingBox();
   const minY = geo.boundingBox!.min.y;
   const spanY = Math.max(1e-4, geo.boundingBox!.max.y - minY);
@@ -285,7 +474,10 @@ function boulderGeometry(
       const here = lit(faceN[tri]);
       const there = other === undefined ? here : lit(faceN[other]);
       const high = ((a.y + b.y) * 0.5 - minY) / spanY > 0.4;
-      const value = high && here > 0.1 && here > there + 0.12
+      const bend = other === undefined ? 1 : faceN[tri].dot(faceN[other]);
+      const value = options.grounded
+        ? (high && here > 0.35 && here > there + 0.18 && bend < 0.975 ? 1 : 0.5)
+        : high && here > 0.1 && here > there + 0.12
         ? 1
         : here < there - 0.3
         ? 0
@@ -319,15 +511,47 @@ export function buildPixelRocks(config: TreeConfig, opts: RockOptions): RockResu
 
   if (rnd() > (opts.chance ?? 0.6)) return { group, geometries, materials, textures };
 
+  const { material: mat, palette, lightDir } = createPixelRockMaterial(config, opts);
+  textures.push(palette);
+  materials.push(mat);
+
+  const scale = opts.scale ?? 1;
+  const clusters = 1 + Math.floor(rnd() * (opts.maxClusters ?? 3));
+  const baseAngle = rnd() * Math.PI * 2;
+  for (let c = 0; c < clusters; c++) {
+    const angle = baseAngle + (c / clusters) * Math.PI * 2 + (rnd() - 0.5) * 1.2;
+    const dist = THREE.MathUtils.lerp(opts.minDist, opts.maxDist, rnd());
+    const centre = new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
+    const pieces = 1 + Math.floor(rnd() * 3);
+    for (let p = 0; p < pieces; p++) {
+      const r = (p === 0 ? 0.28 + rnd() * 0.3 : 0.1 + rnd() * 0.1) * scale;
+      const sy = 0.55 + rnd() * 0.3;
+      const size = new THREE.Vector3(r * (0.9 + rnd() * 0.4), r * sy, r * (0.9 + rnd() * 0.4));
+      const geo = boulderGeometry(rnd, size, rnd() * Math.PI * 2, lightDir);
+      geometries.push(geo);
+      const rock = new THREE.Mesh(geo, mat);
+      const off = p === 0 ? new THREE.Vector3() : new THREE.Vector3(Math.cos(rnd() * 6.28), 0, Math.sin(rnd() * 6.28)).multiplyScalar((0.3 + rnd() * 0.25) * scale + r);
+      rock.position.copy(centre).add(off);
+      rock.position.y = r * sy * 0.25;
+      rock.castShadow = true;
+      rock.receiveShadow = true;
+      rock.userData.ground = true;
+      group.add(rock);
+    }
+  }
+  return { group, geometries, materials, textures };
+}
+
+/** Shared painted stone material for scenery and independent rock assets. */
+export function createPixelRockMaterial(config: TreeConfig, opts: {
+  color?: string; mossColor?: string; moss?: number; snow?: number; cracks?: number; snowRim?: boolean;
+}) {
   const params = resolvePixelTextureParams(config);
   const lightDir = pixelTextureLightDir(params);
-  const steps = 6;
-  const palette = paletteTexture(
-    stoneRamp(opts.color ?? '#8a8175', steps),
-    mossRamp(opts.mossColor ?? '#7d8a3a', steps)
-  );
-  textures.push(palette);
-  const mat = new THREE.ShaderMaterial({
+  const steps = config.growthStage === 'rock' ? params.steps : 6;
+  const displayColors = config.growthStage === 'rock';
+  const palette = paletteTexture(stoneRamp(opts.color ?? '#8a8175', steps, displayColors), mossRamp(opts.mossColor ?? (displayColors ? '#7ba33a' : '#7d8a3a'), steps, displayColors));
+  const material = new THREE.ShaderMaterial({
     uniforms: {
       uPalette: { value: palette },
       uSteps: { value: steps },
@@ -339,35 +563,18 @@ export function buildPixelRocks(config: TreeConfig, opts: RockOptions): RockResu
       uTexelsPerMetre: { value: params.barkTexelsPerMetre * 2.8 },
       uMoss: { value: opts.moss ?? 0.35 },
       uSeed: { value: (config.seed % 997) * 0.37 },
+      uSnow: { value: opts.snow ?? 0 },
+      uSnowRim: { value: opts.snowRim === false ? 0 : 1 },
+      uSnowColors: { value: ['#354a65', '#a6b5c5', '#d1d7de', '#e6e9ed'].map(hex => {
+        const color = new THREE.Color(hex).convertLinearToSRGB();
+        return new THREE.Vector3(color.r, color.g, color.b);
+      }) },
+      uCracks: { value: opts.cracks ?? 0 },
+      uNaturalStone: { value: config.growthStage === 'rock' ? 1 : 0 },
+      uMossSeed: { value: params.seed },
     },
     vertexShader: STONE_VERTEX,
     fragmentShader: STONE_FRAGMENT,
   });
-  materials.push(mat);
-
-  const scale = opts.scale ?? 1;
-  const clusters = 1 + Math.floor(rnd() * (opts.maxClusters ?? 3));
-  const baseAngle = rnd() * Math.PI * 2;
-  for (let c = 0; c < clusters; c++) {
-    const angle = baseAngle + (c / clusters) * Math.PI * 2 + (rnd() - 0.5) * 1.2;
-    const dist = THREE.MathUtils.lerp(opts.minDist, opts.maxDist, rnd());
-    const centre = new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
-    const pieces = 1 + Math.floor(rnd() * 3);                 // a boulder and 0-2 pebbles
-    for (let p = 0; p < pieces; p++) {
-      const r = (p === 0 ? 0.28 + rnd() * 0.3 : 0.1 + rnd() * 0.1) * scale;
-      const sy = 0.55 + rnd() * 0.3;
-      const size = new THREE.Vector3(r * (0.9 + rnd() * 0.4), r * sy, r * (0.9 + rnd() * 0.4));
-      const geo = boulderGeometry(rnd, size, rnd() * Math.PI * 2, lightDir);
-      geometries.push(geo);
-      const rock = new THREE.Mesh(geo, mat);
-      const off = p === 0 ? new THREE.Vector3() : new THREE.Vector3(Math.cos(rnd() * 6.28), 0, Math.sin(rnd() * 6.28)).multiplyScalar((0.3 + rnd() * 0.25) * scale + r);
-      rock.position.copy(centre).add(off);
-      rock.position.y = r * sy * 0.25;                         // partly sunk into the soil
-      rock.castShadow = true;
-      rock.receiveShadow = true;
-      rock.userData.ground = true;
-      group.add(rock);
-    }
-  }
-  return { group, geometries, materials, textures };
+  return { material, palette, lightDir };
 }

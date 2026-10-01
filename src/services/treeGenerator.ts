@@ -11,12 +11,15 @@ import { buildProceduralSapling } from './saplingGenerator';
 import { buildProceduralDeadwood } from './deadwoodGenerator';
 import { createPixelBarkMaterial } from './pixelArtTextureSystem';
 import { buildHangingFruit } from './fruitSystem';
-import { bracketSprite, makeSprite, mushroomSprite, spriteMaterial, surfaceSprite, MUSHROOM_CAPS, MUSHROOM_FOOT } from './pixelSprites';
+import { bracketSprite, mushroomSprite, spriteMaterial, MUSHROOM_CAPS, MUSHROOM_FOOT } from './pixelSprites';
+import { treeMushroomCard } from './mushroomRotation';
+import { createGroundProps } from './groundPropGenerator';
 import { buildProceduralLog, LogResult } from './logGenerator';
 import { createPixelEndGrainMaterial } from './endGrainMaterial';
 import { cutTree, CutResult } from './treeCutter';
 import { buildPixelRocks } from './rockSystem';
 import { buildGroundPlant, GroundPlantResult } from './groundPlantGenerator';
+import { createProceduralRock } from './rockGenerator';
 
 export interface TreeInstance {
   group: THREE.Group;
@@ -56,6 +59,8 @@ function cutHeightFor(config: TreeConfig): number {
  * Creates the tree, and gives it an axe: see TreeInstance.fell.
  */
 export function createTree(sourceConfig: TreeConfig): TreeInstance {
+  if (sourceConfig.prop) return createGroundProps(sourceConfig);
+  if (sourceConfig.growthStage === 'rock') return createProceduralRock(sourceConfig);
   // A private copy, read live by every animation below: felling the tree
   // stills the wind on it (a trunk lying on the ground does not sway) without
   // touching the settings the panel shows.
@@ -973,7 +978,7 @@ function buildTree(config: TreeConfig): TreeInstance {
         const angle = clumpAngle + (k - (inClump - 1) / 2) * 0.16 + (rnd() - 0.5) * 0.06;
         const around = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
         // where the bark (or the root flare) meets the ground on this side
-        const { surface } = barkAt(
+        const { surface, outward } = barkAt(
           new THREE.Vector3(foot.x, 0.12, foot.z),
           around,
           config.trunkRadiusBase * 1.1
@@ -981,8 +986,9 @@ function buildTree(config: TreeConfig): TreeInstance {
         const at = surface.clone().addScaledVector(around, 0.05 + rnd() * 0.22);
         at.y = -0.02; // foot in the soil
         const cap = Math.floor(rnd() * caps.length);
-        const shroom = makeSprite(shroomMatFor(cap), (0.34 + rnd() * 0.26) * (k === 0 ? 1.15 : 1), MUSHROOM_FOOT);
-        const holder = surfaceSprite(shroom, at, 0.06);
+        const fungus = treeMushroomCard(shroomMatFor(cap).map!, (0.34 + rnd() * 0.26) * (k === 0 ? 1.15 : 1), MUSHROOM_FOOT, at, outward);
+        const holder = fungus.holder;
+        geometriesToDispose.push(fungus.geometry); materialsToDispose.push(fungus.material);
         holder.userData.ground = true;   // stays with the stump when the tree is felled
         group.add(holder);
       }
@@ -995,9 +1001,10 @@ function buildTree(config: TreeConfig): TreeInstance {
       const around = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
       const node = trunkUpperNodes.length > 0 ? trunkUpperNodes[(m * 3) % trunkUpperNodes.length] : null;
       const axisPoint = node ? node.position.clone() : new THREE.Vector3(foot.x, 1.0 + m * 0.5, foot.z);
-      const { surface } = barkAt(axisPoint, around, node ? node.radius : config.trunkRadiusBase * 0.82);
-      const shelf = makeSprite(shelfMatFor(Math.floor(rnd() * shelfColors.length)), 0.45 + rnd() * 0.2);
-      group.add(surfaceSprite(shelf, surface, 0.1));
+      const { surface, outward } = barkAt(axisPoint, around, node ? node.radius : config.trunkRadiusBase * 0.82);
+      const shelf = treeMushroomCard(shelfMatFor(Math.floor(rnd() * shelfColors.length)).map!, 0.45 + rnd() * 0.2, new THREE.Vector2(0.5, 0.5), surface, outward);
+      geometriesToDispose.push(shelf.geometry); materialsToDispose.push(shelf.material);
+      group.add(shelf.holder);
     }
   }
 

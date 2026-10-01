@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TreeConfig } from '../types';
+import { pixelMossNoiseGLSL } from './mossStyle';
 
 // ============================================================================
 // PROCEDURAL PIXEL ART TEXTURE SYSTEM
@@ -1351,6 +1352,14 @@ export function getPixelFoliageTextures(config: TreeConfig): PixelFoliageTexture
   );
 }
 
+/** The same authored moss palette on bark and stone; custom tints retain
+ * its cool shadows, warm tips and limited ramp. */
+export function buildPixelMossRamp(steps: number, lightHex = '#7ba33a'): RGB[] {
+  return buildFoliageRamp('#2c3f16', lightHex, steps, {
+    hueCold: 26, hueWarm: -8, contrast: 0.4, shadow: 0.5, satBoost: 0.82,
+  });
+}
+
 export function getPixelBarkTextures(config: TreeConfig): PixelBarkTextures {
   const params = resolvePixelTextureParams(config);
   const key = paramKey(params, config.species, `bark:${config.barkColor}:${config.barkStyle}`);
@@ -1367,13 +1376,7 @@ export function getPixelBarkTextures(config: TreeConfig): PixelBarkTextures {
     contrast: params.contrast,
     shadow: params.shadow,
   });
-  const moss = buildFoliageRamp('#2c3f16', '#7ba33a', params.steps, {
-    hueCold: 26,
-    hueWarm: -8,
-    contrast: 0.4,
-    shadow: 0.5,
-    satBoost: 0.82,
-  });
+  const moss = buildPixelMossRamp(params.steps);
   const palette = buildPaletteTexture(wood, moss);
 
   return cachePut(barkCache, key, { structure, palette, steps: params.steps, params }, (v) => {
@@ -1908,22 +1911,7 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
 
   // Smooth value noise, for the moss: sampled only at texel centres, so its
   // blobs come out as clusters of whole texels with ragged pixel edges.
-  float mhash3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123); }
-  float mnoise3(vec3 p) {
-    vec3 i = floor(p);
-    vec3 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(
-      mix(mix(mhash3(i), mhash3(i + vec3(1.0, 0.0, 0.0)), f.x),
-          mix(mhash3(i + vec3(0.0, 1.0, 0.0)), mhash3(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
-      mix(mix(mhash3(i + vec3(0.0, 0.0, 1.0)), mhash3(i + vec3(1.0, 0.0, 1.0)), f.x),
-          mix(mhash3(i + vec3(0.0, 1.0, 1.0)), mhash3(i + vec3(1.0, 1.0, 1.0)), f.x), f.y),
-      f.z);
-  }
-  // cushions a few texels across, broken up by finer tufts
-  float mossField(vec3 p) {
-    return mnoise3(p / 8.0 + uTextureSeed) * 0.75 + mnoise3(p / 3.0 + 17.0 + uTextureSeed) * 0.25;
-  }
+  ${pixelMossNoiseGLSL('uTextureSeed')}
 
   void main() {
     float N1 = uPaletteSteps - 1.0;

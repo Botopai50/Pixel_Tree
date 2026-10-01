@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { TreeConfig } from '../types';
 import { createPixelEndGrainMaterial } from './endGrainMaterial';
-import { bracketSprite, makeSprite, mushroomSprite, spriteMaterial, surfaceSprite, MUSHROOM_CAPS, MUSHROOM_FOOT } from './pixelSprites';
+import { bracketSprite, mushroomSprite, MUSHROOM_CAPS, MUSHROOM_FOOT } from './pixelSprites';
+import { treeMushroomCard } from './mushroomRotation';
 
 /**
  * Logs and stumps (the "Troncos" category): dead wood lying on, or standing
@@ -759,24 +760,18 @@ export function buildProceduralLog(
   if (kind === 'stump' && config.showMushrooms && config.mushroomCount > 0) {
     // pixel-art toadstools standing in the grass: mostly red with pale
     // flecks, a few other caps among them
-    const toadMats = new Map<number, THREE.SpriteMaterial>();
-    const toadMatFor = (i: number) => {
-      let m = toadMats.get(i);
-      if (!m) {
-        m = spriteMaterial(mushroomSprite(MUSHROOM_CAPS[i].color, MUSHROOM_CAPS[i].spots));
-        toadMats.set(i, m);
-        materialsToDispose.push(m);
-      }
-      return m;
-    };
     const count = Math.min(10, config.mushroomCount);
     for (let m = 0; m < count; m++) {
       const a = (m * 2.39996 + knotPhase) % (Math.PI * 2);
       const d = r0 * (1.2 + rnd() * 0.5) + 0.15;
       const cap = rnd() < 0.5 ? 0 : Math.floor(rnd() * MUSHROOM_CAPS.length);
-      const toad = makeSprite(toadMatFor(cap), 0.34 + rnd() * 0.16, MUSHROOM_FOOT);
-      toad.position.set(Math.cos(a) * d, -0.02, Math.sin(a) * d); // foot in the soil
-      group.add(toad);
+      const toad = treeMushroomCard(mushroomSprite(MUSHROOM_CAPS[cap].color, MUSHROOM_CAPS[cap].spots),
+        0.34 + rnd() * 0.16, MUSHROOM_FOOT,
+        new THREE.Vector3(Math.cos(a) * d, -0.02, Math.sin(a) * d),
+        new THREE.Vector3(Math.cos(a), 0, Math.sin(a)));
+      group.add(toad.holder);
+      materialsToDispose.push(toad.material);
+      geometriesToDispose.push(toad.geometry);
     }
     // and a shelf or two on the stump's own side
     const f: Frame[] = framesAlong(
@@ -833,10 +828,8 @@ function addBracketFungi(
   geometriesToDispose: THREE.BufferGeometry[],
   upright = false
 ) {
-  // pixel-art shelves, one sprite per cluster
-  const shelfMat = spriteMaterial(bracketSprite());
-  materialsToDispose.push(shelfMat);
-  void geometriesToDispose;
+  // Keep the authored shelf pixels, with the shared cap-only pitch limiter.
+  const shelfTexture = bracketSprite();
 
   const clusters = Math.max(1, Math.round(config.mushroomCount / 3));
   for (let c = 0; c < clusters; c++) {
@@ -853,11 +846,13 @@ function addBracketFungi(
       const flank = f.t.clone().cross(new THREE.Vector3(0, 1, 0)).normalize().multiplyScalar(sideSign);
       out = flank.addScaledVector(new THREE.Vector3(0, 1, 0), (rnd() - 0.2) * 0.4).normalize();
     }
-    // on the bark itself (see surfaceSprite)
-    const shelf = makeSprite(shelfMat, rHere * (upright ? 0.55 : 0.75) * (0.9 + rnd() * 0.25));
+    const width = rHere * (upright ? 0.55 : 0.75) * (0.9 + rnd() * 0.25);
     const at = f.p.clone()
       .addScaledVector(out, rHere)
       .addScaledVector(f.t, upright ? 0 : (rnd() - 0.5) * rHere * 0.5);
-    group.add(surfaceSprite(shelf, at, 0.1));
+    const shelf = treeMushroomCard(shelfTexture, width, new THREE.Vector2(0.5, 0.5), at, out);
+    group.add(shelf.holder);
+    materialsToDispose.push(shelf.material);
+    geometriesToDispose.push(shelf.geometry);
   }
 }

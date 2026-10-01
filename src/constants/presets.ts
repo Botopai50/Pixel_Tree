@@ -1,4 +1,6 @@
 import { TreeConfig } from '../types';
+import { createRockPresets } from './rockBiomes';
+import { createGroundPropPresets } from './groundProps';
 
 // What every biome bush below shares: grown by the same space colonisation as
 // the trees, branching right at the ground into several thin stems, leafy all
@@ -189,6 +191,10 @@ const PLANT_BASE: Omit<TreeConfig, 'id' | 'name' | 'species' | 'seed'> = {
 };
 
 export const TREE_PRESETS: Record<string, TreeConfig> = {
+  ...createRockPresets(SHRUB_BASE),
+  ...createRockPresets(SHRUB_BASE, true),
+  ...createRockPresets(SHRUB_BASE, false, true),
+  ...createGroundPropPresets(SHRUB_BASE),
   hyrule_oak: {
     id: 'hyrule_oak',
     name: 'Carvalho de Hyrule',

@@ -18,6 +18,10 @@ import {
 } from 'lucide-react';
 import { TreeConfig, EnvironmentConfig, TreeSpecies, TimeOfDay, CrownShape } from '../types';
 import { TREE_PRESETS } from '../constants/presets';
+import { RockControls } from './RockControls';
+import { GroundPropControls } from './GroundPropControls';
+import { PROP_LABELS } from '../constants/groundProps';
+import { ROCK_BIOMES } from '../constants/rockBiomes';
 import { audioSystem } from '../services/audioSynthesizer';
 import { resolvePixelTextureParams } from '../services/pixelArtTextureSystem';
 import { isMobileViewport, useIsMobile } from './useIsMobile';
@@ -30,6 +34,7 @@ interface ControlPanelProps {
   onSelectPreset: (species: TreeSpecies) => void;
   // tells the app when the phone sheet opens or closes (it covers the scene)
   onMobileSheetChange?: (open: boolean) => void;
+  onDesktopPanelChange?: (open: boolean) => void;
 }
 
 type MainTab = 'sliders' | 'presets' | 'env';
@@ -42,11 +47,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onUpdateEnvConfig,
   onSelectPreset,
   onMobileSheetChange,
+  onDesktopPanelChange,
 }) => {
   // Default directly to 'sliders' so procedural controls are immediately visible!
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('sliders');
   const [activeSection, setActiveSection] = useState<SliderSection>('all');
-  const [stageFilter, setStageFilter] = useState<'all' | 'adult' | 'sapling' | 'shrub' | 'log' | 'plant'>('all');
+  const [stageFilter, setStageFilter] = useState<'all' | 'adult' | 'sapling' | 'shrub' | 'log' | 'plant' | 'rock' | 'ore' | 'gravel' | 'flowers' | 'crystals' | 'leaves'>('all');
   // On a phone the panel would cover the whole tree, so there it starts closed
   // and opens as a sheet from the bottom.
   const isMobile = useIsMobile();
@@ -56,6 +62,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   }, [isMobile]);
   useEffect(() => {
     onMobileSheetChange?.(isMobile && !isCollapsed);
+    onDesktopPanelChange?.(!isMobile && !isCollapsed);
   }, [isMobile, isCollapsed]);
   // swipe the sheet's grab bar down to close it
   const swipeStartY = useRef<number | null>(null);
@@ -203,7 +210,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         <div className="flex-1 overflow-y-auto p-3.5 space-y-4 text-xs">
           
           {/* TAB 1: PROCEDURAL SLIDERS (PRIMARY FOCUS) */}
-          {activeMainTab === 'sliders' && (
+          {activeMainTab === 'sliders' && treeConfig.prop && <GroundPropControls config={treeConfig} onUpdate={onUpdateTreeConfig} onSelect={onSelectPreset} />}
+          {activeMainTab === 'sliders' && treeConfig.growthStage === 'rock' && !treeConfig.prop && <RockControls config={treeConfig} onUpdate={onUpdateTreeConfig} onSelect={onSelectPreset} />}
+          {activeMainTab === 'sliders' && treeConfig.growthStage !== 'rock' && !treeConfig.prop && (
             <div className="space-y-4">
 
               {/* Seed Bar & Quick Mutation */}
@@ -1783,7 +1792,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           {activeMainTab === 'presets' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-stone-300 font-medium">Espécies de Hyrule & Mudas</span>
+                <span className="text-stone-300 font-medium">Vegetação & Pedras de Hyrule</span>
                 <span className="text-[10px] text-amber-400 font-serif">Zelda: BotW</span>
               </div>
               <p className="text-[11px] text-stone-400 leading-relaxed">
@@ -1791,6 +1800,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               </p>
 
               {/* Stage Filter Buttons */}
+              <button id="filter-rock-presets" onClick={() => setStageFilter('rock')} className="w-full py-2 rounded-lg border border-amber-700/50 bg-amber-950/30 text-amber-200 cursor-pointer">Pedras por bioma</button>
+              <button id="filter-ore-presets" onClick={() => setStageFilter('ore')} className="w-full py-2 rounded-lg border border-orange-700/50 bg-orange-950/30 text-orange-200 cursor-pointer">Pedras com minérios</button>
+              <button id="filter-gravel-presets" onClick={() => setStageFilter('gravel')} className="w-full py-2 rounded-lg border border-stone-600 bg-stone-800 text-stone-200 cursor-pointer">Pedrinhas e cascalho</button>
+              {(['flowers','crystals','leaves'] as const).map((kind,index)=><button key={kind} onClick={()=>setStageFilter(kind)} className="w-full py-2 rounded-lg border border-stone-600 bg-stone-800 text-stone-200 cursor-pointer">{['Flores silvestres','Cristais','Folhas secas'][index]}</button>)}
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1 bg-stone-900/90 rounded-lg border border-stone-800 text-[11px]">
                 <button
                   onClick={() => setStageFilter('all')}
@@ -1863,7 +1876,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 {presetsList
                   .filter((p) => {
                     if (stageFilter === 'all') return true;
-                    const stage = p.growthStage === 'shrub' || p.growthStage === 'log' || p.growthStage === 'plant' ? p.growthStage : (p.growthStage === 'sapling' || p.species.endsWith('_sapling') ? 'sapling' : 'adult');
+                    const stage = p.prop?.kind ?? (p.growthStage === 'rock' ? (p.rock?.gravel ? 'gravel' : p.rock?.ore ? 'ore' : 'rock') : p.growthStage === 'shrub' || p.growthStage === 'log' || p.growthStage === 'plant' ? p.growthStage : (p.growthStage === 'sapling' || p.species.endsWith('_sapling') ? 'sapling' : 'adult'));
                     return stage === stageFilter;
                   })
                   .map((preset) => {
@@ -1872,6 +1885,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     const isShrub = preset.growthStage === 'shrub';
                     const isLog = preset.growthStage === 'log';
                     const isPlant = preset.growthStage === 'plant';
+                    const isRock = preset.growthStage === 'rock';
 
                     return (
                       <button
@@ -1904,7 +1918,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                                     : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                                 }`}
                               >
-                                {isPlant ? 'Rasteira' : isLog ? 'Tronco' : isShrub ? 'Arbusto' : isSapling ? 'Muda' : 'Adulta'} • {preset.trunkHeight}m
+                                {preset.prop ? PROP_LABELS[preset.prop.kind] : isRock ? (preset.rock?.ore ? 'Minério' : 'Pedra') : isPlant ? 'Rasteira' : isLog ? 'Tronco' : isShrub ? 'Arbusto' : isSapling ? 'Muda' : 'Adulta'} • {preset.prop?.size ?? preset.trunkHeight}m
                               </span>
                             </div>
                             <div className="text-[10px] text-stone-400 truncate">
@@ -1913,7 +1927,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                               {preset.foliageType === 'palm_frond' && 'Palmeira Tropical de Faron'}
                               {preset.foliageType === 'cactus_bloom' && 'Cacto de Gerudo (Florescente)'}
                               {preset.foliageType === 'swamp_weeping' && 'Manguezal do Pântano (Raízes Escoras)'}
-                              {preset.foliageType === 'none' && !isLog && !isPlant && preset.growthStage !== 'shrub' && 'Árvore Seca / Deadwood (Sem Folhas, Galhos Retorcidos)'}
+                              {preset.foliageType === 'none' && !preset.prop && !isRock && !isLog && !isPlant && preset.growthStage !== 'shrub' && 'Árvore Seca / Deadwood (Sem Folhas, Galhos Retorcidos)'}
+                              {preset.prop && `Grupos procedurais de ${ROCK_BIOMES[preset.prop.biome].name}`}
+                              {isRock && ROCK_BIOMES[preset.rock!.biome].description}
                               {isPlant && 'Planta Rasteira (Folhas em Pixel Art)'}
                               {isLog && 'Madeira Caída no Chão da Floresta (Musgo & Fungos)'}
                             </div>

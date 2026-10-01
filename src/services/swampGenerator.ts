@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { bracketSprite, makeSprite, spriteMaterial, surfaceSprite } from './pixelSprites';
+import { bracketSprite, spriteMaterial } from './pixelSprites';
+import { treeMushroomCard } from './mushroomRotation';
 import { TreeConfig } from '../types';
 import { SCATreeData, SCANode } from './spaceColonization';
 
@@ -280,12 +281,24 @@ export function buildSwampRootsAndAccessories(
 
     // one sprite (three stepped shelves) for every three the count asks for
     const targetCount = Math.min(22, config.shelfMushroomCount ?? 14);
+    rootsMesh.updateWorldMatrix(true, false);
+    const rootRay = new THREE.Raycaster();
     for (let m = 0; m < targetCount; m += 3) {
       const anchor = mushroomAnchors[(m / 3) % mushroomAnchors.length | 0];
-      const shelf = makeSprite(shelfMat, 0.55 + rnd() * 0.25);
+      const width = 0.55 + rnd() * 0.25;
       const at = anchor.pos.clone()
         .add(new THREE.Vector3((rnd() - 0.5) * 0.1, (rnd() - 0.5) * 0.08, (rnd() - 0.5) * 0.1));
-      group.add(surfaceSprite(shelf, at));
+      const normal = anchor.normal.clone().normalize();
+      rootRay.set(at.clone().addScaledVector(normal, 2), normal.clone().negate());
+      rootRay.far = 2.5;
+      const hit = rootRay.intersectObject(rootsMesh, false).find(h => h.point.distanceTo(at) < 0.7);
+      if (hit?.face) {
+        at.copy(hit.point);
+        normal.copy(hit.face.normal).transformDirection(rootsMesh.matrixWorld);
+      }
+      const shelf = treeMushroomCard(shelfMat.map!, width, new THREE.Vector2(0.5, 0.5), at, normal);
+      geometriesToDispose.push(shelf.geometry); materialsToDispose.push(shelf.material);
+      group.add(shelf.holder);
     }
   }
 

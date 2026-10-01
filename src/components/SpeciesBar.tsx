@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { TreeSpecies, TreeConfig } from '../types';
 import { TREE_PRESETS } from '../constants/presets';
+import { rockBiomeForSpecies } from '../constants/rockBiomes';
+import { PROP_LABELS } from '../constants/groundProps';
 import { audioSystem } from '../services/audioSynthesizer';
 import {
   TreePine,
@@ -13,6 +15,8 @@ import {
   Check,
   Axe,
   Flower2,
+  Mountain,
+  Gem,
 } from 'lucide-react';
 
 interface SpeciesBarProps {
@@ -20,7 +24,7 @@ interface SpeciesBarProps {
   onSelectPreset: (species: TreeSpecies) => void;
 }
 
-type Stage = 'adult' | 'sapling' | 'shrub' | 'log' | 'plant';
+type Stage = 'adult' | 'sapling' | 'shrub' | 'log' | 'plant' | 'rock' | 'ore' | 'gravel' | 'flowers' | 'crystals' | 'leaves';
 
 interface PresetItem {
   id: string;
@@ -33,6 +37,8 @@ interface PresetItem {
 
 function stageOf(p: TreeConfig | undefined): Stage {
   if (!p) return 'adult';
+  if (p.prop) return p.prop.kind;
+  if (p.growthStage === 'rock') return p.rock?.gravel ? 'gravel' : p.rock?.ore ? 'ore' : 'rock';
   if (p.growthStage === 'shrub') return 'shrub';
   if (p.growthStage === 'log') return 'log';
   if (p.growthStage === 'plant') return 'plant';
@@ -46,7 +52,30 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
   const [activeTab, setActiveTab] = useState<Stage>(currentStage);
   const [isGridOpen, setIsGridOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const categoryScrollRef = useRef<HTMLDivElement>(null);
+  const [categoryEdges, setCategoryEdges] = useState({ left: false, right: false });
   const gridModalRef = useRef<HTMLDivElement>(null);
+
+  const updateCategoryEdges = () => {
+    const strip = categoryScrollRef.current;
+    if (strip) setCategoryEdges({ left: strip.scrollLeft > 2, right: strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 2 });
+  };
+  useEffect(() => {
+    const strip = categoryScrollRef.current;
+    if (!strip) return;
+    const observer = new ResizeObserver(updateCategoryEdges);
+    observer.observe(strip);
+    updateCategoryEdges();
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    categoryScrollRef.current?.querySelector(`#tab-select-${activeTab}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    updateCategoryEdges();
+  }, [activeTab]);
+  const scrollCategories = (direction: number) => {
+    const strip = categoryScrollRef.current;
+    strip?.scrollBy({ left: direction * Math.max(160, strip.clientWidth * 0.65), behavior: 'smooth' });
+  };
 
   // Sync active tab when currentSpecies changes externally
   useEffect(() => {
@@ -87,6 +116,9 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
   const shrubPresets = presetsOf('shrub');
   const logPresets = presetsOf('log');
   const plantPresets = presetsOf('plant');
+  const rockPresets = presetsOf('rock');
+  const orePresets = presetsOf('ore');
+  const gravelPresets = presetsOf('gravel');
 
   const displayedPresets =
     activeTab === 'adult'
@@ -97,7 +129,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
       ? shrubPresets
       : activeTab === 'log'
       ? logPresets
-      : plantPresets;
+      : activeTab === 'rock' ? rockPresets : activeTab === 'ore' ? orePresets : activeTab === 'gravel' ? gravelPresets : ['flowers','crystals','leaves'].includes(activeTab) ? presetsOf(activeTab) : plantPresets;
 
   const handleSelect = (species: TreeSpecies) => {
     audioSystem.playKorokJingle();
@@ -115,7 +147,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
   return (
     <div
       id="botw-bottom-bar"
-      className="absolute bottom-2 sm:bottom-3 pb-[env(safe-area-inset-bottom)] left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 w-full max-w-[calc(100vw-1rem)] sm:max-w-2xl md:max-w-3xl lg:max-w-4xl px-2 pointer-events-none"
+      className="absolute bottom-2 sm:bottom-3 pb-[env(safe-area-inset-bottom)] left-1/2 -translate-x-1/2 md:left-3 md:translate-x-0 z-20 flex flex-col items-center gap-1.5 w-full max-w-[calc(100vw-1rem)] sm:max-w-2xl md:max-w-[calc(100vw-28rem)] lg:max-w-[calc(100vw-28rem)] px-2 pointer-events-none"
     >
       {/* Popover: Grid of all 16 species */}
       {isGridOpen && (
@@ -128,7 +160,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
               <h3 className="font-serif font-bold text-stone-100 text-sm tracking-wide">
-                Catálogo Botânico de Hyrule ({allPresets.length} Espécies)
+                Catálogo de Natureza ({allPresets.length} Modelos)
               </h3>
             </div>
             <button
@@ -274,7 +306,33 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
               </div>
             </div>
 
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-200 mb-2"><Mountain className="w-4 h-4" /><span>Pedras por Bioma ({rockPresets.length})</span></div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {rockPresets.map(item => <button key={item.id} onClick={() => handleSelect(item.species)} className={
+                  'p-2 rounded-xl text-left border text-xs cursor-pointer ' + (currentSpecies === item.species ? 'bg-amber-950 border-amber-500 text-amber-100' : 'bg-stone-900 border-stone-800 text-stone-300 hover:bg-stone-800')
+                }><span className="block w-3 h-3 rounded mb-1" style={{ backgroundColor: item.color }} />{item.shortName}</button>)}
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-stone-200 mb-2"><Mountain className="w-4 h-4" /><span>Pedrinhas e cascalho ({gravelPresets.length})</span></div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {gravelPresets.map(item => <button key={item.id} onClick={() => handleSelect(item.species)} className={'p-2 rounded-xl text-left border text-xs cursor-pointer ' + (currentSpecies === item.species ? 'bg-stone-700 border-stone-400 text-white' : 'bg-stone-900 border-stone-800 text-stone-300 hover:bg-stone-800')}><span className="block w-3 h-3 rounded mb-1" style={{ backgroundColor: item.color }} />{item.shortName}</button>)}
+              </div>
+            </div>
             {/* Ground plants */}
+            {(['flowers','crystals','leaves'] as const).map(kind=><div key={kind}>
+              <div className="text-xs font-semibold text-amber-200 mb-2">{PROP_LABELS[kind]} ({presetsOf(kind).length})</div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">{presetsOf(kind).map(item=><button key={item.id} onClick={()=>handleSelect(item.species)} className={'p-2 rounded-xl text-left border text-xs cursor-pointer '+(currentSpecies===item.species?'bg-amber-950 border-amber-500 text-amber-100':'bg-stone-900 border-stone-800 text-stone-300 hover:bg-stone-800')}><span className="block w-3 h-3 rounded mb-1" style={{backgroundColor:item.color}}/>{item.shortName}</button>)}</div>
+            </div>)}
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-orange-300 mb-2"><Gem className="w-4 h-4" /><span>Pedras com minérios ({orePresets.length})</span></div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {orePresets.map(item => <button key={item.id} onClick={() => handleSelect(item.species)} className={
+                  'p-2 rounded-xl text-left border text-xs cursor-pointer ' + (currentSpecies === item.species ? 'bg-orange-950 border-orange-500 text-orange-100' : 'bg-stone-900 border-stone-800 text-stone-300 hover:bg-stone-800')
+                }><span className="block w-3 h-3 rounded mb-1" style={{ backgroundColor: item.color }} />{item.shortName}</button>)}
+              </div>
+            </div>
             <div>
               <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-400 mb-2">
                 <Flower2 className="w-4 h-4" />
@@ -311,9 +369,11 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
       )}
 
       {/* Main Bar: Category Selector + Scrollable Pills + Grid Button */}
-      <div className="pointer-events-auto flex flex-wrap md:flex-nowrap items-center gap-1.5 p-1.5 rounded-2xl bg-stone-950/90 backdrop-blur-xl border border-stone-800/90 shadow-2xl w-full overflow-hidden">
+      <div className="pointer-events-auto grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-1.5 p-1.5 rounded-2xl bg-stone-950/90 backdrop-blur-xl border border-stone-800/90 shadow-2xl w-full overflow-hidden">
         {/* Category Tabs: Árvores / Mudas / Arbustos / Troncos */}
-        <div className="order-1 flex-1 min-w-0 md:flex-none md:shrink-0 flex items-center p-0.5 rounded-xl bg-stone-900/90 border border-stone-800">
+        <div className="col-span-4 min-w-0 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1 p-0.5 rounded-xl bg-stone-900/90 border border-stone-800">
+          <button id="btn-scroll-categories-left" aria-label="Rolar categorias para esquerda" title="Rolar categorias para esquerda" disabled={!categoryEdges.left} onClick={() => scrollCategories(-1)} className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-700 disabled:opacity-25 disabled:cursor-default cursor-pointer"><ChevronLeft className="w-4 h-4" /></button>
+          <div ref={categoryScrollRef} onScroll={updateCategoryEdges} className="min-w-0 flex items-center overflow-x-auto scrollbar-none touch-pan-x [&>button]:shrink-0 [&>button]:flex-none [&>button]:whitespace-nowrap">
           <button
             id="tab-select-adult"
             onClick={() => setActiveTab('adult')}
@@ -388,13 +448,36 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
             <span className={activeTab === 'plant' ? '' : 'hidden sm:inline'}>Rasteiras</span>
             <span className="hidden sm:inline text-[10px] opacity-75">{plantPresets.length}</span>
           </button>
+          <button id="tab-select-rock" onClick={() => {
+            setActiveTab('rock');
+            if (currentStage !== 'rock') handleSelect((rockBiomeForSpecies(currentSpecies) + '_rock') as TreeSpecies);
+          }} className={
+            'flex-1 md:flex-none justify-center px-1.5 sm:px-2.5 py-1.5 md:py-1 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center gap-1 transition cursor-pointer ' +
+            (activeTab === 'rock' ? 'bg-amber-700 text-white' : 'text-stone-400 hover:text-stone-200')
+          } title="Gerar pedras do bioma da árvore atual"><Mountain className="w-3.5 h-3.5" /><span className={activeTab === 'rock' ? '' : 'hidden sm:inline'}>Pedras</span><span className="text-[10px] opacity-75">{rockPresets.length}</span></button>
+          <button id="tab-select-gravel" onClick={() => {
+            setActiveTab('gravel');
+            if (currentStage !== 'gravel') handleSelect((rockBiomeForSpecies(currentSpecies) + '_gravel') as TreeSpecies);
+          }} className={'flex items-center gap-1 px-1.5 sm:px-2.5 py-1.5 md:py-1 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap cursor-pointer ' + (activeTab === 'gravel' ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-stone-200')} title="Gerar pequenos grupos de pedras por bioma"><Mountain className="w-3.5 h-3.5" /><span className={activeTab === 'gravel' ? '' : 'hidden sm:inline'}>Pedrinhas e cascalho</span><span className="text-[10px] opacity-75">{gravelPresets.length}</span></button>
+          <button id="tab-select-ore" onClick={() => {
+            setActiveTab('ore');
+            if (currentStage !== 'ore') handleSelect((rockBiomeForSpecies(currentSpecies) + '_ore') as TreeSpecies);
+          }} className={
+            'flex-1 md:flex-none shrink-0 justify-center px-1.5 sm:px-2.5 py-1.5 md:py-1 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center gap-1 whitespace-nowrap transition cursor-pointer ' +
+            (activeTab === 'ore' ? 'bg-orange-700 text-white' : 'text-stone-400 hover:text-stone-200')
+          } title="Gerar pedras com minérios do bioma atual"><Gem className="w-3.5 h-3.5" /><span className={activeTab === 'ore' ? '' : 'hidden sm:inline'}>Pedras com minérios</span><span className="text-[10px] opacity-75">{orePresets.length}</span></button>
+          {(['flowers','crystals','leaves'] as const).map(kind=><button key={kind} id={`tab-select-${kind}`} onClick={()=>{setActiveTab(kind);if(currentStage!==kind)handleSelect(`${rockBiomeForSpecies(currentSpecies)}_${kind}` as TreeSpecies);}} className={'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer '+(activeTab===kind?'bg-emerald-700 text-white':'text-stone-400 hover:text-stone-200')}>
+            {kind==='crystals'?<Gem className="w-3.5 h-3.5"/>:kind==='flowers'?<Flower2 className="w-3.5 h-3.5"/>:<Leaf className="w-3.5 h-3.5"/>}<span>{PROP_LABELS[kind]}</span><span className="text-[10px] opacity-75">{presetsOf(kind).length}</span>
+          </button>)}
+          </div>
+          <button id="btn-scroll-categories-right" aria-label="Rolar categorias para direita" title="Rolar categorias para direita" disabled={!categoryEdges.right} onClick={() => scrollCategories(1)} className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-700 disabled:opacity-25 disabled:cursor-default cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
         </div>
 
         {/* Scroll Left Button */}
         <button
           id="btn-scroll-species-left"
           onClick={() => handleScroll('left')}
-          className="hidden md:block md:order-2 p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800/80 transition cursor-pointer shrink-0"
+          className="col-start-1 p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800/80 transition cursor-pointer shrink-0"
           title="Rolar espécies para esquerda"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -403,7 +486,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
         {/* Horizontal Scrollable Pills Area */}
         <div
           ref={scrollRef}
-          className="order-3 basis-full md:basis-auto flex items-center gap-1.5 overflow-x-auto scroll-smooth py-0.5 px-1 scrollbar-none touch-pan-x flex-1 min-w-0"
+          className="col-start-2 flex items-center gap-1.5 overflow-x-auto scroll-smooth py-0.5 px-1 scrollbar-none touch-pan-x flex-1 min-w-0"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {displayedPresets.map((item) => {
@@ -423,6 +506,8 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
                       ? 'bg-amber-600 text-white shadow-md shadow-amber-900/50'
                       : activeTab === 'plant'
                       ? 'bg-rose-600 text-white shadow-md shadow-rose-900/50'
+                      : activeTab === 'ore'
+                      ? 'bg-orange-700 text-white shadow-md shadow-orange-900/50'
                       : 'bg-emerald-600 text-white shadow-md shadow-emerald-900/50'
                     : 'bg-stone-900/60 text-stone-300 hover:text-white hover:bg-stone-800/80 border border-stone-800/60'
                 }`}
@@ -442,7 +527,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
         <button
           id="btn-scroll-species-right"
           onClick={() => handleScroll('right')}
-          className="hidden md:block md:order-4 p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800/80 transition cursor-pointer shrink-0"
+          className="col-start-3 p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800/80 transition cursor-pointer shrink-0"
           title="Rolar espécies para direita"
         >
           <ChevronRight className="w-4 h-4" />
@@ -452,7 +537,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
         <button
           id="btn-open-species-grid"
           onClick={() => setIsGridOpen(!isGridOpen)}
-          className={`order-2 md:order-5 p-2 md:p-1.5 rounded-xl border transition cursor-pointer flex items-center gap-1 text-xs shrink-0 ${
+          className={`col-start-4 p-2 md:p-1.5 rounded-xl border transition cursor-pointer flex items-center gap-1 text-xs shrink-0 ${
             isGridOpen
               ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
               : 'bg-stone-900/80 text-stone-300 hover:text-white hover:bg-stone-800 border-stone-700/60'
@@ -497,6 +582,10 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
 }
 
 function formatShortName(fullName: string, stage: Stage): string {
+  if (stage === 'flowers' || stage === 'crystals' || stage === 'leaves') return fullName.replace(`${PROP_LABELS[stage]} de `, '');
+  if (stage === 'gravel') return fullName.replace('Pedrinhas e cascalho de ', '');
+  if (stage === 'ore') return fullName.replace('Pedra com minérios de ', '');
+  if (stage === 'rock') return fullName.replace('Pedra de ', '');
   if (stage === 'plant') return fullName;
   if (stage === 'log') {
     return fullName.replace('Tronco com Raízes', 'Com Raízes');

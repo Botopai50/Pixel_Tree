@@ -39,6 +39,7 @@ function ramp(base: string | THREE.Color): Ramp {
 /** A tiny indexed canvas: draw into cells, outline the shape, make a texture. */
 class Pix {
   cells: (Rgb | null)[];
+  capCells?: Set<number>;
   constructor(public w: number, public h: number) {
     this.cells = new Array(w * h).fill(null);
   }
@@ -61,7 +62,19 @@ class Pix {
         if (this.filled(x - 1, y) || this.filled(x + 1, y) || this.filled(x, y - 1) || this.filled(x, y + 1)) add.push([x, y]);
       }
     }
+    if (this.capCells) {
+      const rim = add.filter(([x, y]) => [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]
+        .some(([nx, ny]) => nx >= 0 && nx < this.w && ny >= 0 && ny < this.h && this.capCells!.has(ny * this.w + nx)));
+      rim.forEach(([x, y]) => this.capCells!.add(y * this.w + x));
+    }
     add.forEach(([x, y]) => this.set(x, y, c));
+  }
+  collisionMask() {
+    const mask = new Uint8Array(this.w * this.h);
+    this.cells.forEach((color, i) => {
+      if (color && (!this.capCells || this.capCells.has(i))) mask[(this.h - 1 - Math.floor(i / this.w)) * this.w + i % this.w] = 1;
+    });
+    return mask;
   }
   texture(): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
@@ -82,6 +95,7 @@ class Pix {
     tex.minFilter = THREE.NearestFilter;
     tex.generateMipmaps = false;
     tex.colorSpace = THREE.SRGBColorSpace;
+    tex.userData.capMask = this.collisionMask();
     return tex;
   }
 }
@@ -193,8 +207,103 @@ export function coconutSprite(): THREE.CanvasTexture {
  * toadstool.
  */
 export function mushroomSprite(capColor = '#e0782a', spots = false): THREE.CanvasTexture {
-  return cached(`mush:${capColor}:${spots}`, () => {
+  return cached(`mush:${capColor}:${spots}`, () => mushroomPixels(capColor, spots));
+}
+
+/** The same authored mushroom pixels, without a canvas or shared cache. */
+export function mushroomDataTexture(capColor = '#e0782a', spots = false): THREE.DataTexture {
+  return pixelDataTexture(mushroomPixels(capColor, spots));
+}
+
+/** Three stone-fungus silhouettes: a wavy funnel, a tall bell and layered
+ * fans. Each is hand-drawn on the same 16x16 grid as the tree accessories. */
+export function rockMushroomTexture(variant: number, spots = false): THREE.DataTexture {
+  const palettes = [
+    ['#e0c590', '#caaa70', '#b18a51', '#927045', '#765638', '#493e38'],
+    ['#e2b585', '#d79b68', '#bd7847', '#a06442', '#8d5038', '#633f35'],
+    ['#c9b8d2', '#b7a1c5', '#9d85ae', '#847092', '#71617f', '#514957'],
+  ];
+  const authoredRamp = (hexes: string[]): Ramp => {
+    const [hi, light, mid, dark, deep, outline] = hexes.map(hex => new THREE.Color(hex).convertLinearToSRGB());
+    return { hi, light, mid, dark, deep, outline };
+  };
+  const cap = authoredRamp(palettes[variant % palettes.length]);
+  const stem = authoredRamp(['#eee0c3', '#e0cfaf', '#c8b494', '#b3a084', '#857361', '#6c5c4e']);
+  const p = new Pix(16, 16);
+  const capCells = new Set<number>();
+  const line = (y: number, left: number, right: number, color?: Rgb) => {
+    for (let x = left; x <= right; x++) {
+      p.set(x, y, color ?? (x < 5 ? cap.light : x > 10 ? cap.dark : cap.mid));
+      capCells.add(y * p.w + x);
+    }
+  };
+  const stalk = (top: number) => {
+    for (let y = top; y <= 15; y++) { p.set(6, y, stem.light); p.set(7, y, stem.dark); }
+  };
+  if (variant % 3 === 0) {
+    // Scalloped, raised rim surrounding a darker depressed funnel centre.
+    stalk(9);
+    line(3, 2, 4, cap.light); line(3, 11, 13, cap.mid);
+    line(4, 1, 5, cap.light); line(4, 10, 14, cap.mid);
+    line(5, 1, 14); line(5, 5, 10, cap.deep);
+    line(6, 2, 13); line(6, 6, 9, cap.dark);
+    line(7, 3, 12); line(8, 4, 10, cap.dark); line(9, 5, 8, cap.deep);
+    p.set(3, 5, cap.hi); p.set(11, 4, cap.light);
+  } else if (variant % 3 === 1) {
+    // Tall asymmetric bell with a narrow crown and a broad shaded skirt.
+    stalk(10);
+    [[1,7,8],[2,6,9],[3,6,9],[4,5,10],[5,5,10],[6,4,11],[7,4,11],[8,3,12],[9,2,13]].forEach(([y,l,r]) => line(y,l,r));
+    line(10, 3, 12, cap.deep);
+    for (let y = 3; y <= 8; y++) p.set(5 + Math.floor((8 - y) / 3), y, cap.light);
+    for (let y = 6; y <= 9; y++) p.set(10, y, cap.dark);
+    p.set(7, 1, cap.hi);
+  } else {
+    // Offset fans branch from a low shared foot, rather than a vertical stack.
+    stalk(12);
+    for (let y = 7; y <= 13; y++) { p.set(9, y, stem.mid); p.set(10, y, stem.dark); }
+    [[4,9,11],[5,7,13],[6,6,14],[7,7,14]].forEach(([y,l,r]) => line(y,l,r));
+    line(8, 8, 13, stem.dark);
+    [[8,4,9],[9,2,11],[10,1,12],[11,1,11]].forEach(([y,l,r]) => line(y,l,r));
+    line(12, 3, 10, stem.deep);
+    line(5, 8, 11, cap.light); line(9, 3, 7, cap.light);
+    if (spots) { p.set(10, 6, cap.hi); p.set(6, 10, cap.hi); }
+  }
+  // Include the one-pixel rim of each cap, but never the stalk or its outline.
+  const capMask = new Uint8Array(p.w * p.h);
+  for (const cell of capCells) {
+    const x = cell % p.w, y = Math.floor(cell / p.w);
+    capMask[(p.h - 1 - y) * p.w + x] = 1;
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && nx < p.w && ny >= 0 && ny < p.h && !p.filled(nx, ny)) capMask[(p.h - 1 - ny) * p.w + nx] = 1;
+    }
+  }
+  p.outline(cap.outline);
+  const texture = pixelDataTexture(p);
+  texture.userData.capMask = capMask;
+  return texture;
+}
+
+function pixelDataTexture(p: Pix): THREE.DataTexture {
+  const data = new Uint8Array(p.w * p.h * 4);
+  p.cells.forEach((color, i) => {
+    if (!color) return;
+    const target = ((p.h - 1 - Math.floor(i / p.w)) * p.w + i % p.w) * 4;
+    data.set([Math.round(THREE.MathUtils.clamp(color.r, 0, 1) * 255),
+      Math.round(THREE.MathUtils.clamp(color.g, 0, 1) * 255),
+      Math.round(THREE.MathUtils.clamp(color.b, 0, 1) * 255), 255], target);
+  });
+  const texture = new THREE.DataTexture(data, p.w, p.h, THREE.RGBAFormat);
+  texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false; texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  texture.userData.capMask = p.collisionMask();
+  return texture;
+}
+
+function mushroomPixels(capColor: string, spots: boolean): Pix {
     const p = new Pix(16, 16);
+    p.capCells = new Set<number>();
     const cap = ramp(capColor);
     const stem = ramp('#eadcc0');
     const drawOne = (cx: number, base: number, rx: number, ry: number, stemW: number, stemH: number) => {
@@ -214,10 +323,13 @@ export function mushroomSprite(capColor = '#e0782a', spots = false): THREE.Canva
           if (dy > 0.05 || dx * dx + dy * dy > 1) continue;
           const t = dx * 0.8 + dy * 0.6;
           p.set(x, y, t < -0.5 ? cap.light : t > 0.55 ? cap.deep : t > 0.2 ? cap.dark : cap.mid);
+          p.capCells!.add(y * p.w + x);
         }
       }
       // gills under the rim
-      for (let x = Math.round(cx - rx + 1); x < Math.round(cx + rx - 1); x++) p.set(x, top + 1, stem.deep);
+      for (let x = Math.round(cx - rx + 1); x < Math.round(cx + rx - 1); x++) {
+        p.set(x, top + 1, stem.deep); p.capCells!.add((top + 1) * p.w + x);
+      }
       p.set(cx - rx * 0.5, top - ry * 0.6, cap.hi);
       if (spots) {
         p.set(cx - rx * 0.1, top - ry * 0.75, stem.hi);
@@ -229,7 +341,6 @@ export function mushroomSprite(capColor = '#e0782a', spots = false): THREE.Canva
     drawOne(6.5, 15, 5.6, 5.2, 3, 5);
     p.outline(cap.outline);
     return p;
-  });
 }
 
 /**
