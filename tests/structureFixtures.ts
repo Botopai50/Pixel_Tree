@@ -1,0 +1,2 @@
+import { STRUCTURE_PRESETS } from '../src/structures/catalog';import type { StructureKind,StructureConfig } from '../src/structures/types';
+export function fixture(type:StructureKind,seed=42,patch:Partial<StructureConfig>={}){const p=STRUCTURE_PRESETS[`structure_${type}`];return {...p,seed,structure:{...p.structure,...patch,palette:{...p.structure.palette,...patch.palette}}};}

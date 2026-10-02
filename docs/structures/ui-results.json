@@ -1,0 +1,17 @@
+{
+  "errors": [],
+  "records": [
+    {
+      "mobile": false,
+      "title": "Castelo",
+      "seed": "123",
+      "count": "Estruturas31"
+    },
+    {
+      "mobile": true,
+      "title": "Castelo",
+      "seed": "123",
+      "count": "Estruturas31"
+    }
+  ]
+}

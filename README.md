@@ -68,3 +68,21 @@ _preview.html e _preview-server.ps1 são a alternativa original que compila o c�
 ## Flores, cristais e folhas secas
 
 Três categorias independentes, cada uma com 12 presets de biomas. Flores têm quatro formatos (margarida, papoula, campânula e estrelada), pétalas e folhas dobradas em 3D. Cristais usam seis tipos (quartzo, ametista, esmeralda, rubi, safira e diamante), pintura pixelada e brilhos em cruz. Folhas secas se sobrepõem em montinhos baixos com nervuras pixeladas. Todas têm controles de semente, quantidade, tamanho, dispersão, densidade e pixels; o OBJ exporta a geometria sem a ilha de apresentação ou os brilhos.
+
+## Estruturas procedurais
+
+A categoria **Estruturas (31)** usa a mesma cena, barra inferior, catálogo, câmera e exportação dos 117 presets naturais. Ajuste a semente no painel ou no cabeçalho; sementes e parâmetros iguais reproduzem a arquitetura.
+
+Tipos disponíveis: casa simples, casa grande, cabana, casa abandonada, casa em ruínas, fazenda, celeiro, estábulo, torre de vigia, torre em ruínas, moinho, fortaleza pequena, castelo, castelo em ruínas, ruínas antigas, templo, ponte, muralha, portão, acampamento, aldeia, posto avançado, mansão, casa na árvore, construção de deserto, palafita de pântano, construção nevada, mina, doca, farol e salas subterrâneas.
+
+Cada gramática cria primeiro um plano de volumes, paredes, aberturas, apoios e acessos. As sementes variam proporções, cobertura, entradas, detalhes e composição conforme o tipo. Não há arquivos de modelos pré-montados. A direção visual usa arquitetura estilizada original, madeira aparente, pedra pintada e texturas procedurais com pixels por metro.
+
+No painel, escolha bioma, largura, profundidade, altura, andares, complexidade, assimetria, escala e paleta. Telhados, anexos e varandas aparecem nos tipos aplicáveis. **Ruína** varia de 0 (intacto) a 1 (destruído): remove partes, abre falhas na cobertura, quebra contornos e produz escombros. **Vegetação** adiciona elementos naturais fora dos acessos e trepadeiras nas paredes deterioradas. **Neve** pinta superfícies voltadas para cima. O corte das estruturas subterrâneas oculta paredes frontais e cobertura para mostrar as salas.
+
+**Capturar** preserva a pintura em PNG. **Exportar 3D** inclui a geometria integral da construção, escombros e acessórios, mesmo com o corte de visualização ativado; instâncias são expandidas. OBJ não incorpora a pintura procedural, musgo, neve ou iluminação como texturas.
+
+Os limites dos controles protegem passagens e proporções mínimas. As estruturas são cenários e props; não incluem navegação de personagens, colisores para engine, animação de portas nem simulação física de colapso. A ruína é uma transformação determinística do plano.
+
+A documentação e as capturas de validação estão em docs/structures. A página tools/structures-preview.html é um instrumento de desenvolvimento e não uma segunda interface do produto.
+
+A revisão visual de 02/10/2026 usa pintura por peça: veios e nós de madeira, blocos de pedra com juntas desenhadas, telhas com luz e sombra e palha em feixes. Os mapas são gerados pela semente, com filtro nearest e escala em metros sobre cada face; a pintura acompanha a inclinação do telhado e a direção das vigas. O padrão inicial usa 32 pixels por metro, ajustável no painel. Casas têm beirais e cumeeiras com espessura, caixilhos, janelas recuadas e ferragens nas portas. Pontes usam tábuas separadas apoiadas no tabuleiro. No modo de cobertura automático, o templo tem base em degraus, terraços de pedra e santuário elevado; outros telhados continuam disponíveis pelo painel.

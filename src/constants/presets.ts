@@ -2237,18 +2237,6 @@ export const TREE_PRESETS: Record<string, TreeConfig> = {
     foliageColorBottom: '#1f4f1c',
   },
 
-  wildflower_patch: {
-    ...PLANT_BASE,
-    id: 'wildflower_patch',
-    name: 'Flores Silvestres',
-    species: 'wildflower_patch',
-    seed: 4212,
-    trunkHeight: 0.5,
-    foliageColorTop: '#7ab84a',
-    foliageColorBottom: '#2f5a24',
-    windStrength: 0.5,
-  },
-
   reed_clump: {
     ...PLANT_BASE,
     id: 'reed_clump',

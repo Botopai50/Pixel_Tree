@@ -1,0 +1,3 @@
+import {TREE_PRESETS} from '../constants/presets';import {STRUCTURE_PRESETS} from '../structures/catalog';import {isStructure,AssetConfig,AssetCategory,AssetId} from './types';
+export const ASSET_PRESETS={...TREE_PRESETS,...STRUCTURE_PRESETS} as Record<AssetId,AssetConfig>;
+export function classifyAsset(p:AssetConfig|undefined):AssetCategory{if(!p)return 'adult';if(isStructure(p))return 'structure';if(p.prop)return p.prop.kind==='flowers'?'plant':p.prop.kind;if(p.growthStage==='rock')return p.rock?.gravel?'gravel':p.rock?.ore?'ore':'rock';if(p.growthStage==='sapling'||p.species.endsWith('_sapling'))return 'sapling';if(p.growthStage==='log'||p.growthStage==='shrub'||p.growthStage==='plant')return p.growthStage;return 'adult';}

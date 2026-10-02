@@ -1,0 +1,116 @@
+{
+  "errors": [],
+  "views": 155,
+  "benchmarks": [
+    {
+      "id": "structure_house",
+      "complexity": 0,
+      "ms": 60.899999998509884,
+      "calls": 227,
+      "triangles": 53236,
+      "memory": {
+        "geometries": 30,
+        "textures": 25
+      },
+      "fps": 62.56517205422315
+    },
+    {
+      "id": "structure_house",
+      "complexity": 1,
+      "ms": 54.5,
+      "calls": 229,
+      "triangles": 54572,
+      "memory": {
+        "geometries": 31,
+        "textures": 26
+      },
+      "fps": 62.76150627615063
+    },
+    {
+      "id": "structure_castle",
+      "complexity": 0,
+      "ms": 99.19999999925494,
+      "calls": 227,
+      "triangles": 67172,
+      "memory": {
+        "geometries": 30,
+        "textures": 25
+      },
+      "fps": 61.90034045206281
+    },
+    {
+      "id": "structure_castle",
+      "complexity": 1,
+      "ms": 103.89999999850988,
+      "calls": 227,
+      "triangles": 79132,
+      "memory": {
+        "geometries": 30,
+        "textures": 25
+      },
+      "fps": 61.8046971569365
+    },
+    {
+      "id": "structure_village",
+      "complexity": 0,
+      "ms": 42.80000000074506,
+      "calls": 227,
+      "triangles": 55452,
+      "memory": {
+        "geometries": 30,
+        "textures": 25
+      },
+      "fps": 61.79196704428424
+    },
+    {
+      "id": "structure_village",
+      "complexity": 1,
+      "ms": 65.5,
+      "calls": 229,
+      "triangles": 65084,
+      "memory": {
+        "geometries": 31,
+        "textures": 26
+      },
+      "fps": 62.40898689396766
+    }
+  ],
+  "released": {
+    "geometries": 0,
+    "textures": 3
+  },
+  "memorySnapshots": [
+    {
+      "geometries": 0,
+      "textures": 3
+    },
+    {
+      "geometries": 0,
+      "textures": 3
+    },
+    {
+      "geometries": 0,
+      "textures": 3
+    },
+    {
+      "geometries": 0,
+      "textures": 3
+    },
+    {
+      "geometries": 0,
+      "textures": 3
+    },
+    {
+      "geometries": 0,
+      "textures": 3
+    },
+    {
+      "geometries": 0,
+      "textures": 3
+    },
+    {
+      "geometries": 0,
+      "textures": 3
+    }
+  ]
+}

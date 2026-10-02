@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { AssetConfig,AssetId,AssetCategory,isStructure } from '../assets/types';
+import { ASSET_PRESETS,classifyAsset } from '../assets/catalog';
 import { TreeSpecies, TreeConfig } from '../types';
 import { TREE_PRESETS } from '../constants/presets';
 import { rockBiomeForSpecies } from '../constants/rockBiomes';
@@ -20,34 +22,25 @@ import {
 } from 'lucide-react';
 
 interface SpeciesBarProps {
-  currentSpecies: TreeSpecies;
-  onSelectPreset: (species: TreeSpecies) => void;
+  currentSpecies: AssetId;
+  onSelectPreset: (species: AssetId) => void;
 }
 
-type Stage = 'adult' | 'sapling' | 'shrub' | 'log' | 'plant' | 'rock' | 'ore' | 'gravel' | 'flowers' | 'crystals' | 'leaves';
+type Stage = 'adult' | 'sapling' | 'shrub' | 'log' | 'plant' | 'rock' | 'ore' | 'gravel' | 'crystals' | 'leaves' | 'structure';
 
 interface PresetItem {
   id: string;
   name: string;
   shortName: string;
-  species: TreeSpecies;
+  species: AssetId;
   color: string;
   growthStage: Stage;
 }
 
-function stageOf(p: TreeConfig | undefined): Stage {
-  if (!p) return 'adult';
-  if (p.prop) return p.prop.kind;
-  if (p.growthStage === 'rock') return p.rock?.gravel ? 'gravel' : p.rock?.ore ? 'ore' : 'rock';
-  if (p.growthStage === 'shrub') return 'shrub';
-  if (p.growthStage === 'log') return 'log';
-  if (p.growthStage === 'plant') return 'plant';
-  if (p.growthStage === 'sapling' || p.species.endsWith('_sapling')) return 'sapling';
-  return 'adult';
-}
+function stageOf(p:AssetConfig|undefined):Stage{return classifyAsset(p);}
 
 export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) {
-  const currentStage: Stage = stageOf(TREE_PRESETS[currentSpecies]);
+  const currentStage: Stage = stageOf(ASSET_PRESETS[currentSpecies]);
 
   const [activeTab, setActiveTab] = useState<Stage>(currentStage);
   const [isGridOpen, setIsGridOpen] = useState(false);
@@ -99,7 +92,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
   }, [isGridOpen]);
 
   // Group presets
-  const allPresets = Object.values(TREE_PRESETS);
+  const allPresets = Object.values(ASSET_PRESETS);
   const presetsOf = (stage: Stage): PresetItem[] =>
     allPresets
       .filter((p) => stageOf(p) === stage)
@@ -107,8 +100,8 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
         id: p.id,
         name: p.name,
         shortName: formatShortName(p.name, stage),
-        species: p.species as TreeSpecies,
-        color: p.foliageColorTop || '#7ec832',
+        species: p.species as AssetId,
+        color: isStructure(p)?p.structure.palette.roof:p.foliageColorTop || '#7ec832',
         growthStage: stage,
       }));
   const adultPresets = presetsOf('adult');
@@ -120,7 +113,9 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
   const orePresets = presetsOf('ore');
   const gravelPresets = presetsOf('gravel');
 
+  const structurePresets=presetsOf('structure');
   const displayedPresets =
+    activeTab==='structure'?structurePresets:
     activeTab === 'adult'
       ? adultPresets
       : activeTab === 'sapling'
@@ -129,9 +124,9 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
       ? shrubPresets
       : activeTab === 'log'
       ? logPresets
-      : activeTab === 'rock' ? rockPresets : activeTab === 'ore' ? orePresets : activeTab === 'gravel' ? gravelPresets : ['flowers','crystals','leaves'].includes(activeTab) ? presetsOf(activeTab) : plantPresets;
+      : activeTab === 'rock' ? rockPresets : activeTab === 'ore' ? orePresets : activeTab === 'gravel' ? gravelPresets : ['crystals','leaves'].includes(activeTab) ? presetsOf(activeTab) : plantPresets;
 
-  const handleSelect = (species: TreeSpecies) => {
+  const handleSelect = (species: AssetId) => {
     audioSystem.playKorokJingle();
     onSelectPreset(species);
     setIsGridOpen(false);
@@ -320,8 +315,9 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
                 {gravelPresets.map(item => <button key={item.id} onClick={() => handleSelect(item.species)} className={'p-2 rounded-xl text-left border text-xs cursor-pointer ' + (currentSpecies === item.species ? 'bg-stone-700 border-stone-400 text-white' : 'bg-stone-900 border-stone-800 text-stone-300 hover:bg-stone-800')}><span className="block w-3 h-3 rounded mb-1" style={{ backgroundColor: item.color }} />{item.shortName}</button>)}
               </div>
             </div>
+            <div><div className="text-xs font-semibold text-sky-200 mb-2">Estruturas ({structurePresets.length})</div><div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">{structurePresets.map(item=><button key={item.id} onClick={()=>handleSelect(item.species)} className="p-2 rounded-xl border border-stone-700 text-left text-xs text-stone-200 hover:bg-stone-800 cursor-pointer">{item.name}</button>)}</div></div>
             {/* Ground plants */}
-            {(['flowers','crystals','leaves'] as const).map(kind=><div key={kind}>
+            {(['crystals','leaves'] as const).map(kind=><div key={kind}>
               <div className="text-xs font-semibold text-amber-200 mb-2">{PROP_LABELS[kind]} ({presetsOf(kind).length})</div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">{presetsOf(kind).map(item=><button key={item.id} onClick={()=>handleSelect(item.species)} className={'p-2 rounded-xl text-left border text-xs cursor-pointer '+(currentSpecies===item.species?'bg-amber-950 border-amber-500 text-amber-100':'bg-stone-900 border-stone-800 text-stone-300 hover:bg-stone-800')}><span className="block w-3 h-3 rounded mb-1" style={{backgroundColor:item.color}}/>{item.shortName}</button>)}</div>
             </div>)}
@@ -450,25 +446,26 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
           </button>
           <button id="tab-select-rock" onClick={() => {
             setActiveTab('rock');
-            if (currentStage !== 'rock') handleSelect((rockBiomeForSpecies(currentSpecies) + '_rock') as TreeSpecies);
+            if (currentStage !== 'rock') handleSelect((rockBiomeForSpecies(currentSpecies as TreeSpecies) + '_rock') as TreeSpecies);
           }} className={
             'flex-1 md:flex-none justify-center px-1.5 sm:px-2.5 py-1.5 md:py-1 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center gap-1 transition cursor-pointer ' +
             (activeTab === 'rock' ? 'bg-amber-700 text-white' : 'text-stone-400 hover:text-stone-200')
           } title="Gerar pedras do bioma da árvore atual"><Mountain className="w-3.5 h-3.5" /><span className={activeTab === 'rock' ? '' : 'hidden sm:inline'}>Pedras</span><span className="text-[10px] opacity-75">{rockPresets.length}</span></button>
           <button id="tab-select-gravel" onClick={() => {
             setActiveTab('gravel');
-            if (currentStage !== 'gravel') handleSelect((rockBiomeForSpecies(currentSpecies) + '_gravel') as TreeSpecies);
+            if (currentStage !== 'gravel') handleSelect((rockBiomeForSpecies(currentSpecies as TreeSpecies) + '_gravel') as TreeSpecies);
           }} className={'flex items-center gap-1 px-1.5 sm:px-2.5 py-1.5 md:py-1 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap cursor-pointer ' + (activeTab === 'gravel' ? 'bg-stone-600 text-white' : 'text-stone-400 hover:text-stone-200')} title="Gerar pequenos grupos de pedras por bioma"><Mountain className="w-3.5 h-3.5" /><span className={activeTab === 'gravel' ? '' : 'hidden sm:inline'}>Pedrinhas e cascalho</span><span className="text-[10px] opacity-75">{gravelPresets.length}</span></button>
           <button id="tab-select-ore" onClick={() => {
             setActiveTab('ore');
-            if (currentStage !== 'ore') handleSelect((rockBiomeForSpecies(currentSpecies) + '_ore') as TreeSpecies);
+            if (currentStage !== 'ore') handleSelect((rockBiomeForSpecies(currentSpecies as TreeSpecies) + '_ore') as TreeSpecies);
           }} className={
             'flex-1 md:flex-none shrink-0 justify-center px-1.5 sm:px-2.5 py-1.5 md:py-1 rounded-lg text-[11px] sm:text-xs font-semibold flex items-center gap-1 whitespace-nowrap transition cursor-pointer ' +
             (activeTab === 'ore' ? 'bg-orange-700 text-white' : 'text-stone-400 hover:text-stone-200')
           } title="Gerar pedras com minérios do bioma atual"><Gem className="w-3.5 h-3.5" /><span className={activeTab === 'ore' ? '' : 'hidden sm:inline'}>Pedras com minérios</span><span className="text-[10px] opacity-75">{orePresets.length}</span></button>
-          {(['flowers','crystals','leaves'] as const).map(kind=><button key={kind} id={`tab-select-${kind}`} onClick={()=>{setActiveTab(kind);if(currentStage!==kind)handleSelect(`${rockBiomeForSpecies(currentSpecies)}_${kind}` as TreeSpecies);}} className={'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer '+(activeTab===kind?'bg-emerald-700 text-white':'text-stone-400 hover:text-stone-200')}>
-            {kind==='crystals'?<Gem className="w-3.5 h-3.5"/>:kind==='flowers'?<Flower2 className="w-3.5 h-3.5"/>:<Leaf className="w-3.5 h-3.5"/>}<span>{PROP_LABELS[kind]}</span><span className="text-[10px] opacity-75">{presetsOf(kind).length}</span>
+          {(['crystals','leaves'] as const).map(kind=><button key={kind} id={`tab-select-${kind}`} onClick={()=>{setActiveTab(kind);if(currentStage!==kind)handleSelect(`${rockBiomeForSpecies(currentSpecies as TreeSpecies)}_${kind}` as TreeSpecies);}} className={'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer '+(activeTab===kind?'bg-emerald-700 text-white':'text-stone-400 hover:text-stone-200')}>
+            {kind==='crystals'?<Gem className="w-3.5 h-3.5"/>:<Leaf className="w-3.5 h-3.5"/>}<span>{PROP_LABELS[kind]}</span><span className="text-[10px] opacity-75">{presetsOf(kind).length}</span>
           </button>)}
+          <button id="tab-select-structure" onClick={()=>{setActiveTab('structure');if(currentStage!=='structure')handleSelect('structure_house');}} className={'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer '+(activeTab==='structure'?'bg-sky-700 text-white':'text-stone-400 hover:text-stone-200')}><Mountain className="w-3.5 h-3.5"/><span>Estruturas</span><span className="text-[10px] opacity-75">{structurePresets.length}</span></button>
           </div>
           <button id="btn-scroll-categories-right" aria-label="Rolar categorias para direita" title="Rolar categorias para direita" disabled={!categoryEdges.right} onClick={() => scrollCategories(1)} className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-700 disabled:opacity-25 disabled:cursor-default cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
         </div>
@@ -582,7 +579,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
 }
 
 function formatShortName(fullName: string, stage: Stage): string {
-  if (stage === 'flowers' || stage === 'crystals' || stage === 'leaves') return fullName.replace(`${PROP_LABELS[stage]} de `, '');
+  if (stage === 'crystals' || stage === 'leaves') return fullName.replace(`${PROP_LABELS[stage]} de `, '');
   if (stage === 'gravel') return fullName.replace('Pedrinhas e cascalho de ', '');
   if (stage === 'ore') return fullName.replace('Pedra com minérios de ', '');
   if (stage === 'rock') return fullName.replace('Pedra de ', '');

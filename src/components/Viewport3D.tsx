@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useImperativeHandle, forwardRef } from 'react
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TreeConfig, EnvironmentConfig } from '../types';
+import { AssetConfig,AssetInstance,isStructure } from '../assets/types';
+import { createAsset } from '../assets/generator';
+import { assetFrame } from '../assets/framing';
 import { createTree, TreeInstance } from '../services/treeGenerator';
 import { LeafParticleSystem } from '../services/particleSystem';
 
@@ -42,7 +45,7 @@ function setShadowSpan(light: THREE.DirectionalLight, half: number) {
 }
 
 interface Viewport3DProps {
-  treeConfig: TreeConfig;
+  treeConfig: AssetConfig;
   envConfig: EnvironmentConfig;
   onFpsUpdate?: (fps: number) => void;
   // share of the screen height covered from below by an overlay (0 = none)
@@ -51,7 +54,9 @@ interface Viewport3DProps {
 }
 
 export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
-  ({ treeConfig, envConfig, onFpsUpdate, viewInsetBottom = 0, viewInsetRight = 0 }, ref) => {
+  ({ treeConfig:assetConfig, envConfig, onFpsUpdate, viewInsetBottom = 0, viewInsetRight = 0 }, ref) => {
+    const structureConfig=isStructure(assetConfig)?assetConfig:undefined;
+    const treeConfig=isStructure(assetConfig)?undefined:assetConfig;
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const viewInsetRef = useRef(viewInsetBottom);
@@ -80,7 +85,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
     const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
     const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
     const controlsRef = useRef<OrbitControls | null>(null);
-    const treeInstanceRef = useRef<TreeInstance | null>(null);
+    const treeInstanceRef = useRef<AssetInstance | null>(null);
     const particleSystemRef = useRef<LeafParticleSystem | null>(null);
     const dirLightRef = useRef<THREE.DirectionalLight | null>(null);
     const hemiLightRef = useRef<THREE.HemisphereLight | null>(null);
@@ -90,7 +95,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
       const camera = cameraRef.current;
       const controls = controlsRef.current;
       if (!camera || !controls) return;
-      const object = detail ? group.getObjectByName('RockAsset') ?? group : group;
+      const object = detail ? group.getObjectByName('StructureAsset') ?? group.getObjectByName('RockAsset') ?? group : group;
       const box = new THREE.Box3().setFromObject(object);
       if (box.isEmpty()) box.setFromObject(group);
       const size = box.getSize(new THREE.Vector3());
@@ -98,11 +103,12 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
       center.y = Math.max(0.3, center.y);
       const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
       const limitingTan = Math.tan(halfFov) * Math.min(1, camera.aspect);
-      const distance = Math.max(size.x, size.y, size.z) / (2 * limitingTan) * (detail ? 1.2 : 1.35);
+      const distance = structureConfig?assetFrame(box,camera.aspect,camera.fov).distance:Math.max(size.x, size.y, size.z) / (2 * limitingTan) * (detail ? 1.2 : 1.35);
+      if(structureConfig){const frame=assetFrame(box,camera.aspect,camera.fov);camera.near=frame.near;camera.far=frame.far;camera.updateProjectionMatrix();}
       controls.minDistance = 0.6;
       controls.maxDistance = Math.max(38, distance * 2);
       controls.target.copy(center);
-      camera.position.copy(center).add(new THREE.Vector3(1, 0.7, 1.6).normalize().multiplyScalar(distance));
+      camera.position.copy(center).add(new THREE.Vector3(1, 0.7, structureConfig?-1.6:1.6).normalize().multiplyScalar(distance));
       controls.update();
       if (dirLightRef.current) setShadowSpan(dirLightRef.current, Math.max(12, size.x, size.z));
     };
@@ -167,6 +173,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
       dirLight.shadow.camera.bottom = -4;
       dirLight.shadow.bias = -0.0005;
       scene.add(dirLight);
+      scene.add(dirLight.target);
       dirLightRef.current = dirLight;
 
       // Resize observer
@@ -264,19 +271,19 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
       if (controlsRef.current) controlsRef.current.maxDistance = 38;
 
       // Generate new procedural tree
-      const newTree = createTree(treeConfig);
+      const newTree = createAsset(assetConfig);
       treeInstanceRef.current = newTree;
       scene.add(newTree.group);
 
       // Generate falling leaves particles
-      if (treeConfig.showFallingLeaves && treeConfig.fallingLeafCount > 0) {
+      if (treeConfig && treeConfig.showFallingLeaves && treeConfig.fallingLeafCount > 0) {
         const particles = new LeafParticleSystem(treeConfig);
         particleSystemRef.current = particles;
         scene.add(particles.group);
       }
 
       // Adjust controls target height and camera distance based on growth stage
-      if (treeConfig.growthStage === 'rock' || treeConfig.prop) {
+      if(structureConfig){const key=JSON.stringify([structureConfig.species,structureConfig.seed,structureConfig.structure.width,structureConfig.structure.height,structureConfig.structure.depth,structureConfig.structure.floors,structureConfig.structure.scale,structureConfig.structure.ruin]);if(key!==rockFrameRef.current)frameRock(newTree.group);rockFrameRef.current=key;} else if (treeConfig && (treeConfig.growthStage === 'rock' || treeConfig.prop)) {
         const rock = treeConfig.rock!;
         const frameKey = treeConfig.prop ? [treeConfig.species,treeConfig.prop.count,treeConfig.prop.size,treeConfig.prop.spread].join('|') : [treeConfig.species, rock.width, rock.height, rock.depth, rock.count, rock.spread, rock.shape].join('|');
         if (frameKey !== rockFrameRef.current) frameRock(newTree.group);
@@ -340,7 +347,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
           }
         }
       }
-    }, [treeConfig]);
+    }, [assetConfig]);
 
     // -------------------------------------------------------------
     // UPDATE ENVIRONMENT & ATMOSPHERE (TIME OF DAY)
@@ -401,13 +408,14 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
           hemiLight.intensity = 0.75;
           break;
       }
-    }, [envConfig.timeOfDay, envConfig.autoRotate]);
+    if(structureConfig&&treeInstanceRef.current){const box=treeInstanceRef.current.bounds,center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3()),span=Math.max(size.x,size.y,size.z,1);const direction=dirLight.position.clone().normalize();dirLight.position.copy(center).addScaledVector(direction,Math.max(30,span*1.4));dirLight.target.position.copy(center);if(scene.fog instanceof THREE.FogExp2)scene.fog.density/=Math.max(1,span/15);setShadowSpan(dirLight,Math.max(12,span));}else dirLight.target.position.set(0,0,0);
+    }, [envConfig.timeOfDay, envConfig.autoRotate, assetConfig]);
 
     useEffect(() => {
-      if (treeConfig.growthStage !== 'rock' && !treeConfig.prop) return;
+      if (!treeConfig || (treeConfig.growthStage !== 'rock' && !treeConfig.prop)) return;
       const grass = treeInstanceRef.current?.group.getObjectByName('RockGrass');
       if (grass) grass.visible = envConfig.showGrass;
-    }, [treeConfig, envConfig.showGrass]);
+    }, [assetConfig, envConfig.showGrass]);
 
     // While the phone's settings sheet covers the bottom of the screen, the
     // scene is drawn raised into the part still visible.
@@ -425,8 +433,8 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         if (!treeInstanceRef.current) return;
         const { exportTreeAsOBJ } = await import('../services/exportService');
         exportTreeAsOBJ(
-          treeConfig.growthStage === 'rock' || treeConfig.prop ? treeInstanceRef.current.group.getObjectByName('RockAsset') as THREE.Group : treeInstanceRef.current.group,
-          `zelda_${treeConfig.species}_seed${treeConfig.seed}.obj`
+          treeInstanceRef.current.assetGroup,
+          `pixel_${assetConfig.species}_seed${assetConfig.seed}.obj`
         );
       },
       takeScreenshot: async () => {
@@ -438,7 +446,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         );
       },
       resetCamera: () => {
-        if ((treeConfig.growthStage === 'rock' || treeConfig.prop) && treeInstanceRef.current) { frameRock(treeInstanceRef.current.group); return; }
+        if ((structureConfig || (treeConfig && (treeConfig.growthStage === 'rock' || treeConfig.prop))) && treeInstanceRef.current) { frameRock(treeInstanceRef.current.group); return; }
         if (!cameraRef.current || !controlsRef.current) return;
         const isFallen = treeConfig.growthStage === 'fallen' || treeConfig.species.endsWith('_fallen');
         const isSapling = treeConfig.growthStage === 'sapling' || treeConfig.species.endsWith('_sapling');
@@ -468,7 +476,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         controlsRef.current.update();
       },
       focusCanopy: () => {
-        if ((treeConfig.growthStage === 'rock' || treeConfig.prop) && treeInstanceRef.current) { frameRock(treeInstanceRef.current.group, true); return; }
+        if ((structureConfig || (treeConfig && (treeConfig.growthStage === 'rock' || treeConfig.prop))) && treeInstanceRef.current) { frameRock(treeInstanceRef.current.group, true); return; }
         if (!cameraRef.current || !controlsRef.current) return;
         const isFallen = treeConfig.growthStage === 'fallen' || treeConfig.species.endsWith('_fallen');
         if (isFallen) {
@@ -500,7 +508,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         return true;
       },
       focusTrunk: () => {
-        if ((treeConfig.growthStage === 'rock' || treeConfig.prop) && treeInstanceRef.current) { frameRock(treeInstanceRef.current.group, true); return; }
+        if ((structureConfig || (treeConfig && (treeConfig.growthStage === 'rock' || treeConfig.prop))) && treeInstanceRef.current) { frameRock(treeInstanceRef.current.group, true); return; }
         if (!cameraRef.current || !controlsRef.current) return;
         const isFallen = treeConfig.growthStage === 'fallen' || treeConfig.species.endsWith('_fallen');
         if (isFallen) {

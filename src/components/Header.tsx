@@ -11,11 +11,12 @@ import {
   Maximize2,
   Axe
 } from 'lucide-react';
+import { AssetConfig,isStructure } from '../assets/types';
 import { TreeConfig, EnvironmentConfig } from '../types';
 import { audioSystem } from '../services/audioSynthesizer';
 
 interface HeaderProps {
-  treeConfig: TreeConfig;
+  treeConfig: AssetConfig;
   envConfig: EnvironmentConfig;
   fps: number;
   onRandomizeSeed: () => void;
@@ -47,8 +48,9 @@ export const Header: React.FC<HeaderProps> = ({
   isFelled,
 }) => {
   // what is already a log or a stump has nothing left to fell
-  const isRock = treeConfig.growthStage === 'rock' || !!treeConfig.prop;
-  const canFell = !isRock && treeConfig.growthStage !== 'log' && treeConfig.growthStage !== 'plant' && !isFelled;
+  const natureConfig=isStructure(treeConfig)?undefined:treeConfig;
+  const isRock = isStructure(treeConfig) || natureConfig?.growthStage === 'rock' || !!natureConfig?.prop;
+  const canFell = !isRock && natureConfig?.growthStage !== 'log' && natureConfig?.growthStage !== 'plant' && !isFelled;
   return (
     <header
       id="botw-header"
@@ -107,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
           id="btn-camera-canopy"
           onClick={onFocusCanopy}
           className="p-2 sm:p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800/80 transition cursor-pointer text-xs flex items-center gap-1"
-          title={treeConfig.prop ? "Focar no conjunto" : isRock ? "Focar nas pedras" : "Focar na Copa da Árvore"}
+          title={isStructure(treeConfig)?"Focar na estrutura":natureConfig?.prop ? "Focar no conjunto" : isRock ? "Focar nas pedras" : "Focar na Copa da Árvore"}
         >
           <Focus className="w-4 h-4 text-emerald-400" />
           <span className="text-[11px] hidden lg:inline">{treeConfig.prop ? "Conjunto" : isRock ? "Pedras" : "Copa"}</span>
@@ -168,7 +170,7 @@ export const Header: React.FC<HeaderProps> = ({
           title={
             isFelled
               ? 'Árvore já cortada: mude a semente ou a espécie para uma nova'
-              : treeConfig.growthStage === 'log'
+              : natureConfig?.growthStage === 'log'
               ? 'Troncos e tocos já estão cortados'
               : 'Cortar a árvore: separa o toco e o tronco'
           }

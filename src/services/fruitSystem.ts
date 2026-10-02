@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { TreeConfig } from '../types';
+import { FLOWER_PROFILES } from '../constants/wildflowers';
+import { rockBiomeForSpecies } from '../constants/rockBiomes';
+import { pixelTextureLightDir, resolvePixelTextureParams } from './pixelArtTextureSystem';
+import { createFlowerBloom } from './wildflowerSystem';
 import type { SCANode, SCATreeData } from './spaceColonization';
 import { appleSprite, berrySprite, makeSprite, spriteMaterial } from './pixelSprites';
 
@@ -19,6 +23,7 @@ export interface FruitResult {
   group: THREE.Group;
   geometries: THREE.BufferGeometry[];
   materials: THREE.Material[];
+  textures: THREE.Texture[];
 }
 
 /**
@@ -151,7 +156,7 @@ export function buildHangingFruit(
   group.name = 'BotW_Fruit';
   const geometries: THREE.BufferGeometry[] = [];
   const materials: THREE.Material[] = [];
-  const usePixel = config.pixelTextureEnabled !== false;
+  const textures: THREE.Texture[] = [];
 
   const r = options.radius;
   const perCluster = Math.max(1, options.perCluster ?? 1);
@@ -160,29 +165,22 @@ export function buildHangingFruit(
   // and leaf, or a whole bunch of berries in one sprite. The sprite is wider
   // than the fruit itself (the stalk, the leaf, the outline).
   const isBunch = perCluster > 1;
-  const fruitMat = spriteMaterial(isBunch ? berrySprite(options.color) : appleSprite(options.color));
+  const fruitMat = options.kind === 'flower' ? null : spriteMaterial(isBunch ? berrySprite(options.color) : appleSprite(options.color));
   const fruitWidth = isBunch ? r * 5.8 : r * 2.8;
-  materials.push(fruitMat);
+  if (fruitMat) materials.push(fruitMat);
   void sharedUniforms;
 
-  // Flowers: a pixel sprite on a small quad (facing +Z).
+  // The same pixel grid and palette as the ground blossoms, opening along +Z.
   let flowerGeo: THREE.BufferGeometry | null = null;
   let flowerMat: THREE.Material | null = null;
   if (options.kind === 'flower') {
-    flowerGeo = new THREE.PlaneGeometry(r * 2.4, r * 2.4);
-    flowerMat = usePixel
-      ? new THREE.MeshBasicMaterial({
-          map: flowerSprite(options.color),
-          alphaTest: 0.5,
-          side: THREE.DoubleSide,
-        })
-      : new THREE.MeshToonMaterial({
-          map: flowerSprite(options.color),
-          alphaTest: 0.5,
-          side: THREE.DoubleSide,
-        });
-    geometries.push(flowerGeo);
-    materials.push(flowerMat);
+    const profile = FLOWER_PROFILES[rockBiomeForSpecies(config.species)];
+    const bloom = createFlowerBloom(profile, options.color, pixelTextureLightDir(resolvePixelTextureParams(config)));
+    flowerGeo = bloom.geometry;
+    flowerGeo.scale(r * 1.2, r * 1.2, r * 1.2);
+    flowerGeo.rotateX(Math.PI / 2);
+    flowerMat = bloom.material;
+    geometries.push(flowerGeo); materials.push(flowerMat); textures.push(bloom.texture);
   }
 
   const crownR = Math.max(1, (data.crownRadiusX + data.crownRadiusZ) * 0.5);
@@ -295,6 +293,8 @@ export function buildHangingFruit(
         }
         const face = facing.clone().addScaledVector(up, 0.35).normalize();   // turned a little to the sky
         const flower = new THREE.Mesh(flowerGeo!, flowerMat!);
+        flower.name = 'PixelShrubBloom';
+        flower.userData.flowerFamily = FLOWER_PROFILES[rockBiomeForSpecies(config.species)].family;
         flower.position.copy(pos);
         flower.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), face);
         flower.rotateZ((rnd() - 0.5) * 0.8);          // (the sprite is lit from its top left)
@@ -309,16 +309,16 @@ export function buildHangingFruit(
     const size = fruitWidth * (0.9 + rnd() * 0.2);
     if (skin && skinDir) {
       // on the crown's skin, set a little into the leaves so it sits among them
-      const fruit = makeSprite(fruitMat, size);
+      const fruit = makeSprite(fruitMat!, size);
       fruit.position.copy(skin).addScaledVector(skinDir, -r * (0.2 + rnd() * 0.3));
       group.add(fruit);
       continue;
     }
     // no leaves found: it hangs from the twig by the stalk drawn at its top
-    const fruit = makeSprite(fruitMat, size, new THREE.Vector2(0.5, 0.95));
+    const fruit = makeSprite(fruitMat!, size, new THREE.Vector2(0.5, 0.95));
     fruit.position.copy(anchor.position).addScaledVector(down, r * 0.2).addScaledVector(outward, r * 0.3);
     group.add(fruit);
   }
 
-  return { group, geometries, materials };
+  return { group, geometries, materials, textures };
 }

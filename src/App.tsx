@@ -5,11 +5,13 @@ import { ControlPanel } from './components/ControlPanel';
 import { TreeConfig, EnvironmentConfig, TreeSpecies } from './types';
 import { TREE_PRESETS } from './constants/presets';
 import { audioSystem } from './services/audioSynthesizer';
+import { AssetConfig, AssetId, isStructure } from './assets/types';
+import { ASSET_PRESETS } from './assets/catalog';
 import { SpeciesBar } from './components/SpeciesBar';
 import { Sparkles } from 'lucide-react';
 
 export default function App() {
-  const [treeConfig, setTreeConfig] = useState<TreeConfig>(TREE_PRESETS.swamp_mangrove);
+  const [treeConfig, setTreeConfig] = useState<AssetConfig>(TREE_PRESETS.swamp_mangrove);
   const [envConfig, setEnvConfig] = useState<EnvironmentConfig>({
     timeOfDay: 'day',
     showGrass: true,
@@ -34,12 +36,12 @@ export default function App() {
   };
 
   // Quick preset selector
-  const handleSelectPreset = (species: TreeSpecies) => {
-    const basePreset = TREE_PRESETS[species];
+  const handleSelectPreset = (species: AssetId) => {
+    const basePreset = ASSET_PRESETS[species];
     if (basePreset) {
       setTreeConfig({
         ...basePreset,
-        rock: basePreset.rock ? { ...basePreset.rock } : undefined,
+        ...(isStructure(basePreset) ? { structure: { ...basePreset.structure, palette: { ...basePreset.structure.palette } } } : { rock: basePreset.rock ? { ...basePreset.rock } : undefined, prop: basePreset.prop ? { ...basePreset.prop } : undefined }),
         seed: Math.floor(Math.random() * 9000) + 1000,
       });
     }
@@ -83,7 +85,7 @@ export default function App() {
         envConfig={envConfig}
         onFpsUpdate={setFps}
         viewInsetBottom={sheetOpen ? 0.62 : 0}
-        viewInsetRight={(treeConfig.growthStage === 'rock' || treeConfig.prop) && desktopPanelOpen ? 416 : 0}
+        viewInsetRight={(isStructure(treeConfig) || treeConfig.growthStage === 'rock' || treeConfig.prop) && desktopPanelOpen ? 416 : 0}
       />
 
       {/* Header with Title & Action Controls */}
@@ -129,7 +131,7 @@ export default function App() {
             <span>
               <b className="text-amber-300">#{treeConfig.seed}</b>
             </span>
-            {treeConfig.prop ? <><span>Bioma: <b className="text-amber-200">{treeConfig.name.replace(/^(Flores silvestres|Cristais|Folhas secas) de /,'')}</b></span><span>{treeConfig.prop.kind==='leaves'?'Montinhos':'Grupos'}: <b className="text-emerald-300">{treeConfig.prop.count}</b></span></> : treeConfig.rock ? <><span>Bioma: <b className="text-amber-200">{treeConfig.name.replace(/^(?:Pedra(?: com minérios)?|Pedrinhas e cascalho) de /, '')}</b></span><span>{treeConfig.rock.gravel ? 'Grupos' : 'Pedras'}: <b className="text-emerald-300">{treeConfig.rock.gravel ? treeConfig.rock.gravelCount ?? 6 : treeConfig.rock.count}</b></span></> : <>
+            {isStructure(treeConfig) ? <><span>Tipo: <b className="text-amber-200">{treeConfig.name}</b></span><span>Ruína: <b className="text-emerald-300">{Math.round(treeConfig.structure.ruin*100)}%</b></span></> : treeConfig.prop ? <><span>Bioma: <b className="text-amber-200">{treeConfig.name.replace(/^(Flores silvestres|Cristais|Folhas secas) de /,'')}</b></span><span>{treeConfig.prop.kind==='leaves'?'Montinhos':'Grupos'}: <b className="text-emerald-300">{treeConfig.prop.count}</b></span></> : treeConfig.rock ? <><span>Bioma: <b className="text-amber-200">{treeConfig.name.replace(/^(?:Pedra(?: com minérios)?|Pedrinhas e cascalho) de /, '')}</b></span><span>{treeConfig.rock.gravel ? 'Grupos' : 'Pedras'}: <b className="text-emerald-300">{treeConfig.rock.gravel ? treeConfig.rock.gravelCount ?? 6 : treeConfig.rock.count}</b></span></> : <>
             <span>
               Alt: <b className="text-emerald-300">{treeConfig.trunkHeight.toFixed(1)}m</b>
             </span>

@@ -1,3 +1,5 @@
+import { AssetId,isStructure } from '../assets/types';
+import { StructureControls,AssetPanelProps } from './StructureControls';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Sliders,
@@ -31,7 +33,7 @@ interface ControlPanelProps {
   envConfig: EnvironmentConfig;
   onUpdateTreeConfig: (updater: (prev: TreeConfig) => TreeConfig) => void;
   onUpdateEnvConfig: (updater: (prev: EnvironmentConfig) => EnvironmentConfig) => void;
-  onSelectPreset: (species: TreeSpecies) => void;
+  onSelectPreset: (species: AssetId) => void;
   // tells the app when the phone sheet opens or closes (it covers the scene)
   onMobileSheetChange?: (open: boolean) => void;
   onDesktopPanelChange?: (open: boolean) => void;
@@ -40,7 +42,7 @@ interface ControlPanelProps {
 type MainTab = 'sliders' | 'presets' | 'env';
 type SliderSection = 'all' | 'sca' | 'trunk' | 'branches' | 'foliage' | 'texture' | 'accents' | 'wind';
 
-export const ControlPanel: React.FC<ControlPanelProps> = ({
+const NatureControlPanel: React.FC<ControlPanelProps> = ({
   treeConfig,
   envConfig,
   onUpdateTreeConfig,
@@ -52,7 +54,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   // Default directly to 'sliders' so procedural controls are immediately visible!
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('sliders');
   const [activeSection, setActiveSection] = useState<SliderSection>('all');
-  const [stageFilter, setStageFilter] = useState<'all' | 'adult' | 'sapling' | 'shrub' | 'log' | 'plant' | 'rock' | 'ore' | 'gravel' | 'flowers' | 'crystals' | 'leaves'>('all');
+  const [stageFilter, setStageFilter] = useState<'all' | 'adult' | 'sapling' | 'shrub' | 'log' | 'plant' | 'rock' | 'ore' | 'gravel' | 'crystals' | 'leaves'>('all');
   // On a phone the panel would cover the whole tree, so there it starts closed
   // and opens as a sheet from the bottom.
   const isMobile = useIsMobile();
@@ -1799,11 +1801,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 Selecione uma espécie para carregar a configuração base (árvore adulta majestosa ou muda tenra) e ajuste os sliders livremente.
               </p>
 
+              <button onClick={()=>onSelectPreset('structure_house')} className="w-full py-2 rounded-lg border border-sky-700 bg-sky-950/40 text-sky-200 cursor-pointer">Estruturas</button>
               {/* Stage Filter Buttons */}
               <button id="filter-rock-presets" onClick={() => setStageFilter('rock')} className="w-full py-2 rounded-lg border border-amber-700/50 bg-amber-950/30 text-amber-200 cursor-pointer">Pedras por bioma</button>
               <button id="filter-ore-presets" onClick={() => setStageFilter('ore')} className="w-full py-2 rounded-lg border border-orange-700/50 bg-orange-950/30 text-orange-200 cursor-pointer">Pedras com minérios</button>
               <button id="filter-gravel-presets" onClick={() => setStageFilter('gravel')} className="w-full py-2 rounded-lg border border-stone-600 bg-stone-800 text-stone-200 cursor-pointer">Pedrinhas e cascalho</button>
-              {(['flowers','crystals','leaves'] as const).map((kind,index)=><button key={kind} onClick={()=>setStageFilter(kind)} className="w-full py-2 rounded-lg border border-stone-600 bg-stone-800 text-stone-200 cursor-pointer">{['Flores silvestres','Cristais','Folhas secas'][index]}</button>)}
+              {(['crystals','leaves'] as const).map((kind,index)=><button key={kind} onClick={()=>setStageFilter(kind)} className="w-full py-2 rounded-lg border border-stone-600 bg-stone-800 text-stone-200 cursor-pointer">{['Cristais','Folhas secas'][index]}</button>)}
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1 bg-stone-900/90 rounded-lg border border-stone-800 text-[11px]">
                 <button
                   onClick={() => setStageFilter('all')}
@@ -1876,7 +1879,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 {presetsList
                   .filter((p) => {
                     if (stageFilter === 'all') return true;
-                    const stage = p.prop?.kind ?? (p.growthStage === 'rock' ? (p.rock?.gravel ? 'gravel' : p.rock?.ore ? 'ore' : 'rock') : p.growthStage === 'shrub' || p.growthStage === 'log' || p.growthStage === 'plant' ? p.growthStage : (p.growthStage === 'sapling' || p.species.endsWith('_sapling') ? 'sapling' : 'adult'));
+                    const stage = (p.prop?.kind === 'flowers' ? 'plant' : p.prop?.kind) ?? (p.growthStage === 'rock' ? (p.rock?.gravel ? 'gravel' : p.rock?.ore ? 'ore' : 'rock') : p.growthStage === 'shrub' || p.growthStage === 'log' || p.growthStage === 'plant' ? p.growthStage : (p.growthStage === 'sapling' || p.species.endsWith('_sapling') ? 'sapling' : 'adult'));
                     return stage === stageFilter;
                   })
                   .map((preset) => {
@@ -1884,7 +1887,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     const isSapling = preset.growthStage === 'sapling' || preset.species.endsWith('_sapling');
                     const isShrub = preset.growthStage === 'shrub';
                     const isLog = preset.growthStage === 'log';
-                    const isPlant = preset.growthStage === 'plant';
+                    const isPlant = preset.growthStage === 'plant' || preset.prop?.kind === 'flowers';
                     const isRock = preset.growthStage === 'rock';
 
                     return (
@@ -1992,3 +1995,5 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     </>
   );
 };
+
+export function ControlPanel(props:AssetPanelProps){if(isStructure(props.treeConfig))return <StructureControls {...props} treeConfig={props.treeConfig}/>;return <NatureControlPanel {...props} treeConfig={props.treeConfig} onUpdateTreeConfig={updater=>props.onUpdateTreeConfig(prev=>isStructure(prev)?prev:updater(prev))}/>;}

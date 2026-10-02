@@ -884,6 +884,7 @@ function buildTree(config: TreeConfig): TreeInstance {
       group.add(fruit.group);
       geometriesToDispose.push(...fruit.geometries);
       materialsToDispose.push(...fruit.materials);
+      texturesToDispose.push(...fruit.textures);
     }
   }
 

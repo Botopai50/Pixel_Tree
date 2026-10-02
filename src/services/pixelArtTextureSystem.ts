@@ -2568,11 +2568,8 @@ const saplingLeafCache = new Map<string, THREE.CanvasTexture>();
  * Saplings used to stretch a whole CROWN tile (a clump of many leaves) over
  * each leaf quad, which read as green blobs floating round the stem.
  */
-export function getPixelSaplingLeafTexture(config: TreeConfig): THREE.CanvasTexture {
+export function buildPixelSaplingLeafPixels(config: TreeConfig) {
   const shape = saplingLeafShapeFor(config.species);
-  const key = `${shape}|${Math.floor(config.seed ?? 0) % 997}`;
-  const hit = saplingLeafCache.get(key);
-  if (hit) return hit;
 
   const W = 16;
   const H = 24;
@@ -2660,7 +2657,16 @@ export function getPixelSaplingLeafTexture(config: TreeConfig): THREE.CanvasText
       out[o + 3] = 255;
     }
   }
-  const tex = makeNearestTexture(out, W, H);
+  return { pixels: out, width: W, height: H, shape };
+}
+
+export function getPixelSaplingLeafTexture(config: TreeConfig): THREE.CanvasTexture {
+  const shape = saplingLeafShapeFor(config.species);
+  const key = `${shape}|${Math.floor(config.seed ?? 0) % 997}`;
+  const hit = saplingLeafCache.get(key);
+  if (hit) return hit;
+  const { pixels, width, height } = buildPixelSaplingLeafPixels(config);
+  const tex = makeNearestTexture(pixels, width, height);
   saplingLeafCache.set(key, tex);
   return tex;
 }

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TreeConfig } from '../types';
+import { createReedHeadResources, faceCameraHorizontally } from './reedHeadSprite';
 import { pixelTextureLightDir, resolvePixelTextureParams } from './pixelArtTextureSystem';
 import { flowerSprite } from './fruitSystem';
 import { makeSprite, spriteMaterial } from './pixelSprites';
@@ -178,33 +179,6 @@ function stemTexture(r: Ramp): THREE.CanvasTexture {
     c.set(1, y, r.light);
     c.set(2, y, r.dark);
   }
-  return c.texture();
-}
-
-/** A cattail: a thin stem, the brown velvet head near the top, a spike above. */
-function cattailTexture(r: Ramp): THREE.CanvasTexture {
-  const W = 8;
-  const H = 96;
-  const c = new Canvas(W, H);
-  const brown = new THREE.Color('#6e4526');
-  const brownLight = new THREE.Color('#9a6538');
-  const brownDark = new THREE.Color('#472a17');
-  for (let y = 0; y < H; y++) {
-    if (y < 8) {                                // the bare spike above the head
-      c.set(3, y, r.dark);
-      continue;
-    }
-    if (y < 30) {                               // the head
-      c.set(2, y, brownLight);
-      c.set(3, y, y % 5 === 0 ? brownLight : brown);
-      c.set(4, y, brown);
-      c.set(5, y, brownDark);
-      continue;
-    }
-    c.set(3, y, r.light);                        // the stem
-    c.set(4, y, r.dark);
-  }
-  c.outline(r.outline);
   return c.texture();
 }
 
@@ -442,7 +416,7 @@ export function buildGroundPlant(
   } else {
     // ---- reeds and cattails at the edge of a pool -------------------------
     const blades = new RibbonBuffers();
-    const cattails = new RibbonBuffers();
+    const cattailStems = new RibbonBuffers();
     const count = 16 + Math.floor(rnd() * 8);
     const radius = 0.35 * Math.max(0.7, size / 1.7);
     for (let b = 0; b < count; b++) {
@@ -462,6 +436,10 @@ export function buildGroundPlant(
       const side = new THREE.Vector3(Math.cos(face), 0, Math.sin(face));
       blades.add(pts, pts.map(() => 0.06 * Math.max(0.7, size / 1.7)), side);
     }
+    const headScale = Math.max(0.7, size / 1.7);
+    const { geometry: headGeo, texture: headTex } = createReedHeadResources(headScale);
+    const headMat = plantMaterial(headTex, sharedUniforms, lightDir);
+    geometries.push(headGeo); textures.push(headTex); materials.push(headMat);
     const tails = 4 + Math.floor(rnd() * 3);
     for (let c = 0; c < tails; c++) {
       const a = rnd() * Math.PI * 2;
@@ -474,10 +452,36 @@ export function buildGroundPlant(
         const t = i / 6;
         pts.push(base.clone().addScaledVector(lean, h * t).add(new THREE.Vector3(0, h * t, 0)));
       }
-      addCrossed(cattails, pts, 0.1 * Math.max(0.7, size / 1.7), rnd() * Math.PI, 0.7);
+      const stemTip = base.clone().addScaledVector(lean, h * .75).add(new THREE.Vector3(0, h * .75, 0));
+      const stemPts = pts.map((_, i) => base.clone().lerp(stemTip, i / 6));
+      addCrossed(cattailStems, stemPts, .035 * headScale, rnd() * Math.PI, .525);
+      const head = new THREE.Mesh(headGeo, headMat);
+      head.name = 'ReedHeadSprite';
+      const stemAxis = stemTip.clone().sub(base).normalize();
+      head.position.copy(stemTip).addScaledVector(stemAxis, .18 * headScale);
+      head.quaternion.setFromUnitVectors(UP, stemAxis);
+      head.userData.stemAxis = stemAxis.clone();
+      head.onBeforeRender = (_renderer, _scene, camera) => faceCameraHorizontally(head, camera, stemAxis);
+      head.castShadow = true;
+      const shadowMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: headTex, alphaTest: .5, side: THREE.DoubleSide });
+      // Match the stem's wind displacement so the head remains attached.
+      shadowMaterial.onBeforeCompile = shader => {
+        shader.uniforms.uTime = sharedUniforms.uTime;
+        shader.uniforms.uWindStrength = sharedUniforms.uWindStrength;
+        shader.uniforms.uWindSpeed = sharedUniforms.uWindSpeed;
+        shader.vertexShader = 'uniform float uTime; uniform float uWindStrength; uniform float uWindSpeed;\n' + shader.vertexShader;
+        shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+          vec3 worldAnchor = (modelMatrix * vec4(position, 1.0)).xyz;
+          float ph = worldAnchor.x * 1.7 + worldAnchor.z * 1.3;
+          vec3 wind = vec3(sin(uTime * uWindSpeed * 1.9 + ph) * .07, 0., cos(uTime * uWindSpeed * 1.4 + ph * .8) * .05) * uWindStrength * .275625;
+          transformed += inverse(mat3(modelMatrix)) * wind;`);
+      };
+      head.customDepthMaterial = shadowMaterial;
+      materials.push(shadowMaterial);
+      group.add(head);
     }
     mesh(blades, bladeTexture(green));
-    mesh(cattails, cattailTexture(green));
+    mesh(cattailStems, stemTexture(green));
 
     // a little pool beside the clump
     const poolGeo = new THREE.CircleGeometry(0.85, 20);
