@@ -1,0 +1,31 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Revisão dos encaixes</title>
+<style>body{margin:0;padding:20px;background:#18252d;color:#eaf4f7;font:16px system-ui}h1{font-size:22px}main{display:flex;flex-wrap:wrap;gap:16px}section{background:#283b45;padding:12px;border-radius:8px}h2{font-size:17px;margin:0 0 8px}canvas{display:block;max-width:100%}button{padding:12px;margin:16px 0;background:#00aa86;color:white;border:0;border-radius:6px;cursor:pointer}</style>
+<h1>Varanda · semente 6923 · revisão dos encaixes</h1><main></main><button id="save">Salvar comparação PNG</button>
+<script type="module">
+import * as THREE from 'three';
+import {buildStructurePlan} from '../src/structures/plan.ts';
+import {renderStructure} from '../src/structures/renderer.ts';
+import {STRUCTURE_PRESETS} from '../src/structures/catalog.ts';
+const source=STRUCTURE_PRESETS.structure_largeHouse,config={...source.structure,annexes:false,balconies:true,vegetation:0,texelsPerMetre:40};
+const plan=buildStructurePlan({...source,seed:6923,structure:config}),asset=renderStructure(plan,config);
+const scene=new THREE.Scene();scene.background=new THREE.Color('#8cb9ca');scene.add(asset.assetGroup);
+scene.add(new THREE.HemisphereLight('#e9f5ff','#526947',2));
+const light=new THREE.DirectionalLight('#fff2d9',2.5);light.position.set(-15,25,-12);scene.add(light);
+const opening=plan.openings.find(o=>o.kind==='window'),wall=plan.walls.find(w=>w.id===opening.wall);
+const delta=new THREE.Vector3(...wall.end).sub(new THREE.Vector3(...wall.start)).normalize(),normal=new THREE.Vector3(delta.z,0,-delta.x);
+const win=new THREE.Vector3(...wall.start).add(new THREE.Vector3(...wall.end)).multiplyScalar(.5).addScaledVector(delta,opening.offset);win.y=wall.bottom+opening.bottom+opening.height/2;
+const brace=plan.pieces.find(p=>p.role==='facade-brace'),bt=new THREE.Vector3(...brace.position).add(new THREE.Vector3(...brace.end)).multiplyScalar(.5);
+const roof=plan.roofs[0],ridge=new THREE.Vector3(roof.x-roof.width/2+roof.width*roof.ridgeRatio,roof.y+roof.rise,roof.z-roof.depth/2-roof.eaves);
+const porch=plan.pieces.find(p=>p.role==='porch-cover'),post=plan.pieces.find(p=>p.role==='veranda-post');
+const target=new THREE.Vector3(post.position[0],porch.position[1],post.position[2]+.3);
+const deck=plan.pieces.find(p=>p.role==='veranda'),chimney=plan.pieces.find(p=>p.role==='chimney');
+const stone=new THREE.Vector3(chimney.position[0],chimney.position[1]+chimney.size[1]*.22,chimney.position[2]);
+const roofTarget=new THREE.Vector3(porch.position[0]-.5,porch.position[1],porch.position[2]);
+const overall=asset.bounds.getCenter(new THREE.Vector3());const size=asset.bounds.getSize(new THREE.Vector3());const views=[['Textura original com ajuste leve',overall,overall.clone().add(new THREE.Vector3(-12,9,-18)),Math.max(size.x,size.y,size.z)*1.4],['Bordas de luz com pequenos recortes',roofTarget,roofTarget.clone().add(new THREE.Vector3(-1,2,-4)),1.7]];const canvases=[];
+for(const [name,target,eye,span] of views){
+ const section=document.createElement('section'),title=document.createElement('h2');title.textContent=name;section.append(title);document.querySelector('main').append(section);
+ const renderer=new THREE.WebGLRenderer({antialias:false,preserveDrawingBuffer:true});renderer.setSize(500,400);renderer.setPixelRatio(1);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;section.append(renderer.domElement);canvases.push(renderer.domElement);
+ const camera=new THREE.OrthographicCamera(-span/2,span/2,span*.4,-span*.4,.01,100);camera.position.copy(eye);camera.lookAt(target);renderer.render(scene,camera);
+}
+document.querySelector('#save').onclick=()=>{const c=document.createElement('canvas');c.width=1000;c.height=440;const ctx=c.getContext('2d');ctx.fillStyle='#18252d';ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle='#eaf4f7';ctx.font='18px sans-serif';canvases.forEach((canvas,i)=>{ctx.fillText(views[i][0]+' · semente 6923',i*500+12,27);ctx.drawImage(canvas,i*500,40)});const a=document.createElement('a');a.download='telhado-original-ajustado.png';a.href=c.toDataURL('image/png');a.click();};
+</script></html>

@@ -31,26 +31,38 @@ export function paintSurface(kind:SurfaceMaterial,color:string,density:number,se
    const rowHeight=height/4,row=Math.floor(y/rowHeight),py=y-row*rowHeight;
    const brickWidth=width/4,shift=(row%2)*brickWidth*.5;
    const bx=Math.floor((x+shift)/brickWidth),px=(x+shift)-bx*brickWidth,b=hash(bx,row,seed);
-   tone=b<.24?3:4;
-   if(py<1||px<1)tone=1;else if(py<2||px<2)tone=2;
-   else if(py>rowHeight-2||px>brickWidth-2)tone=5;
-   else if(cluster>.84)tone=5;else if(cluster<.10)tone=3;
-   if(b>.68&&px<4&&py<4)tone=2;
+   const pixel=hash(x,y,seed+11);
+   const chip=hash(Math.floor(px),row,seed+23)>.82?1:0;
+   tone=b<.16?3:4;
+   if(py<1||px<1)tone=1;
+   else if(py<1+chip||px+py<2.5+hash(bx,row,seed+31)*2)tone=2;
+   else if(py<1.8||px<1.8)tone=5;
+   else if(py>rowHeight-1.3-chip||px>brickWidth-1.2)tone=3;
+   else if(pixel>.975)tone=3;
   }else if(kind==='roof'){
    const rowHeight=height/5,row=Math.floor(y/rowHeight),py=y-row*rowHeight;
    const tileWidth=width/7,shift=(row%2)*tileWidth*.5;
    const tile=Math.floor((x+shift)/tileWidth),px=(x+shift)-tile*tileWidth,b=hash(tile,row,seed);
    tone=b<.25?3:4;
-   if(py<1||px<1)tone=1;else if(py<2||px<2)tone=2;
-   else if(py>rowHeight-2)tone=6;else if(px>tileWidth-2)tone=5;
-   else if(px<tileWidth*.46&&py>rowHeight*.4)tone+=1;
-   if(cluster<.07&&py>3)tone-=1;
+   // Keep the original broad light facet, with small pixel steps at its edges.
+   const lightEdge=tileWidth*.46+Math.floor(hash(Math.floor(py/2),tile+row*7,seed+41)*3)-1;
+   const lightStart=rowHeight*.4+Math.floor(hash(Math.floor(px/2),row,seed+53)*3)-1;
+   const lip=hash(Math.floor(px/2),row,seed+29)>.8?.5:0;
+   if(py<1||px<1)tone=1;
+   else if(py<2||px<2)tone=2;
+   else if(py>rowHeight-1.5-lip)tone=6;
+   else if(px>tileWidth-1.5)tone=5;
+   else if(px<lightEdge&&py>lightStart)tone+=1;
   }else if(kind==='thatch'){
-   const rowHeight=height/4,row=Math.floor(y/rowHeight),py=y-row*rowHeight;
-   const bx=Math.floor(x/3),bend=Math.round(Math.sin(row*3+bx*.7)*1.5);
-   tone=py<2+Math.abs(bend)?2:4;
-   if((x+bend)%4===0&&py>3)tone=5;
-   if(hash(bx,row,seed)>.75&&py>rowHeight*.65)tone=6;
+   const tuft=Math.floor(x/5),band=Math.floor(y/9),clump=hash(tuft,band,seed+7);
+   tone=clump<.18?3:4;
+   const bend=Math.floor(hash(tuft,Math.floor(y/12),seed+17)*3)-1;
+   const fiber=(x+bend+width)%5;
+   const tip=hash(tuft,band,seed+31),length=3+Math.floor(tip*6);
+   const py=(y+Math.floor(hash(tuft,0,seed)*7))%9;
+   if(fiber===0&&py<length)tone=tip>.88?6:5;
+   else if(fiber===1&&py<length-3)tone=5;
+   else if(fiber===4&&py<length&&clump<.4)tone=3;
   }else if(kind==='plaster'){
    tone=4;const field=hash(Math.floor(x/10),Math.floor(y/9),seed);
    if(field<.12&&cluster<.65)tone=3;if(field>.92&&cluster>.4)tone=5;
@@ -65,7 +77,9 @@ export function paintSurface(kind:SurfaceMaterial,color:string,density:number,se
   const paint=ramp[Math.max(0,Math.min(6,Math.round(tone)))];data.set([...paint,255],(y*width+x)*4);
  }
  const map=new THREE.DataTexture(data,width,height);map.colorSpace=THREE.SRGBColorSpace;
- map.magFilter=map.minFilter=THREE.NearestFilter;map.generateMipmaps=false;
+ map.magFilter=THREE.NearestFilter;
+ map.minFilter=kind==='roof'?THREE.NearestMipmapLinearFilter:THREE.NearestFilter;
+ map.generateMipmaps=kind==='roof';
  map.wrapS=map.wrapT=THREE.RepeatWrapping;map.repeat.set(1/period[0],1/period[1]);map.needsUpdate=true;
  return map;
 }

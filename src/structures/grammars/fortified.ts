@@ -1,3 +1,4 @@
+import {compactFortress} from './fortress';
 import {Architect} from '../blueprint';import type {GrammarContext} from '../types';
 function curtain(a:Architect,x:number,z:number,w:number,h:number,d:number){
  const alongX=w>=d,ww=alongX?w:1.6,dd=alongX?1.6:d,support=a.piece('box',[x,h/2,z],[ww,h,dd],'stone','curtain');
@@ -24,7 +25,7 @@ function courtyard(c:GrammarContext,royal:boolean){const a=new Architect(c),p=c.
  if(royal){const keep=a.building(w*.04,d*.13,w*.38,d*.36,h*1.22,p.floors,{material:'stone',roof:p.roof==='auto'?'hip':p.roof,role:'keep'});a.veranda(keep);for(const sx of [-1,1]){const turret=a.building(keep.x+sx*keep.width*.30,keep.z+keep.depth*.18,tw*.65,td*.65,h*.62,1,{base:keep.bottom+keep.height,material:'stone',roof:p.roof==='auto'?'hip':p.roof,door:false,role:'keep-turret'});const foundation=a.plan.pieces.find(x=>x.role==='foundation'&&x.position[0]===turret.x&&x.position[2]===turret.z)!;foundation.size[1]=.16;foundation.position[1]=turret.bottom-.08;foundation.support=keep.id+'_roof';a.plan.supports.find(x=>x.component===foundation.id)!.on=foundation.support;}}
  else a.building(0,d*.16,w*.35,d*.3,h*.65,1,{material:'stone',roof:p.roof==='auto'?'gable':p.roof,role:'barracks'});
  a.plan.propZones.push({id:'courtyard',x:0,z:-d*.09,width:w*.35,depth:d*.25,y:0,kind:'garden'});return a.finish();}
-export function fortress(c:GrammarContext){return courtyard(c,false);}export function castle(c:GrammarContext){return courtyard(c,true);}export function ruinedCastle(c:GrammarContext){return courtyard(c,true);}
+export function fortress(c:GrammarContext){return compactFortress(c);}export function castle(c:GrammarContext){return courtyard(c,true);}export function ruinedCastle(c:GrammarContext){return courtyard(c,true);}
 export function ancientRuins(c:GrammarContext){const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth),h=a.value(p.height),base=a.piece('box',[0,.2,0],[w,.4,d],'stone','ancient-plinth');const rows=Math.max(3,Math.round(3+p.complexity*3));for(const side of [-1,1])for(let i=0;i<rows;i++){const z=-d*.36+i*d*.72/(rows-1),id=a.piece('column',[side*w*.35,.4+h/2,z],[.65,h,.65],'stone','colonnade',base);a.piece('box',[side*w*.35,.4+h,z],[.9,.28,.9],'stone','capital',id);if(i>0)a.beam([side*w*.35,.4+h,z-d*.72/(rows-1)],[side*w*.35,.4+h,z],.5,'stone','lintel',id);}
  a.piece('arch',[0,h*.45,d*.3],[w*.48,2,.55],'stone','ruined-arch',base);a.stairs([0,0,-d/2-2],[0,.4,-d/2],w*.55);return a.finish();}
 export function temple(c:GrammarContext){

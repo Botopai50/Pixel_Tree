@@ -87,7 +87,7 @@ export function snowy(c:GrammarContext) {
  const v=a.building(0,0,w,d,h,p.floors,{base:.7,material:'wood',roof:p.roof==='auto'?'gable':p.roof,role:'alpine-home'});
  const roof=a.plan.roofs[0];
  if(roof.kind==='gable'||roof.kind==='thatch'){roof.rise=w*(.4+p.roofPitch*.35);for(const wall of a.plan.walls)if(wall.gable)wall.gable.peak=roof.rise;for(const z of [-d/2-.03,d/2+.03])for(const side of [-1,1])a.beam([side*(w/2-.11),roof.y,z],[ -w/2+w*(roof.ridgeRatio??.5),roof.y+roof.rise,z],.22,'wood','snow-brace',roof.id);}
- else for(const z of [-d/2-.03,d/2+.03])a.beam([-w/2,roof.y,z],[w/2,roof.y+(roof.kind==='shed'?roof.rise:0),z],.22,'wood','snow-brace',roof.id);
+ else for(const z of [-d/2-.03,d/2+.03])a.beam([-w/2,roof.y+(roof.kind==='shed'&&roof.shedDirection===-1?roof.rise:0),z],[w/2,roof.y+(roof.kind==='shed'&&roof.shedDirection!==-1?roof.rise:0),z],.22,'wood','snow-brace',roof.id);
  a.chimney(v);return a.finish();
 }
 export function mine(c:GrammarContext) {

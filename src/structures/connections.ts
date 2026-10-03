@@ -7,8 +7,8 @@ export function resolveConnections(plan:StructurePlan){const walls:WallSpec[]=[]
  if(!intervals.length){walls.push(w);openings.push(...plan.openings.filter(o=>o.wall===w.id));continue;}
  const xs=[...new Set([0,L,...intervals.flatMap(i=>[i.lo,i.hi]),...(w.gable?[L*w.gable.ratio]:[])])].sort((a,b)=>a-b),ys=[...new Set([0,w.height,...intervals.flatMap(i=>[i.bottom,i.top])])].sort((a,b)=>a-b);
  for(let i=0;i<xs.length-1;i++)for(let j=0;j<ys.length-1;j++){const lo=xs[i],hi=xs[i+1],b=ys[j],t=ys[j+1],mx=(lo+hi)/2,my=(b+t)/2;if(intervals.some(r=>mx>r.lo-1e-6&&mx<r.hi+1e-6&&my>r.bottom-1e-6&&my<r.top+1e-6))continue;
- const id=w.id+'_section_'+i+'_'+j;const cell:WallSpec={...w,id,start:[w.start[0]+ux*lo,w.bottom+b,w.start[2]+uz*lo],end:[w.start[0]+ux*hi,w.bottom+b,w.start[2]+uz*hi],bottom:w.bottom+b,height:t-b,gable:undefined};
- if(w.gable&&t===w.height){const peak=w.gable.peak,at=L*w.gable.ratio,cap=(x:number)=>peak*(x<at?x/at:(L-x)/(L-at));cell.topLeft=t-b+cap(lo);cell.topRight=t-b+cap(hi);}
+ const id=w.id+'_section_'+i+'_'+j;const cell:WallSpec={...w,id,start:[w.start[0]+ux*lo,w.bottom+b,w.start[2]+uz*lo],end:[w.start[0]+ux*hi,w.bottom+b,w.start[2]+uz*hi],bottom:w.bottom+b,height:t-b,gable:undefined,topLeft:undefined,topRight:undefined};
+ if(t===w.height){const profile=(x:number)=>{const u=x/L;let height=(w.topLeft??w.height)*(1-u)+(w.topRight??w.height)*u;if(w.gable){const at=w.gable.ratio;height+=w.gable.peak*(u<at?u/at:(1-u)/(1-at));}return height-b;};cell.topLeft=profile(lo);cell.topRight=profile(hi);}
  walls.push(cell);parents.set(id,parents.get(w.id)!);
  for(const o of plan.openings.filter(o=>o.wall===w.id)){const center=o.offset+L/2;if(center-o.width/2>=lo+.101&&center+o.width/2<=hi-.101&&o.bottom>=b&&o.bottom+o.height<=t)openings.push({...o,id:o.id+'_section',wall:id,offset:center-(lo+hi)/2,bottom:o.bottom-b});}
  }

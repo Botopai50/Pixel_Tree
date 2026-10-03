@@ -1,0 +1,21 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Apoios das ruínas</title><style>body{background:#18252d;color:white;font:16px system-ui;margin:20px}img{max-width:100%}button{padding:12px}</style><h1>Fragmentos sem apoio · antes e depois</h1><img id="proof" alt="Comparação das estruturas destruídas"><p><button id="save">Salvar comparação</button></p><script type="module">
+import * as THREE from 'three';
+import {buildStructurePlan} from '../src/structures/plan.ts';
+import {applyStructureDamage} from '../src/structures/damage.ts';
+import {applyStructureDamage as before} from './damage-before-review.ts';
+import {renderStructure} from '../src/structures/renderer.ts';
+import {STRUCTURE_PRESETS} from '../src/structures/catalog.ts';
+import {structureStreams} from '../src/structures/random.ts';
+const source=STRUCTURE_PRESETS.structure_largeHouse,config={...source.structure,vegetation:0,ruin:.45};
+let seed=42,plan,old,next;
+for(let s=28;s<=28;s++){const p=buildStructurePlan({...source,seed:s,structure:config});const a=before(p,.45,structureStreams(s)),b=applyStructureDamage(p,.45,structureStreams(s));if(b.damage.length-a.damage.length>=4){seed=s;plan=p;old=a;next=b;break;}}
+if(!plan){plan=buildStructurePlan({...source,seed,structure:config});old=before(plan,.45,structureStreams(seed));next=applyStructureDamage(plan,.45,structureStreams(seed));}
+const output=document.createElement('canvas');output.width=1100;output.height=480;const ctx=output.getContext('2d');ctx.fillStyle='#18252d';ctx.fillRect(0,0,1100,480);
+const renderer=new THREE.WebGLRenderer({antialias:false,preserveDrawingBuffer:true});renderer.setSize(550,440);renderer.setPixelRatio(1);
+const box=new THREE.Box3().setFromObject(renderStructure(plan,config).assetGroup),center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3()),span=Math.max(size.x,size.y,size.z)*1.45;
+for(const [i,p] of [old,next].entries()){
+const scene=new THREE.Scene();scene.background=new THREE.Color('#91c9de');const asset=renderStructure(p,config);scene.add(asset.assetGroup);scene.add(new THREE.HemisphereLight('#ffffff','#526947',2));const light=new THREE.DirectionalLight('#fff2d9',2.5);light.position.set(-15,25,-12);scene.add(light);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(40,40),new THREE.MeshStandardMaterial({color:'#497d31'}));ground.rotation.x=-Math.PI/2;ground.position.y=-.02;scene.add(ground);
+const camera=new THREE.OrthographicCamera(-span/2,span/2,span*.4,-span*.4,.01,100);camera.position.copy(center).add(new THREE.Vector3(14,6,-18));camera.lookAt(center);renderer.render(scene,camera);ctx.drawImage(renderer.domElement,i*550,40);ctx.fillStyle='white';ctx.font='18px sans-serif';ctx.fillText((i?'Depois: apoio físico':'Antes: apoio apenas na fundação')+' · '+seed,i*550+12,27);asset.dispose();ground.geometry.dispose();ground.material.dispose();}
+renderer.dispose();const url=output.toDataURL('image/png');document.querySelector('#proof').src=url;document.querySelector('#save').onclick=()=>{const a=document.createElement('a');a.href=url;a.download='ruinas-apoios-corrigidos.png';a.click();};
+</script></html>
