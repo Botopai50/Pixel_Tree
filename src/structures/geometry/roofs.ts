@@ -33,6 +33,12 @@ function brokenFacet(points:V3[],damage:number,id:string,lift?:number) {
  return kept.length?merge(kept.map(t=>slab(t,exposed,lift))):new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute([],3));
 }
 export function buildRoof(r:RoofSurface) {
+ if(r.kind==='flat'&&r.accessHole&&(r.damage??0)<=.08){
+  const h=r.accessHole,shape=new THREE.Shape(),hole=new THREE.Path();
+  const rectangle=(path:THREE.Path,x:number,z:number,w:number,d:number)=>{path.moveTo(x-w/2,z-d/2);path.lineTo(x+w/2,z-d/2);path.lineTo(x+w/2,z+d/2);path.lineTo(x-w/2,z+d/2);path.closePath();};
+  rectangle(shape,r.x,r.z,r.width+2*r.eaves,r.depth+2*r.eaves);rectangle(hole,h.x,h.z,h.width,h.depth);shape.holes.push(hole);
+  const g=new THREE.ExtrudeGeometry(shape,{depth:r.flatThickness??.12,bevelEnabled:false,steps:1});g.rotateX(Math.PI/2);g.translate(0,r.y+(r.flatThickness??.12),0);return paintUV(g);
+ }
  if(r.kind==='thatch'&&(r.damage??0)<=.08)return paintUV(buildThatchRoof(r));
  const {x,z,y,rise,eaves:e}=r,w=r.width/2,d=r.depth/2,left=x-w-e,right=x+w+e,front=z-d-e,back=z+d+e,low=y-rise*e/Math.max(w,.1);
  let facets:V3[][];
@@ -44,7 +50,7 @@ export function buildRoof(r:RoofSurface) {
  else {const rl=x-(w-d),rr=x+(w-d);facets=[[[left,hipLow,front],[right,hipLow,front],[rr,y+rise,z],[rl,y+rise,z]],[[right,hipLow,back],[left,hipLow,back],[rl,y+rise,z],[rr,y+rise,z]],[[left,hipLow,back],[left,hipLow,front],[rl,y+rise,z]],[[right,hipLow,front],[right,hipLow,back],[rr,y+rise,z]]];}
  facets=facets.map(points=>points.filter((p,i)=>!points.slice(0,i).some(other=>p.every((v,j)=>v===other[j]))));
  }else {const ratio=r.ridgeRatio??.5,ridge=x-w+r.width*ratio,leftY=y-rise*e/(r.width*ratio),rightY=y-rise*e/(r.width*(1-ratio));facets=[[[left,leftY,front],[ridge,y+rise,front],[ridge,y+rise,back],[left,leftY,back]],[[ridge,y+rise,front],[right,rightY,front],[right,rightY,back],[ridge,y+rise,back]]];}
- return paintUV(merge(facets.map((points,i)=>brokenFacet(points,r.damage??0,r.id+'_'+i,r.kind==='hip'?.12*Math.sqrt(1+(rise/Math.min(w,d))**2):undefined))));
+ return paintUV(merge(facets.map((points,i)=>brokenFacet(points,r.damage??0,r.id+'_'+i,r.kind==='hip'?.12*Math.sqrt(1+(rise/Math.min(w,d))**2):r.kind==='flat'?r.flatThickness:undefined))));
 }
 
 /** A pitched ridge cover closes the two roof skins without a square projecting nose. */
@@ -126,3 +132,4 @@ export function buildHipFascia(r:RoofSurface,side:'front'|'back'|'left'|'right')
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
  g.setAttribute('uv',new THREE.Float32BufferAttribute(new Float32Array(positions.length/3*2),2));g.computeVertexNormals();return g;
 }
+

@@ -1,0 +1,13 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Castelo real</title><style>body{margin:20px;background:#18252d;color:white;font:18px system-ui}img{max-width:100%}button{padding:12px}</style><h1>Castelo real</h1><img id="proof" alt="Castelo com torres quadradas e bandeiras azuis"><p><button id="save">Salvar PNG</button></p><script type="module">
+import * as THREE from 'three';import {buildStructurePlan} from '../src/structures/plan.ts';import {createStructure} from '../src/structures/generator.ts';import {STRUCTURE_PRESETS} from '../src/structures/catalog.ts';
+const views=[['Castelo','castle']],out=document.createElement('canvas');out.width=1200;out.height=1000;const ctx=out.getContext('2d');ctx.fillStyle='#18252d';ctx.fillRect(0,0,out.width,out.height);const renderer=new THREE.WebGLRenderer({antialias:false,preserveDrawingBuffer:true});renderer.setSize(1200,950);renderer.setPixelRatio(1);
+for(const [i,[name,kind]] of views.entries()){
+const config={...STRUCTURE_PRESETS['structure_'+kind],seed:i===2?3:42},asset=createStructure(config),scene=new THREE.Scene();scene.background=new THREE.Color('#91c9de');scene.add(asset.group);scene.add(new THREE.HemisphereLight('#ffffff','#526947',2));const light=new THREE.DirectionalLight('#fff2d9',2.5);light.position.set(-15,25,-12);scene.add(light);
+const center=asset.bounds.getCenter(new THREE.Vector3()),size=asset.bounds.getSize(new THREE.Vector3()),span=8;const bridge=buildStructurePlan(config).pieces.find(p=>p.role==='castle-bridge');center.set(0,1.0,bridge.position[2]+1);const camera=new THREE.OrthographicCamera(-span/2,span/2,span*950/1200/2,-span*950/1200/2,.01,150);camera.position.copy(center).add(new THREE.Vector3(-8,14,-30));camera.lookAt(center);renderer.render(scene,camera);const x=i%2*600,y=Math.floor(i/2)*500;ctx.drawImage(renderer.domElement,x,y+40);ctx.fillStyle='white';ctx.font='18px sans-serif';ctx.fillText(name,x+12,y+27);asset.dispose();}
+renderer.dispose();const url=out.toDataURL('image/png');document.querySelector('#proof').src=url;document.querySelector('#save').onclick=()=>{const a=document.createElement('a');a.href=url;a.download='castelo-review.png';a.click();};
+</script></html>
+
+
+
+
+

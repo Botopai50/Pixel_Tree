@@ -5,10 +5,20 @@ import type {RoofSurface,V3} from './types';
  * never leaves intact ornamental borders suspended around a missing roof.
  */
 export function dressRoof(a:Architect,r:RoofSurface){
+ if(r.plainEdge)return;
  const w=r.width/2,d=r.depth/2,e=r.eaves;
  const left=r.x-w-e,right=r.x+w+e,front=r.z-d-e,back=r.z+d+e;
  const ratio=r.ridgeRatio??.5,ridge=r.x-w+r.width*ratio;
  const beam=(from:V3,to:V3,role:string,section=.24,cuts?:{start:V3;end:V3})=>a.beam(from,to,section,r.material==='stone'?'stone':'wood',role,r.id,cuts);
+ if(r.royalTrim&&r.kind==='hip'){
+  const y=r.y-r.rise*e/Math.min(w,d)+.06;
+  for(const z of [front,back])beam([left,y,z],[right,y,z],'castle-eave-beam',.16);
+  for(const x of [left,right])beam([x,y,front],[x,y,back],'castle-eave-beam',.16);
+  const depthAxis=d>=w,first:V3=depthAxis?[r.x,r.y+r.rise,r.z-d+w]:[r.x-w+d,r.y+r.rise,r.z],last:V3=depthAxis?[r.x,r.y+r.rise,r.z+d-w]:[r.x+w-d,r.y+r.rise,r.z];
+  for(const point of [[left,y-.06,front],[right,y-.06,front],[right,y-.06,back],[left,y-.06,back]] as V3[])a.beam(point,depthAxis?(point[2]<r.z?first:last):(point[0]<r.x?first:last),.16,'wood','hip-cap',r.id);
+  if(Math.abs(w-d)>.001)a.beam(first,last,.16,'wood','hip-ridge-cap',r.id);
+  return;
+ }
  if(r.kind==='shed'&&r.shedAxis===2){
   const height=(z:number)=>r.y+r.rise*(.5+(r.shedDirection??1)*(z-r.z)/(2*d));
   for(const z of [front,back])beam([left,height(z)-.055,z],[right,height(z)-.055,z],'roof-fascia');

@@ -1,5 +1,5 @@
 import type {StructurePlan,StructureStreams,V3} from './types';import {settleDebris} from './debris';
-import {collapseUnsupportedFraming} from './structuralSupport';
+import {collapseUnsupportedFraming,collapseFloatingPieces} from './structuralSupport';
 export function applyStructureDamage(source:StructurePlan,ruin:number,streams:StructureStreams):StructurePlan {const p=structuredClone(source);if(ruin<=0)return p;const all=[...p.walls,...p.roofs,...p.pieces];const removed=new Set<string>();const dependencies=new Map<string,typeof p.supports>();p.supports.forEach(s=>{const links=dependencies.get(s.component)??[];links.push(s);dependencies.set(s.component,links);});const lostSupport=(component:string)=>{const links=dependencies.get(component)??[];return links.length>0&&links.filter(s=>!removed.has(s.on)).length<(links[0].minimum??links.length);};
  const position=(o:any):V3=>o.position??(o.start?[(o.start[0]+o.end[0])/2,o.bottom+o.height/2,(o.start[2]+o.end[2])/2]:[o.x,o.y,o.z]);
  for(const obj of all){if('role' in obj&&['foundation','ancient-plinth','temple-platform'].includes(obj.role))continue;const pos=position(obj),rnd=streams.streamFor('damage',obj.id),field=(Math.sin(pos[0]*.45+source.seed*.17)+Math.cos(pos[2]*.45-source.seed*.11))*.12;const threshold=Math.max(.10,Math.min(.94,.48+field+(rnd()-.5)*.32));obj.damage=ruin;
@@ -7,6 +7,7 @@ export function applyStructureDamage(source:StructurePlan,ruin:number,streams:St
  }
  let changed=true;while(changed){changed=false;for(const edge of p.supports)if(lostSupport(edge.component)&&!removed.has(edge.component)){removed.add(edge.component);const item=all.find(x=>x.id===edge.component);if(item)item.removed=true;changed=true;}}
  collapseUnsupportedFraming(p,removed);
+ collapseFloatingPieces(p,removed);
  // Remaining roof must retain enough continuous wall/column support.
  for(const roof of p.roofs){const walls=p.walls.filter(w=>w.volume===roof.volume);const posts=p.pieces.filter(piece=>piece.kind==='beam'&&piece.role==='corner-post'&&!piece.removed&&piece.end&&Math.abs(piece.end[1]-roof.y)<.3&&Math.abs(piece.position[0]-roof.x)<=roof.width/2+.1&&Math.abs(piece.position[2]-roof.z)<=roof.depth/2+.1);if(walls.length&&walls.filter(w=>!w.removed).length<3||!walls.length&&posts.length<2&&roof.volume.startsWith('volume_')){roof.removed=true;removed.add(roof.id);}}
  changed=true;while(changed){changed=false;for(const edge of p.supports)if(lostSupport(edge.component)&&!removed.has(edge.component)){const item=all.find(x=>x.id===edge.component);if(item){item.removed=true;removed.add(item.id);changed=true;}}}

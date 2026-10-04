@@ -1,4 +1,4 @@
-import type {StructurePlan,V3,WallSpec} from './types';
+import type {StructurePlan,V3,WallSpec,PieceSpec} from './types';
 
 function wallContact(w:WallSpec,p:V3){
  const dx=w.end[0]-w.start[0],dz=w.end[2]-w.start[2],length2=dx*dx+dz*dz;
@@ -12,7 +12,7 @@ function wallContact(w:WallSpec,p:V3){
 /** Foundation ownership alone cannot hold up an elevated fragment. */
 export function collapseUnsupportedFraming(plan:StructurePlan,removed:Set<string>){
  const standing=plan.walls.filter(w=>!w.removed);
- const connected=new Set(standing.filter(w=>w.bottom<=(plan.volumes.find(v=>v.id===w.volume)?.bottom??.25)+.05).map(w=>w.id));
+ const connected=new Set(standing.filter(w=>w.bottom<=.55).map(w=>w.id));
  let changed=true;
  while(changed){changed=false;for(const w of standing){
   if(connected.has(w.id))continue;
@@ -46,4 +46,36 @@ export function collapseUnsupportedFraming(plan:StructurePlan,removed:Set<string
   })));
   if(!supported){piece.removed=true;removed.add(piece.id);}
  }
+}
+
+/** Trace actual contact back to the ground; ownership is not a physical support. */
+export function collapseFloatingPieces(plan:StructurePlan,removed:Set<string>){
+ const pieces=plan.pieces.filter(p=>!p.removed);
+ const bounds=(p:PieceSpec)=>{
+  if(p.end)return {lo:p.position.map((v,i)=>Math.min(v,p.end![i])-p.size[0]/2) as V3,hi:p.position.map((v,i)=>Math.max(v,p.end![i])+p.size[0]/2) as V3};
+  return {lo:p.position.map((v,i)=>v-p.size[i]/2) as V3,hi:p.position.map((v,i)=>v+p.size[i]/2) as V3};
+ };
+ const grounded=new Set(pieces.filter(p=>bounds(p).lo[1]<=.35).map(p=>p.id));
+ const contact=(point:V3,p:PieceSpec)=>{
+  if(p.kind==='beam'&&p.end){
+   const d=p.end.map((v,i)=>v-p.position[i]),l=d.reduce((s,v)=>s+v*v,0);
+   const t=Math.max(0,Math.min(1,d.reduce((s,v,i)=>s+v*(point[i]-p.position[i]),0)/Math.max(l,.0001)));
+   return Math.hypot(...d.map((v,i)=>point[i]-p.position[i]-v*t))<=p.size[0]/2+.12;
+  }
+  const b=bounds(p);
+  return point.every((v,i)=>v>=b.lo[i]-.12&&v<=b.hi[i]+.12);
+ };
+ const samples=(p:PieceSpec):V3[]=>{
+  if(p.end){const lower=p.position[1]<p.end[1]?p.position:p.end;return Math.abs(p.end[1]-p.position[1])>Math.hypot(p.end[0]-p.position[0],p.end[2]-p.position[2])?[lower]:[p.position,p.end];}
+  const b=bounds(p),y=b.lo[1];
+  if(p.size[0]>.9||p.size[2]>.9)return [-1,1].flatMap(x=>[-1,1].map(z=>[p.position[0]+x*Math.max(0,p.size[0]/2-.16),y,p.position[2]+z*Math.max(0,p.size[2]/2-.16)] as V3));
+  return [[p.position[0],y,p.position[2]]];
+ };
+ let changed=true;
+ while(changed){changed=false;for(const p of pieces){
+  if(grounded.has(p.id))continue;
+  const points=samples(p),hits=points.filter(point=>plan.walls.some(w=>!w.removed&&wallContact(w,point))||pieces.some(s=>s.id!==p.id&&grounded.has(s.id)&&contact(point,s))).length;
+  if(hits>=Math.min(points.length,3)){grounded.add(p.id);changed=true;}
+ }}
+ for(const p of pieces)if(!grounded.has(p.id)){p.removed=true;removed.add(p.id);}
 }

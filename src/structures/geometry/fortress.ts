@@ -3,7 +3,21 @@ import {extrudePolygon,merge} from './common';
 import type {PieceSpec} from '../types';
 
 export function buildFortressBanner(p:PieceSpec){
- const g=new THREE.PlaneGeometry(p.size[0],p.size[1]);g.translate(...p.position);g.userData.preservePaintUV=true;return g;
+ const g=new THREE.PlaneGeometry(p.size[0],p.size[1]);if(p.rotation)g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...p.rotation)));g.translate(...p.position);g.userData.preservePaintUV=true;return g;
+}
+
+export function createCastleBannerTexture(flag=false){
+ const width=flag?32:20,height=flag?16:40,data=new Uint8Array(width*height*4);
+ const fleur=['000001100000','000011110000','000011110000','011011110110','111111111111','110111111011','010011110010','000011110000','001111111100','000011110000','000110011000','001100001100'];
+ for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+  const visible=flag?(x<25||Math.abs(y-7.5)>(x-24)*.72):(y<30||Math.abs(x-9.5)<(height-y)*.94);
+  const emblemX=flag?x-6:x-4,emblemY=flag?y-2:y-10;
+  const emblem=emblemX>=0&&emblemX<12&&emblemY>=0&&emblemY<12&&fleur[emblemY][emblemX]==='1';
+  const edge=flag?(y===1||y===height-2):(x===1||x===width-2)&&y<30;
+  const color=emblem||edge?[213,162,60]:x%5===0?[47,86,124]:[36,70,105];
+  data.set([...color,visible?255:0],((height-y-1)*width+x)*4);
+ }
+ const texture=new THREE.DataTexture(data,width,height,THREE.RGBAFormat);texture.colorSpace=THREE.SRGBColorSpace;texture.magFilter=texture.minFilter=THREE.NearestFilter;texture.wrapS=texture.wrapT=THREE.ClampToEdgeWrapping;texture.generateMipmaps=false;texture.needsUpdate=true;return texture;
 }
 
 export function createFortressBannerTexture(){
