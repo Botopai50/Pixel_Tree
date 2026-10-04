@@ -128,3 +128,44 @@ test('tower passages stay open across narrow facets',async()=>{
   }
  }
 });
+
+test('pixel banners are single flat planes with an alpha texture',async()=>{
+ const {buildFortressBanner,createFortressBannerTexture}=await import('../src/structures/geometry/fortress');
+ const plan=buildStructurePlan(fixture('fortress',7732));
+ assert.ok(!plan.pieces.some(p=>p.role.startsWith('fortress-banner-pixel')));
+ for(const banner of plan.pieces.filter(p=>p.role==='fortress-banner'||p.role==='fortress-tower-standard')){
+  const geometry=buildFortressBanner(banner);geometry.computeBoundingBox();
+  assert.equal(geometry.getAttribute('position').count,4);
+  assert.equal(geometry.boundingBox!.min.z,geometry.boundingBox!.max.z);geometry.dispose();
+ }
+ const texture=createFortressBannerTexture();assert.equal(texture.image.width,16);assert.equal(texture.image.height,32);
+ assert.ok(Array.from(texture.image.data).filter((_,i)=>i%4===3).includes(0));texture.dispose();
+});
+
+
+test('gallery braces join a post at the lower end and the deck at the upper end',()=>{
+ for(const seed of [42,2590,7732]){
+  const plan=buildStructurePlan(fixture('fortress',seed));
+  for(const brace of plan.pieces.filter(p=>p.role==='fortress-gallery-brace')){
+   const post=plan.pieces.find(p=>p.support===brace.support&&p.role.endsWith('post')&&Math.hypot(p.position[0]-brace.position[0],p.position[2]-brace.position[2])<1e-6);
+   assert.ok(post,'lower brace end must touch a gallery post');
+   const deck=plan.pieces.find(p=>p.id===brace.support)!;
+   assert.ok(Math.abs(brace.end![1]-(deck.position[1]-deck.size[1]/2))<1e-6);
+   assert.ok(Math.abs(brace.end![0]-deck.position[0])<=deck.size[0]/2);
+   assert.ok(Math.abs(brace.end![2]-deck.position[2])<=deck.size[2]/2);
+  }
+ }
+});
+
+
+test('hall keeps one upper window clear of the gallery as its footprint grows',()=>{
+ for(const [width,depth] of [[12,10],[16,14],[22,19],[30,26]])for(const seed of [42,2590,7732]){
+  const plan=buildStructurePlan(fixture('fortress',seed,{width,depth}));
+  const hall=plan.volumes.find(v=>v.role==='barracks')!,gallery=plan.pieces.find(p=>p.role==='fortress-gallery')!;
+  const windows=plan.openings.filter(o=>o.wall.startsWith(hall.id+'_wall_')&&o.kind==='window');
+  assert.equal(windows.length,1);
+  assert.ok(windows[0].id.endsWith('_gable_window'));
+  assert.ok(hall.bottom+windows[0].bottom-.14>gallery.position[1]+.73+.085/2);
+  assert.ok(windows[0].bottom<hall.height);
+ }
+});

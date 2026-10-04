@@ -16,9 +16,9 @@ test('windmill taper varies by seed while body levels and roof stay joined',()=>
  for(const seed of [1,42,777,2590,7015]){
   const plan=buildStructurePlan(fixture('windmill',seed)),body=plan.pieces.filter(p=>p.role==='mill-body');
   const ratio=body[2].size[2]/body[0].size[0];ratios.add(ratio.toFixed(4));
-  assert.ok(ratio>=.5&&ratio<=.76);
+  assert.ok(ratio>=.82&&ratio<=.90);
   for(let i=1;i<body.length;i++)assert.ok(Math.abs(body[i].size[0]-body[i-1].size[2])<1e-8);
-  assert.ok(Math.abs(plan.pieces.find(p=>p.role==='mill-cap')!.size[0]-(body[2].size[2]+.65))<1e-8);
+  assert.ok(Math.abs(plan.pieces.find(p=>p.role==='mill-cap')!.size[0]-(body[2].size[2]+.95))<1e-8);
   assert.deepEqual(plan,buildStructurePlan(fixture('windmill',seed)));
  }
  assert.ok(ratios.size>=4,'seeds should produce visibly different tapers');
@@ -64,5 +64,57 @@ test('windmill has a tapered masonry tower and four framed canvas sails clear of
   assert.equal(p.pieces.filter(x=>x.role==='mill-canvas').length,24);
   for(const spar of spars)assert.ok(spar.end![1]>.25);
   assert.ok(!p.roofs.length);
+ }
+});
+
+
+test('mill timber belts clear the gallery and entry canopy clears the arch',()=>{
+ for(const seed of [42,2590,7732]){
+  const plan=buildStructurePlan(fixture('windmill',seed));
+  const gallery=plan.pieces.find(p=>p.role==='mill-gallery')!,belts=plan.pieces.filter(p=>p.role==='mill-belt');
+  assert.ok(gallery.position[1]-Math.max(...belts.map(p=>p.position[1]+p.size[1]/2))>1);
+  const arch=plan.pieces.find(p=>p.role==='mill-door-arch')!,archTop=arch.position[1]+arch.size[0]/2+arch.size[2];
+  for(const cover of plan.pieces.filter(p=>p.role==='mill-entry-canopy')){
+   const angle=Math.abs(cover.rotation![2]),low=cover.position[1]-cover.size[0]/2*Math.sin(angle)-cover.size[1]/2*Math.cos(angle);
+   assert.ok(low>archTop+.08,'roof underside must stay above the complete stone arch');
+   assert.ok(cover.size[2]<.7);
+  }
+ }
+});
+
+
+test('mill galleries have walking space without rails crossing the entry route',()=>{
+ const plan=buildStructurePlan(fixture('windmill',42));
+ for(const role of ['mill-gallery','mill-entry-gallery']){
+  const deck=plan.pieces.find(p=>p.role===role)!;
+  assert.ok((deck.size[0]-deck.size[2])/2*Math.cos(Math.PI/12)>.95);
+ }
+ assert.ok(!plan.pieces.some(p=>p.role==='mill-entry-rail'||p.role==='mill-entry-post'||p.role==='mill-entry-deck'));
+ assert.equal(plan.pieces.filter(p=>p.role==='mill-belt-brace').length,24);
+ const entry=plan.pieces.find(p=>p.role==='mill-entry-gallery')!;
+ for(const rail of plan.pieces.filter(p=>p.role==='mill-entry-gallery-rail')){
+  assert.ok(!(rail.position[2]<-entry.size[0]/2*.9&&rail.end![2]<-entry.size[0]/2*.9&&rail.position[0]*rail.end![0]<0),'stair approach must stay open');
+ }
+});
+
+
+test('entry deck top stays above the stone plinth without coplanar overlap',()=>{
+ for(const seed of [42,2590,7732]){
+  const plan=buildStructurePlan(fixture('windmill',seed)),deck=plan.pieces.find(p=>p.role==='mill-entry-gallery')!,plinth=plan.pieces.find(p=>p.role==='mill-plinth')!;
+  assert.ok(deck.position[1]+deck.size[1]/2-(plinth.position[1]+plinth.size[1]/2)>.03);
+  assert.equal(plinth.position[1]-plinth.size[1]/2,0);
+ }
+});
+
+
+test('rotor axle retains its height with no window behind it',()=>{
+ for(const height of [8,10,12,14])for(const seed of [42,2590,4529]){
+  const plan=buildStructurePlan(fixture('windmill',seed,{height})),axis=plan.pieces.find(p=>p.role==='mill-axis')!;
+  const body=plan.pieces.filter(p=>p.role==='mill-body'),upperBody=body[2];
+  assert.ok(Math.abs(axis.position[1]-(.32+body[0].size[1]*3*.93))<1e-6);
+  assert.ok(!plan.pieces.some(p=>p.role==='mill-window'&&p.support===upperBody.id&&Math.abs(p.position[0])<1e-6));
+  const frontWindows=plan.pieces.filter(p=>p.role==='mill-window'&&Math.abs(p.position[0])<1e-6);
+  const upper=frontWindows.sort((a,b)=>b.position[1]-a.position[1])[0];
+  assert.ok(axis.position[1]-axis.size[0]/2>upper.position[1]+.47+.05,'axle must stay above the complete window frame');
  }
 });

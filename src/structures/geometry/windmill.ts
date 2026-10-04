@@ -53,9 +53,9 @@ export function buildMillBody(p:PieceSpec,level:number){
  for(let side=0;side<12;side++){
   const angle=side*Math.PI/6,rb=p.size[0]/2,rt=p.size[2]/2;
   const widthB=2*rb*Math.sin(Math.PI/12),widthT=2*rt*Math.sin(Math.PI/12);
-  const hasDoor=level===0&&side===0,hasWindow=level===0?side===9:side===0||side===3;
+  const hasDoor=level===0&&side===0,hasWindow=level===0?side===9:side===3||(level===1&&side===0);
   const doorRadius=Math.min(1.1,p.size[0]*.3)/2;
-  const ys=hasDoor?[0,1.5,...Array.from({length:5},(_,i)=>1.5+doorRadius*Math.sin((i+1)*Math.PI/10)),height]:hasWindow?[0,height*.60-.38,height*.60+.38,height]:[0,height];
+  const ys=hasDoor?[0,1.5,...Array.from({length:5},(_,i)=>1.5+doorRadius*Math.sin((i+1)*Math.PI/10)),height]:hasWindow?[0,height*(level===2?.70:level===1?.80:.60)-.38,height*(level===2?.70:level===1?.80:.60)+.38,height]:[0,height];
   const xs=hasDoor?[-.5,-Math.min(1.1,p.size[0]*.3)/widthB/2,Math.min(1.1,p.size[0]*.3)/widthB/2,.5]:hasWindow?[-.5,-.21/widthB,.21/widthB,.5]:[-.5,.5];
   const width=(y:number)=>widthB+(widthT-widthB)*y/height;
   for(let iy=0;iy<ys.length-1;iy++)for(let ix=0;ix<xs.length-1;ix++){
@@ -79,4 +79,12 @@ export function buildMillBody(p:PieceSpec,level:number){
   }
  }
  const body=merge(parts);body.userData.preservePaintUV=true;return body;
+}
+
+
+export function buildMillGallery(p:PieceSpec){
+ const shape=new THREE.Shape(),hole=new THREE.Path(),r=p.size[0]/2,inner=p.size[2]/2;
+ for(let i=0;i<=12;i++){const t=(i+.5)*Math.PI/6,x=Math.sin(t)*r,z=Math.cos(t)*r;i?shape.lineTo(x,z):shape.moveTo(x,z);}
+ for(let i=12;i>=0;i--){const t=(i+.5)*Math.PI/6,x=Math.sin(t)*inner,z=Math.cos(t)*inner;i===12?hole.moveTo(x,z):hole.lineTo(x,z);}
+ shape.holes.push(hole);const g=new THREE.ExtrudeGeometry(shape,{depth:p.size[1],bevelEnabled:false,steps:1});g.rotateX(Math.PI/2);g.translate(0,p.position[1]+p.size[1]/2,0);return g;
 }

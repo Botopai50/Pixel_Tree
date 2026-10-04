@@ -17,7 +17,7 @@ export function createStructureMaterials(c:StructureConfig,resources:StructureRe
  mossPalette.colorSpace=THREE.SRGBColorSpace;
  mossPalette.magFilter=mossPalette.minFilter=THREE.NearestFilter;
  mossPalette.generateMipmaps=false;mossPalette.needsUpdate=true;resources.textures.add(mossPalette);
- const colors:Record<SurfaceMaterial,string>={wood:c.palette.wood,stone:c.palette.stone,plaster:c.palette.plaster,roof:c.palette.roof,thatch:'#c59138',metal:'#687681',cloth:c.type==='windmill'?'#ead3a0':c.type==='fortress'?'#a93840':'#b97a58',dark:'#1f2830',earth:'#978568',water:'#3c858f'};
+ const colors:Record<SurfaceMaterial,string>={wood:c.palette.wood,stone:c.palette.stone,plaster:c.palette.plaster,roof:c.palette.roof,thatch:'#c59138',metal:'#687681',cloth:c.type==='windmill'?'#ead3a0':c.type==='fortress'?'#a93840':'#b97a58',dark:c.type==='windmill'?'#24435a':'#1f2830',earth:'#978568',water:'#3c858f'};
  const result={} as Record<SurfaceMaterial,THREE.MeshStandardMaterial>;
  for(const [name,color] of Object.entries(colors)){
   const kind=name as SurfaceMaterial,map=paintSurface(kind,color,c.texelsPerMetre,seed,c.finish);resources.textures.add(map);

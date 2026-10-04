@@ -3,11 +3,22 @@ import {extrudePolygon,merge} from './common';
 import type {PieceSpec} from '../types';
 
 export function buildFortressBanner(p:PieceSpec){
- const grid:number[][]=[[0,0],[16,0],[16,24]];
- for(let i=1;i<=8;i++)grid.push([16-i,23+i],[16-i,24+i]);
- for(let i=1;i<=8;i++)grid.push([8-i,32-i],[8-i,31-i]);
- const points=grid.map(([x,y])=>[(x/16-.5)*p.size[0],(.5-y/32)*p.size[1]] as [number,number]);
- const g=extrudePolygon(points,p.size[2]);g.translate(...p.position);return g;
+ const g=new THREE.PlaneGeometry(p.size[0],p.size[1]);g.translate(...p.position);g.userData.preservePaintUV=true;return g;
+}
+
+export function createFortressBannerTexture(){
+ const width=16,height=32,data=new Uint8Array(width*height*4);
+ const crest=['0000110000','0011111100','0110110110','1100110011','1001111001','0011111100','0001111000','0010110100','0110110110','0100110010','0001111000','0000110000'];
+ for(let row=0;row<height;row++)for(let col=0;col<width;col++){
+  const visible=row<24||Math.abs(col-7.5)<=31.5-row;
+  const emblem=row>=6&&row<18&&col>=3&&col<13&&crest[row-6][col-3]==='1';
+  const border=(col===1||col===14)&&row>=1&&row<24;
+  const red=col<2||col>13?[133,37,47]:col%4===0?[171,54,64]:[158,43,54];
+  data.set([...(emblem||border?[238,222,181]:red),visible?255:0],((height-1-row)*width+col)*4);
+ }
+ const texture=new THREE.DataTexture(data,width,height,THREE.RGBAFormat);
+ texture.colorSpace=THREE.SRGBColorSpace;texture.magFilter=texture.minFilter=THREE.NearestFilter;
+ texture.wrapS=texture.wrapT=THREE.ClampToEdgeWrapping;texture.generateMipmaps=false;texture.needsUpdate=true;return texture;
 }
 
 export function buildFortressBarrel(p:PieceSpec){
@@ -24,7 +35,7 @@ export function buildFortressGateWall(p:PieceSpec){
 export function buildFortressParapet(p:PieceSpec){
  const r=p.size[0]/2,shape=new THREE.Shape(),hole=new THREE.Path();
  for(let i=0;i<=12;i++){const angle=i*Math.PI/6,x=Math.sin(angle)*r,z=Math.cos(angle)*r;i?shape.lineTo(x,z):shape.moveTo(x,z);}
- for(let i=12;i>=0;i--){const angle=i*Math.PI/6,x=Math.sin(angle)*(r-.34),z=Math.cos(angle)*(r-.34);i===12?hole.moveTo(x,z):hole.lineTo(x,z);}
+ for(let i=12;i>=0;i--){const angle=i*Math.PI/6,x=Math.sin(angle)*(r-(p.role==='fortress-tower-timber-ring'?.44:.34)),z=Math.cos(angle)*(r-(p.role==='fortress-tower-timber-ring'?.44:.34));i===12?hole.moveTo(x,z):hole.lineTo(x,z);}
  shape.holes.push(hole);const g=new THREE.ExtrudeGeometry(shape,{depth:p.size[1],bevelEnabled:false,steps:1});g.rotateX(Math.PI/2);g.translate(p.position[0],p.position[1]+p.size[1]/2,p.position[2]);return g;
 }
 export function buildFortressTower(p:PieceSpec,walkHeight:number){
@@ -54,7 +65,6 @@ export function buildFortressTower(p:PieceSpec,walkHeight:number){
    shape=polygon([[-half,0],[half,0],[half,h],[-half,h]]);
    if(walkDoor){const hole=new THREE.Path();hole.moveTo(cutLeft,walkHeight);hole.lineTo(cutLeft,top);hole.lineTo(cutRight,top);hole.lineTo(cutRight,walkHeight);hole.closePath();shape.holes.push(hole);}
   }
-  if(side%3===0&&!walkDoor){for(const y of [h*.36,h*.72]){const hole=new THREE.Path();hole.moveTo(-.09,y-.38);hole.lineTo(-.09,y+.38);hole.lineTo(.09,y+.38);hole.lineTo(.09,y-.38);hole.closePath();shape.holes.push(hole);}}
   const g=new THREE.ExtrudeGeometry(shapes,{depth:.26,bevelEnabled:false,steps:1});g.translate(0,0,-.13);
   const pos=g.getAttribute('position'),uv=new Float32Array(pos.count*2),angle=side*Math.PI/6;
   for(let i=0;i<pos.count;i++){
@@ -65,4 +75,17 @@ export function buildFortressTower(p:PieceSpec,walkHeight:number){
   g.setAttribute('uv',new THREE.BufferAttribute(uv,2));g.computeVertexNormals();parts.push(g);
  }
  const g=merge(parts);g.userData.preservePaintUV=true;return g;
+}
+
+export function buildFortressWindow(p:PieceSpec){
+ const g=new THREE.PlaneGeometry(p.size[0],p.size[1]);g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...p.rotation??[0,0,0])));g.translate(...p.position);g.userData.preservePaintUV=true;return g;
+}
+export function createFortressWindowTexture(){
+ const w=8,h=16,data=new Uint8Array(w*h*4);
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+  const border=x===0||x===7||y===0||y===15,bar=x===3||y===8;
+  const color=border?[63,36,19]:bar?[110,64,24]:(x+y)%4===0?[255,237,132]:[245,177,51];
+  data.set([...color,255],((h-1-y)*w+x)*4);
+ }
+ const t=new THREE.DataTexture(data,w,h,THREE.RGBAFormat);t.colorSpace=THREE.SRGBColorSpace;t.magFilter=t.minFilter=THREE.NearestFilter;t.generateMipmaps=false;t.needsUpdate=true;return t;
 }
