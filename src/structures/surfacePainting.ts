@@ -5,10 +5,26 @@ const periods:Record<SurfaceMaterial,[number,number]>={wood:[.84,2.8],stone:[2.8
 const fract=(n:number)=>n-Math.floor(n);
 const hash=(x:number,y:number,seed:number)=>fract(Math.sin(x*127.1+y*311.7+seed*.37)*43758.5453);
 
+/** Forged iron has a continuous face, without the repeating bright stripes of sheet metal. */
+export function paintForgedIron(density:number,seed:number){
+ const size=Math.max(8,Math.round(density)),data=new Uint8Array(size*size*4);
+ const palette=[[34,47,58],[46,62,76],[61,80,95],[74,95,110],[93,114,126],[117,136,144]];
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+  const patch=hash(Math.floor(x/5),Math.floor(y/4),seed),pixel=hash(x,y,seed+17);
+  let tone=patch<.18?1:patch>.82?3:2;
+  // Short light facets and occasional pits keep the hammered surface readable in pixels.
+  const stroke=hash(Math.floor(x/4),y,seed+29);
+  if(stroke>.92&&x%4<3)tone=4;
+  if(pixel>.987)tone=5;else if(pixel<.018)tone=0;
+  data.set([...palette[tone],255],(y*size+x)*4);
+ }
+ const map=new THREE.DataTexture(data,size,size);map.colorSpace=THREE.SRGBColorSpace;map.magFilter=map.minFilter=THREE.NearestFilter;map.wrapS=map.wrapT=THREE.RepeatWrapping;map.needsUpdate=true;return map;
+}
+
 /** Variation belongs to a board, block or tile, rather than unrelated noise
  * at every pixel. Cool shadows and warm edges share the selected palette.
  */
-export function paintSurface(kind:SurfaceMaterial,color:string,density:number,seed:number,finish:number){
+export function paintSurface(kind:SurfaceMaterial,color:string,density:number,seed:number,finish:number,solidTimber=false){
  const period=periods[kind],width=Math.max(8,Math.round(period[0]*density)),height=Math.max(8,Math.round(period[1]*density));
  const base=new THREE.Color(color).convertLinearToSRGB(),rgb=[base.r,base.g,base.b];
  const ramp=Array.from({length:7},(_,i)=>{
@@ -20,13 +36,14 @@ export function paintSurface(kind:SurfaceMaterial,color:string,density:number,se
   let tone=4;const cluster=hash(Math.floor(x/4),Math.floor(y/5),seed);
   if(kind==='wood'){
    const plank=width/3,board=Math.floor(x/plank),px=x-board*plank,b=hash(board,0,seed);
-   tone=b<.3?3:4;
-   if(px<1)tone=1;else if(px<2)tone=2;else if(px>plank-2)tone=5;
+   // Structural timber shares the house grain and knots, but has no plank joints.
+   tone=solidTimber?4:b<.3?3:4;
+   if(!solidTimber){if(px<1)tone=1;else if(px<2)tone=2;else if(px>plank-2)tone=5;}
    const line=plank*(.35+Math.sin(y*.10+b*8)*.16);
    if(Math.abs(px-line)<.8&&fract(y/17+b)>.25)tone-=1;
    const knotY=height*(.2+b*.6),knot=(px-plank*.63)**2/(plank*.17)**2+(y-knotY)**2/25;
    if(knot<1.5&&knot>.5)tone=2;
-   if(cluster>.9&&px>2&&px<plank-2)tone=Math.min(5,tone+1);
+   if(cluster>.9&&(solidTimber||px>2&&px<plank-2))tone=Math.min(5,tone+1);
   }else if(kind==='stone'){
    const rowHeight=height/4,row=Math.floor(y/rowHeight),py=y-row*rowHeight;
    const brickWidth=width/4,shift=(row%2)*brickWidth*.5;

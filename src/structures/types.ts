@@ -9,7 +9,7 @@ export interface StructureAssetConfig {id:StructureId;species:StructureId;name:s
 export interface VolumeSpec {id:string;x:number;z:number;width:number;depth:number;bottom:number;height:number;floors:number;role:string;}
 export interface WallSpec {id:string;volume:string;start:V3;end:V3;bottom:number;height:number;thickness:number;material:SurfaceMaterial;gable?:{peak:number;ratio:number};topLeft?:number;topRight?:number;removed?:boolean;damage?:number;}
 export interface OpeningSpec {id:string;wall:string;kind:'door'|'window';offset:number;width:number;bottom:number;height:number;shutterAngles?:[number,number];broken?:boolean;}
-export interface RoofSurface {shedDirection?:1|-1;id:string;volume:string;x:number;z:number;width:number;depth:number;y:number;rise:number;eaves:number;ridgeRatio?:number;kind:Exclude<RoofKind,'auto'>;material:SurfaceMaterial;removed?:boolean;damage?:number;}
+export interface RoofSurface {abutment?:{axis:0|2;value:number;keep:1|-1};shedAxis?:0|2;shedDirection?:1|-1;id:string;volume:string;x:number;z:number;width:number;depth:number;y:number;rise:number;eaves:number;ridgeRatio?:number;kind:Exclude<RoofKind,'auto'>;material:SurfaceMaterial;removed?:boolean;damage?:number;}
 export interface PieceSpec {id:string;kind:'box'|'beam'|'column'|'arch'|'stairs'|'wheel'|'rock'|'cloth'|'tree';position:V3;size:V3;rotation?:V3;end?:V3;cuts?:{start:V3;end:V3};material:SurfaceMaterial;support:string;role:string;removed?:boolean;damage?:number;}
 export interface JointSpec {id:string;point:V3;members:string[];}
 export interface AccessSpec {id:string;from:V3;to:V3;width:number;role:string;}

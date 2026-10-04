@@ -37,7 +37,7 @@ export function buildRoof(r:RoofSurface) {
  const {x,z,y,rise,eaves:e}=r,w=r.width/2,d=r.depth/2,left=x-w-e,right=x+w+e,front=z-d-e,back=z+d+e,low=y-rise*e/Math.max(w,.1);
  let facets:V3[][];
  if(r.kind==='flat')facets=[[[left,y,front],[right,y,front],[right,y,back],[left,y,back]]];
- else if(r.kind==='shed'){const direction=r.shedDirection??1,ly=y+rise*(.5+direction*(left-x)/(2*w)),ry=y+rise*(.5+direction*(right-x)/(2*w));facets=[[[left,ly,front],[right,ry,front],[right,ry,back],[left,ly,back]]];}
+ else if(r.kind==='shed'){const direction=r.shedDirection??1,axis=r.shedAxis??0;const height=(px:number,pz:number)=>y+rise*(.5+direction*(axis===0?(px-x)/(2*w):(pz-z)/(2*d)));facets=[[[left,height(left,front),front],[right,height(right,front),front],[right,height(right,back),back],[left,height(left,back),back]]];}
  else if(r.kind==='hip'){
  const hipLow=y-rise*e/Math.min(w,d);
  if(d>=w){const rf=z-(d-w),rb=z+(d-w);facets=[[[left,hipLow,front],[x,y+rise,rf],[x,y+rise,rb],[left,hipLow,back]],[[x,y+rise,rf],[right,hipLow,front],[right,hipLow,back],[x,y+rise,rb]],[[left,hipLow,front],[right,hipLow,front],[x,y+rise,rf]],[[right,hipLow,back],[left,hipLow,back],[x,y+rise,rb]]];}

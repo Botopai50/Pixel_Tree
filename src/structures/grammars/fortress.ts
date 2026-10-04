@@ -5,27 +5,53 @@ import type {GrammarContext,V3} from '../types';
 export function compactFortress(c:GrammarContext){
  const a=new Architect(c),p=c.config,w=a.value(p.width,.07),d=a.value(p.depth,.07),h=a.value(p.height,.07);
  const r=Math.min(w,d)*.115,tx=w/2-r,tz=d/2-r,wallH=h*.62,thickness=1.05;
+ const wallAccessStart=tz-r-1.55,wallAccessEnd=tz-r-.22,wallAccessTop=.24+wallH+.21;
  const court=a.piece('box',[0,.12,0],[w-r*2,.24,d-r*2],'stone','fortress-courtyard');
  const pixelBanner=(x:number,y:number,z:number,width:number,height:number,support:string,role:string)=>{a.piece('cloth',[x,y,z],[width,height,0],'cloth',role,support);};
  const towers:string[]=[];
+ const cornerOrder=[0,1,2,3];
+ for(let i=cornerOrder.length-1;i>0;i--){const j=Math.floor(a.rnd()*(i+1));[cornerOrder[i],cornerOrder[j]]=[cornerOrder[j],cornerOrder[i]];}
+ const watchCorners=new Set(cornerOrder.slice(0,a.rnd()<.5?1:2));
+ const heightRatios=[.84,.91,.98,1.05],heightByCorner:number[]=[];
+ for(let i=0;i<4;i++)heightByCorner[cornerOrder[i]]=heightRatios[i];
  for(const sx of [-1,1])for(const sz of [-1,1]){
-  const height=h*(sz===1?1.02:.83)*(1+(a.rnd()-.5)*.13),x=sx*tx,z=sz*tz;
+  const corner=(sx===1?2:0)+(sz===1?1:0);
+  const height=h*heightByCorner[corner]*(1+(a.rnd()-.5)*.04),x=sx*tx,z=sz*tz;
   const crownRadius=r+.30;
   const tower=a.piece('column',[x,.24+height/2,z],[r*2,height,r*2],'stone','fortress-tower',court);towers.push(tower);
   a.piece('column',[x,.26,z],[r*2+.24,.52,r*2+.24],'stone','fortress-tower-foot',tower);
   a.piece('column',[x,height+.18,z],[crownRadius*2+.06,.28,crownRadius*2+.06],'stone','fortress-tower-cornice',tower);
   a.piece('column',[x,.24+height*.48,z],[r*2+.12,.14,r*2+.12],'stone','fortress-tower-band',tower);
+  // A support needs solid masonry at its seat and must leave both walk doorways clear.
+  const supportedBeam=(from:V3,to:V3,width:number,role:string)=>{
+   const padding=width/2+.06,apothem=r*Math.cos(Math.PI/12),doorTop=Math.min(height+.02,.24+wallH+1.65);
+   for(const axis of [0,2]){
+    const sign=axis===0?-sx:-sz;
+    const local=(v:V3)=>[axis===0?v[2]-z:v[0]-x,v[1],sign*(v[axis]-(axis===0?x:z))];
+    const start=local(from),end=local(to),min=[-.58-padding,.24+wallH-padding,apothem-.26-padding],max=[.58+padding,doorTop+padding,crownRadius+.20+padding];
+    let enter=0,leave=1;
+    for(let i=0;i<3;i++){
+     const delta=end[i]-start[i];
+     if(Math.abs(delta)<1e-8){if(start[i]<min[i]||start[i]>max[i]){enter=2;break;}continue;}
+     const a=(min[i]-start[i])/delta,b=(max[i]-start[i])/delta;
+     enter=Math.max(enter,Math.min(a,b));leave=Math.min(leave,Math.max(a,b));
+    }
+    if(enter<=leave)return;
+   }
+   a.beam(from,to,width,'wood',role,tower);
+  };
   // Continuous timber belts share the curtain height at every tower junction.
   const timberRing=(y:number,upper:boolean)=>{
    const radius=upper?crownRadius+.10:r+.12,half=Math.PI/12;
    const point=(angle:number,rr:number,yy:number):V3=>[x+Math.sin(angle)*rr,yy,z+Math.cos(angle)*rr];
    for(let i=0;i<12;i++){
     const angle=i*Math.PI/6,start=angle-half,end=angle+half;
+    if(!upper&&sx*Math.sin(angle)<=1e-6&&sz*Math.cos(angle)<=1e-6)continue;
     for(const yy of upper?[y-.10,y+.08]:[y-.17,y+.17])a.beam(point(start,radius,yy),point(end,radius,yy),.16,'wood',upper?'fortress-tower-crown-belt':'fortress-tower-connection-belt',tower);
-    a.beam(point(start,radius,y-.36),point(start,radius,y+.29),.18,'wood','fortress-tower-crown-post',tower);
+    supportedBeam(point(start,radius,y-.36),point(start,radius,y+.29),.18,'fortress-tower-crown-post');
     const seat=r*Math.cos(half)-.07,outer=radius*Math.cos(half);
-    a.beam(point(angle,seat,y-.90),point(angle,outer,y-.25),.18,'wood','fortress-tower-crown-brace',tower);
-    a.beam(point(angle,seat,y-.25),point(angle,outer,y-.25),.18,'wood','fortress-tower-crown-joist',tower);
+    supportedBeam(point(angle,seat,y-.90),point(angle,outer,y-.25),.18,'fortress-tower-crown-brace');
+    supportedBeam(point(angle,seat,y-.25),point(angle,outer,y-.25),.18,'fortress-tower-crown-joist');
    }
   };
   timberRing(.24+wallH-.42,false);
@@ -70,7 +96,7 @@ export function compactFortress(c:GrammarContext){
    const angle=(i+.5)*Math.PI/6;
    a.piece('box',[x+Math.sin(angle)*r,height-.12,z+Math.cos(angle)*r],[.22,.40,.28],'stone','fortress-corbel',tower,[0,angle,0]);
   }
-  if(sx===-1&&sz===1){
+  if(watchCorners.has(corner)){
    const loft=a.piece('column',[x,height+.83,z],[crownRadius*2+.06,1.15,crownRadius*2+.06],'wood','fortress-watch-loft',tower);
    const roof=a.piece('column',[x,height+2.25,z],[crownRadius*2+.70,1.7,.08],'roof','fortress-watch-roof',loft);
    a.piece('column',[x,height+.30,z],[crownRadius*2+.26,.12,crownRadius*2+.26],'wood','fortress-watch-loft',tower);
@@ -105,13 +131,15 @@ export function compactFortress(c:GrammarContext){
   a.piece('box',[x,.12,z],alongX?[length,.24,thickness]:[thickness,.24,length],'stone','fortress-curtain-foot',wall);
   a.piece('box',[x,.24+wallH,z],alongX?[length,.22,1.45]:[1.45,.22,length],'stone','fortress-wall-walk',wall);
   if(!alongX){
-   const deckLength=Math.max(.4,length-2*(r+.22)),deckY=.24+wallH+.15;
+   const deckLength=Math.max(.4,length-2*(r+.22)),deckY=.24+wallH+.17;
    const deck=a.piece('box',[x-normal*.23,deckY,z],[1.16,.08,deckLength],'wood','fortress-timber-walk',wall);
    const innerX=x-normal*.78,railLength=deckLength+.12;
-   for(const y of [deckY+.32,deckY+.85])a.beam([innerX,y,z-railLength/2],[innerX,y,z+railLength/2],.10,'wood','fortress-walk-rail',deck);
+   const railSpans=normal===-1?[[z-railLength/2,wallAccessStart],[wallAccessEnd,z+railLength/2]]:[[z-railLength/2,z+railLength/2]];
+   for(const [start,end] of railSpans)if(end-start>.08)for(const y of [deckY+.32,deckY+.85])a.beam([innerX,y,start],[innerX,y,end],.10,'wood','fortress-walk-rail',deck);
    const posts=Math.max(2,Math.ceil(railLength/1.15));
    for(let i=0;i<=posts;i++){
     const zz=z-railLength/2+i*railLength/posts;
+    if(normal===-1&&zz>wallAccessStart-.08&&zz<wallAccessEnd+.08)continue;
     a.beam([innerX,deckY-.04,zz],[innerX,deckY+.95,zz],.12,'wood','fortress-walk-post',deck);
     a.beam([x-normal*.47,deckY-.75,zz],[innerX,deckY-.05,zz],.13,'wood','fortress-walk-brace',wall);
     a.beam([x-normal*.43,deckY-.09,zz],[innerX,deckY-.09,zz],.14,'wood','fortress-walk-joist',deck);
@@ -226,8 +254,14 @@ export function compactFortress(c:GrammarContext){
  for(let i=0;i<4;i++)a.piece('box',[-gap/2+(i+.5)*gap/4,.24+gateH+.73,-tz-.55],[gap*.14,.55,.38],'stone','fortress-gate-merlon',gate);
  a.piece('box',[0,.12,-tz-.3],[gap+.35,.24,.8],'stone','fortress-entry-threshold',court);
  a.stairs([0,0,-tz-1.2],[0,.24,-tz-.65],gap+.35);
- a.stairs([-tx+.9,.24,-tz+r+.3],[-tx+.9,.24+wallH,tz-r-.3],1.25);
- a.piece('box',[-tx+.9,.24+wallH-.12,tz-r+.2],[1.4,.24,1.35],'stone','fortress-stair-landing',court);
+ a.stairs([-tx+1.45,.24,-tz+r+.3],[-tx+1.45,wallAccessTop,wallAccessStart],1.25);
+ const accessLeft=-tx+.81,accessRight=-tx+2.10;
+ const wallLanding=a.piece('box',[(accessLeft+accessRight)/2,wallAccessTop-.12,(wallAccessStart+wallAccessEnd)/2],[accessRight-accessLeft,.24,wallAccessEnd-wallAccessStart],'stone','fortress-stair-landing',court);
+ for(const [x,z] of [[accessRight,wallAccessStart],[accessRight,wallAccessEnd],[accessLeft-.03,wallAccessEnd],[accessLeft-.03,wallAccessStart]])a.beam([x,wallAccessTop,z],[x,wallAccessTop+.90,z],.11,'wood','fortress-stair-landing-post',wallLanding);
+ for(const y of [wallAccessTop+.28,wallAccessTop+.80]){
+  a.beam([accessRight,y,wallAccessStart],[accessRight,y,wallAccessEnd],.10,'wood','fortress-stair-landing-rail',wallLanding);
+  a.beam([accessLeft-.03,y,wallAccessEnd],[accessRight,y,wallAccessEnd],.10,'wood','fortress-stair-landing-rail',wallLanding);
+ }
  const hallDepth=d*.19,hallZ=tz-.70-Math.min(p.eaves,.45)-hallDepth/2;
  const hall=a.building(w*.10,hallZ,w*.28,hallDepth,h*.66,1,{base:.24,material:'stone',roof:p.roof==='auto'?'gable':p.roof,role:'barracks'});
  // The masonry wall already includes its gable; an added frame creates a ledge.
@@ -242,7 +276,7 @@ export function compactFortress(c:GrammarContext){
  const galleryZ=hall.z-hall.depth/2-.55,galleryY=.24+hall.height*.58;
  // The house has a window only in the gable, leaving the gallery walls solid.
  a.plan.openings=a.plan.openings.filter(o=>!o.wall.startsWith(hall.id+'_wall_')||o.kind!=='window'||o.id.endsWith('_gable_window'));
- const gallery=a.piece('box',[hall.x,galleryY,galleryZ],[hall.width+.22,.16,1.1],'wood','fortress-gallery',court);
+ const gallery=a.piece('box',[hall.x,galleryY,galleryZ],[hall.width,.16,1.1],'wood','fortress-gallery',court);
  const hallDoor=a.plan.openings.find(o=>o.wall===hall.id+'_wall_0'&&o.kind==='door')!;
  const doorX=hall.x+hallDoor.offset,doorClearance=hallDoor.width/2+.24;
  for(let i=0;i<5;i++){
@@ -252,24 +286,34 @@ export function compactFortress(c:GrammarContext){
   a.beam([x,galleryY-.70,galleryZ-.38],[x,galleryY-.08,galleryZ+.40],.10,'wood','fortress-gallery-brace',gallery);
  }
  for(const y of [galleryY+.20,galleryY+.73])a.beam([hall.x-hall.width/2,y,galleryZ-.38],[hall.x+hall.width/2,y,galleryZ-.38],.085,'wood','fortress-gallery-rail',gallery);
+ const galleryLeft=hall.x-hall.width/2;
+ for(const z of [galleryZ-.38,galleryZ+.46])a.beam([galleryLeft,galleryY-.08,z],[galleryLeft,galleryY+.86,z],.11,'wood','fortress-gallery-end-post',gallery);
+ for(const y of [galleryY+.20,galleryY+.73])a.beam([galleryLeft,y,galleryZ-.38],[galleryLeft,y,galleryZ+.46],.085,'wood','fortress-gallery-end-rail',gallery);
  // The gallery wraps the right corner; the outboard stair climbs toward its side landing.
  const hallRight=hall.x+hall.width/2,sideSpace=tx-thickness/2-hallRight-.12;
  const sideWidth=Math.min(1.1,sideSpace*.52),stairWidth=Math.min(.9,sideSpace-sideWidth-.06);
  const sideX=hallRight+sideWidth/2,stairX=hallRight+sideWidth+stairWidth/2,sideEnd=hall.z+.15,sideStart=galleryZ-.55;
- const sideGallery=a.piece('box',[sideX,galleryY,(sideStart+sideEnd)/2],[sideWidth,.16,sideEnd-sideStart],'wood','fortress-gallery-side',gallery);
- a.stairs([stairX,.24,galleryZ+.10],[stairX,galleryY,sideEnd-.45],stairWidth);
- a.piece('box',[hallRight+(sideWidth+stairWidth)/2,galleryY,sideEnd-.22],[sideWidth+stairWidth,.16,.5],'wood','fortress-gallery-landing',sideGallery);
- for(const z of [sideStart+.15,sideEnd-.75]){
+ const landingStart=sideEnd-.65,landingEnd=sideEnd+.40;
+ const sideGallery=a.piece('box',[sideX,galleryY,(sideStart+landingStart)/2],[sideWidth,.16,landingStart-sideStart],'wood','fortress-gallery-side',gallery);
+ a.stairs([stairX,.24,galleryZ+.10],[stairX,galleryY,landingStart],stairWidth);
+ const landing=a.piece('box',[hallRight+(sideWidth+stairWidth)/2,galleryY,(landingStart+landingEnd)/2],[sideWidth+stairWidth,.16,landingEnd-landingStart],'wood','fortress-gallery-landing',sideGallery);
+ const landingOuter=hallRight+sideWidth+stairWidth-.06,landingBack=landingEnd-.06;
+ for(const [x,z] of [[hallRight+.06,landingBack],[landingOuter,landingBack],[landingOuter,landingStart+.06]])a.beam([x,galleryY-.08,z],[x,galleryY+.86,z],.11,'wood','fortress-gallery-landing-post',landing);
+ for(const y of [galleryY+.20,galleryY+.73]){
+  a.beam([hallRight+.06,y,landingBack],[landingOuter,y,landingBack],.085,'wood','fortress-gallery-landing-rail',landing);
+  a.beam([landingOuter,y,landingStart+.06],[landingOuter,y,landingBack],.085,'wood','fortress-gallery-landing-rail',landing);
+ }
+ for(const z of [sideStart+.15,landingStart-.06]){
   a.beam([sideX+sideWidth/2-.08,.24,z],[sideX+sideWidth/2-.08,galleryY+.86,z],.11,'wood','fortress-gallery-side-post',sideGallery);
   a.beam([sideX+sideWidth/2-.08,galleryY-.65,z],[hallRight+.05,galleryY-.08,z],.10,'wood','fortress-gallery-brace',sideGallery);
  }
  for(const y of [galleryY+.20,galleryY+.73]){
   a.beam([hall.x+hall.width/2,y,galleryZ-.38],[sideX+sideWidth/2-.08,y,galleryZ-.38],.085,'wood','fortress-gallery-rail',sideGallery);
-  a.beam([sideX+sideWidth/2-.08,y,sideStart+.15],[sideX+sideWidth/2-.08,y,sideEnd-.75],.085,'wood','fortress-gallery-rail',sideGallery);
+  a.beam([sideX+sideWidth/2-.08,y,sideStart+.15],[sideX+sideWidth/2-.08,y,landingStart-.06],.085,'wood','fortress-gallery-rail',sideGallery);
  }
  // Put the store beside the hall, opposite the gallery stair, clear of the wall stair.
  const storeEaves=Math.min(.25,p.eaves),storeRight=hall.x-hall.width/2-1.3;
- const storeLeftLimit=-tx+.9+1.25/2+.22;
+ const storeLeftLimit=-tx+1.45+1.25/2+.22;
  const storeWidth=Math.min(w*.15,Math.max(.8,storeRight-storeLeftLimit-storeEaves));
  const storeDepth=d*.16,storeZ=hall.z;
  const store=a.building(storeRight-storeWidth/2,storeZ,storeWidth,storeDepth,wallH*.60,1,{base:.24,material:'wood',roof:p.roof==='auto'?'shed':p.roof,role:'fortress-store'});

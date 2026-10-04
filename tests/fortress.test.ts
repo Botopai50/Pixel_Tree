@@ -2,6 +2,88 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildStructurePlan} from '../src/structures/plan';
 import {fixture} from './structureFixtures';
+test('tower crown supports do not hang through the wall-walk doorways',()=>{
+ for(const seed of [1,42,2771,7732]){
+  const plan=buildStructurePlan(fixture('fortress',seed)),wallHeight=plan.pieces.find(p=>p.role==='fortress-curtain')!.size[1];
+  for(const tower of plan.pieces.filter(p=>p.role==='fortress-tower')){
+   const radius=tower.size[0]/2,top=Math.min(tower.size[1]+.02,.24+wallHeight+1.65);
+   for(const beam of plan.pieces.filter(p=>p.support===tower.id&&p.material==='wood'&&p.kind==='beam'&&p.role.startsWith('fortress-tower-'))){
+    for(let i=0;i<=20;i++){
+     const t=i/20,x=beam.position[0]+(beam.end![0]-beam.position[0])*t-tower.position[0],z=beam.position[2]+(beam.end![2]-beam.position[2])*t-tower.position[2],y=beam.position[1]+(beam.end![1]-beam.position[1])*t;
+     if(y<.24+wallHeight-.06||y>top+.06)continue;
+     const crossesX=Math.abs(z)<.68&&x*-Math.sign(tower.position[0])>radius*Math.cos(Math.PI/12)-.30;
+     const crossesZ=Math.abs(x)<.68&&z*-Math.sign(tower.position[2])>radius*Math.cos(Math.PI/12)-.30;
+     assert.ok(!crossesX&&!crossesZ,`${beam.role} crosses a tower doorway`);
+    }
+   }
+  }
+ }
+});
+test('perimeter timber floors do not share a plane with the stone cap',()=>{
+ const plan=buildStructurePlan(fixture('fortress',2771));
+ for(const deck of plan.pieces.filter(p=>p.role==='fortress-timber-walk')){
+  const stone=plan.pieces.find(p=>p.role==='fortress-wall-walk'&&p.support===deck.support)!;
+  assert.ok(deck.position[1]-deck.size[1]/2>stone.position[1]+stone.size[1]/2+.01,'deck underside must clear the stone cap');
+ }
+});
+test('wall stairs meet the perimeter gallery through an open guardrail gap',()=>{
+ for(const seed of [1,42,7732]){
+  const plan=buildStructurePlan(fixture('fortress',seed));
+  const landing=plan.pieces.find(p=>p.role==='fortress-stair-landing')!;
+  const deck=plan.pieces.filter(p=>p.role==='fortress-timber-walk').sort((a,b)=>a.position[0]-b.position[0])[0];
+  const top=landing.position[1]+landing.size[1]/2;
+  assert.ok(Math.abs(top-deck.position[1]-deck.size[1]/2)<1e-6);
+  assert.ok(Math.abs(landing.position[0]-landing.size[0]/2-deck.position[0]-deck.size[0]/2)<1e-6);
+  const minZ=landing.position[2]-landing.size[2]/2,maxZ=landing.position[2]+landing.size[2]/2;
+  const stairs=plan.pieces.find(p=>p.kind==='stairs'&&Math.abs(p.end![1]-top)<1e-6)!;
+  assert.ok(stairs);assert.ok(Math.abs(stairs.end![2]-minZ)<1e-6);
+  const wall=plan.pieces.find(p=>p.id===deck.support)!;
+  assert.ok(stairs.position[0]-stairs.size[0]/2>wall.position[0]+wall.size[0]/2+.05,'stone steps must not penetrate the curtain');
+  for(const rail of plan.pieces.filter(p=>p.role==='fortress-walk-rail'&&p.support===deck.id))assert.ok(rail.end![2]<=minZ+1e-6||rail.position[2]>=maxZ-1e-6,'rail must leave the stair exit open');
+ }
+});
+test('gallery landing has a full guarded platform without overlapping deck faces',()=>{
+ for(const seed of [1,42,2590,7732]){
+  const plan=buildStructurePlan(fixture('fortress',seed));
+  const side=plan.pieces.find(p=>p.role==='fortress-gallery-side')!,landing=plan.pieces.find(p=>p.role==='fortress-gallery-landing')!;
+  assert.ok(landing.size[2]>=.9,'landing needs turning space');
+  assert.ok(side.position[2]+side.size[2]/2<=landing.position[2]-landing.size[2]/2+1e-6,'coplanar decks must only meet at their edges');
+  assert.equal(plan.pieces.filter(p=>p.role==='fortress-gallery-end-rail').length,2);
+  assert.ok(plan.pieces.filter(p=>p.role==='fortress-gallery-landing-rail').length>=4);
+ }
+});
+test('lower tower braces leave the inward courtyard quadrant clear',()=>{
+ const plan=buildStructurePlan(fixture('fortress',42));
+ for(const tower of plan.pieces.filter(p=>p.role==='fortress-tower')){
+  const belt=plan.pieces.find(p=>p.support===tower.id&&p.role==='fortress-tower-connection-belt')!;
+  for(const brace of plan.pieces.filter(p=>p.support===tower.id&&p.role==='fortress-tower-crown-brace'&&p.position[1]<belt.position[1])){
+   const dx=brace.position[0]-tower.position[0],dz=brace.position[2]-tower.position[2];
+   assert.ok(!(dx*Math.sign(tower.position[0])<=1e-6&&dz*Math.sign(tower.position[2])<=1e-6),'inward tower supports obstruct the passage');
+  }
+ }
+});
+test('fortress seeds vary watchtower count, corners and tower height order',()=>{
+ const counts=new Set<number>(),corners=new Set<string>(),heightOrders=new Set<string>();
+ for(let seed=1;seed<=24;seed++){
+  const config=fixture('fortress',seed),plan=buildStructurePlan(config);
+  const towers=plan.pieces.filter(p=>p.role==='fortress-tower');
+  const roofs=plan.pieces.filter(p=>p.role==='fortress-watch-roof');
+  assert.ok(roofs.length===1||roofs.length===2);counts.add(roofs.length);
+  const selected=new Set<string>();
+  for(const roof of roofs){
+   const loft=plan.pieces.find(p=>p.id===roof.support)!;
+   const tower=towers.find(p=>p.id===loft.support)!;
+   selected.add(tower.id);corners.add(`${Math.sign(tower.position[0])},${Math.sign(tower.position[2])}`);
+   assert.equal(roof.position[0],tower.position[0]);assert.equal(roof.position[2],tower.position[2]);
+   assert.ok(!plan.pieces.some(p=>p.role==='fortress-merlon'&&p.support===tower.id));
+  }
+  assert.equal(selected.size,roofs.length);
+  heightOrders.add(towers.map((p,i)=>({i,h:p.size[1]})).sort((a,b)=>a.h-b.h).map(p=>p.i).join(','));
+  assert.deepEqual(plan,buildStructurePlan(config));
+ }
+ assert.deepEqual([...counts].sort(),[1,2]);assert.equal(corners.size,4);
+ assert.ok(heightOrders.size>=4,'tower heights must not follow a fixed front/rear pattern');
+});
 test('gallery supports leave the hall doorway clear and stairs run beside the house',()=>{
  for(const seed of [42,7732,2590]){
   const plan=buildStructurePlan(fixture('fortress',seed)),hall=plan.volumes.find(v=>v.role==='barracks')!;

@@ -9,6 +9,12 @@ export function dressRoof(a:Architect,r:RoofSurface){
  const left=r.x-w-e,right=r.x+w+e,front=r.z-d-e,back=r.z+d+e;
  const ratio=r.ridgeRatio??.5,ridge=r.x-w+r.width*ratio;
  const beam=(from:V3,to:V3,role:string,section=.24,cuts?:{start:V3;end:V3})=>a.beam(from,to,section,r.material==='stone'?'stone':'wood',role,r.id,cuts);
+ if(r.kind==='shed'&&r.shedAxis===2){
+  const height=(z:number)=>r.y+r.rise*(.5+(r.shedDirection??1)*(z-r.z)/(2*d));
+  for(const z of [front,back])beam([left,height(z)-.055,z],[right,height(z)-.055,z],'roof-fascia');
+  for(const x of [left-.035,right+.035])beam([x,height(front)-.055,front],[x,height(back)-.055,back],'eave-fascia');
+  return;
+ }
  if(r.kind==='gable'||r.kind==='thatch'){
   const ly=r.y-r.rise*e/(r.width*ratio),ry=r.y-r.rise*e/(r.width*(1-ratio));
   const leftOffset=.17-.12*Math.sqrt(1+(r.rise/(r.width*ratio))**2),rightOffset=.17-.12*Math.sqrt(1+(r.rise/(r.width*(1-ratio)))**2);
