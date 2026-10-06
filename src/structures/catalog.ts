@@ -7,6 +7,7 @@ export const STRUCTURE_DESCRIPTORS:Record<StructureKind,StructureDescriptor>={
  bridge:d('Ponte','Infraestrutura',12,4,3,1,{depth:[2,8]}),wall:d('Muralha','Infraestrutura',15,4,5,1,{depth:[1,8]}),gate:d('Portão','Infraestrutura',10,5,6,2),dock:d('Doca','Infraestrutura',12,8,3,1),lighthouse:d('Farol','Infraestrutura',6,6,13,4),
  camp:d('Acampamento','Conjuntos',12,10,3,1),village:d('Aldeia','Conjuntos',22,20,4,2),outpost:d('Posto avançado','Conjuntos',15,12,6,2),treehouse:d('Casa na árvore','Especiais',8,7,7,2),desert:d('Estrutura de deserto','Regionais',11,10,5,2,{biome:'gerudo'}),swamp:d('Estrutura de pântano','Regionais',9,8,4,1,{biome:'swamp'}),snowy:d('Estrutura nevada','Regionais',7,7,4,2,{biome:'hebra_snowy'}),mine:d('Mina','Especiais',10,10,5,1),underground:d('Estrutura subterrânea','Especiais',16,14,5,1),
 };
+STRUCTURE_DESCRIPTORS.camp.width[0]=10;STRUCTURE_DESCRIPTORS.camp.depth[0]=10;
 // Functional minima keep towers, passages and room widths usable at the slider extremes.
 for(const kind of ['fortress','castle','ruinedCastle'] as const){STRUCTURE_DESCRIPTORS[kind].width[0]=12;STRUCTURE_DESCRIPTORS[kind].depth[0]=10;}
 for(const kind of ['farm','village','outpost','temple','treehouse','desert','swamp','mine','gate','lighthouse','underground'] as const){STRUCTURE_DESCRIPTORS[kind].width[0]=6;STRUCTURE_DESCRIPTORS[kind].depth[0]=6;}

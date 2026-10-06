@@ -1,23 +1,7 @@
 import {Architect} from '../blueprint';
 import type {GrammarContext, V3} from '../types';
 
-export function camp(c:GrammarContext) {
- const a=new Architect(c), p=c.config, w=a.value(p.width), d=a.value(p.depth);
- const count=2+Math.round(p.complexity*3);
- for(let i=0;i<count;i++) {
-  const angle=Math.PI*.15+i*Math.PI*1.5/count, x=Math.cos(angle)*w*.3, z=Math.sin(angle)*d*.3;
-  const tw=a.value(2.5), td=a.value(3.3), th=a.value(2);
-  const id='tent_'+i;a.plan.volumes.push({id,x,z,width:tw,depth:td,bottom:0,height:th,floors:1,role:'tent'});
-  let support='ground';for(const end of [-1,1])for(const side of [-1,1])support=a.beam([x+side*tw/2,.15,z+end*td/2],[x,.15+th,z+end*td/2],.09,'wood','tent-pole');
-  a.plan.roofs.push({id:id+'_roof',volume:id,x,z,width:tw,depth:td,y:.15,rise:th,eaves:.05,kind:'gable',material:'cloth'});a.plan.supports.push({component:id+'_roof',on:support});
-  a.piece('box',[x,.12,z],[tw,.12,td],'cloth','tent');
-  // Rope stakes form a readable silhouette outside the tent.
-  for(const side of [-1,1]) a.beam([x+side*tw/2,.15,z],[x+side*(tw/2+1),.12,z],.04,'wood','guy-rope');
- }
- for(let i=0;i<9;i++){const angle=i*Math.PI*2/9;a.piece('rock',[Math.cos(angle)*.75,.18,Math.sin(angle)*.75],[.25,.18,.22],'stone','fire-ring');}
- a.plan.accesses.push({id:'camp-path',from:[0,0,-d/2],to:[0,0,0],width:1.8,role:'path'});
- return a.finish();
-}
+export {camp} from './camp';
 export function village(c:GrammarContext) {
  const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth),n=3+Math.round(p.complexity*4);
  for(let i=0;i<n;i++) {

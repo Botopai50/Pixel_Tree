@@ -32,7 +32,8 @@ function brokenFacet(points:V3[],damage:number,id:string,lift?:number) {
  const exposed=new Set([...counts].filter(([,count])=>count===1).map(([key])=>key));
  return kept.length?merge(kept.map(t=>slab(t,exposed,lift))):new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute([],3));
 }
-export function buildRoof(r:RoofSurface) {
+export function buildRoof(r:RoofSurface):THREE.BufferGeometry {
+ if(r.rotationY){const g=buildRoof({...r,rotationY:undefined});g.translate(-r.x,0,-r.z);g.rotateY(r.rotationY);g.translate(r.x,0,r.z);return g;}
  if(r.kind==='flat'&&r.accessHole&&(r.damage??0)<=.08){
   const h=r.accessHole,shape=new THREE.Shape(),hole=new THREE.Path();
   const rectangle=(path:THREE.Path,x:number,z:number,w:number,d:number)=>{path.moveTo(x-w/2,z-d/2);path.lineTo(x+w/2,z-d/2);path.lineTo(x+w/2,z+d/2);path.lineTo(x-w/2,z+d/2);path.closePath();};
