@@ -109,16 +109,7 @@ export function dock(c:GrammarContext) {
  a.depend(deck,a.plan.pieces.filter(p=>p.role==='mooring').map(p=>p.id),2);const headPiers=[-1,1].map(side=>a.piece('column',[side*w*.43,base/2,d*.31],[.35,base,.35],'wood','head-pier'));a.depend(head,[deck,...headPiers],2);a.stairs([0,0,-d/2-2],[0,base,-d/2],w*.3);
  a.plan.propZones.push({id:'dock-water',x:0,z:1,width:w+4,depth:d+4,y:-.08,kind:'water'});return a.finish();
 }
-export function lighthouse(c:GrammarContext) {
- const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth),h=a.value(p.height);
- const tower=a.building(0,0,w*.65,d*.65,h,3,{material:'stone',roof:p.roof==='auto'?'flat':p.roof,role:'lighthouse-tower'});
- const deck=a.piece('box',[0,tower.bottom+h+.12,0],[w*.86,.25,d*.86],'stone','lantern-deck',tower.id+'_roof');
- for(const sx of [-1,1])for(const sz of [-1,1])a.beam([sx*w*.27,h+.25,sz*d*.27],[sx*w*.27,h+2.4,sz*d*.27],.13,'metal','lantern-frame',deck);
- a.piece('column',[0,h+1.1,0],[.6,1.2,.6],'cloth','lantern',deck);
- const roof=a.building(0,0,w*.72,d*.72,.12,1,{base:h+2.4,open:true,roof:p.roof==='auto'?'hip':p.roof,door:false,role:'lantern-cap'});
- a.plan.pieces.filter(x=>x.role==='foundation'&&x.position[1]>h*.6).forEach(x=>{x.size[1]=.12;x.position[1]=h+2.34;x.support=deck;a.plan.supports.find(s=>s.component===x.id)!.on=deck;});
- return a.finish();
-}
+export {lighthouse} from './lighthouse';
 export function underground(c:GrammarContext) {
  const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth),h=a.value(p.height);
  a.building(-w*.22,0,w*.42,d*.68,h,1,{material:'stone',roof:p.roof==='auto'?'flat':p.roof,role:'chamber'});
