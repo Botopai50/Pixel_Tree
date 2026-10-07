@@ -55,7 +55,7 @@ test('seeded tent counts stay separate with a clear hearth at minimum and maximu
   assert.equal(plan.pieces.filter(p=>p.role==='camp-entry-flaps').length,plan.volumes.length);
   assert.ok(plan.roofs.every(r=>r.y<.1&&r.eaves===0));
   assert.equal(plan.pieces.filter(p=>p.role==='fire-ring').length,16);
-  const fire=plan.pieces.filter(p=>p.role==='camp-flame');assert.ok(fire.length>0);
+  assert.equal(plan.pieces.filter(p=>p.role==='camp-flame').length,0);
   assert.ok(plan.pieces.some(p=>p.role==='camp-kettle'));
  }
 });
@@ -91,10 +91,10 @@ test('tent entrances have a real empty gap through the canvas',()=>{
  }
 });
 
-test('camp fire flickers and every added light, texture and material is owned by the asset',()=>{
+test('camp owns its billboard fire resources and has no fire light',()=>{
  const asset=createStructure(fixture('camp'));
  const light=asset.assetGroup.children.find(x=>x instanceof THREE.PointLight) as THREE.PointLight;
- assert.ok(light);asset.update(0);const initial=light.intensity;asset.update(.15);assert.notEqual(light.intensity,initial);
+ assert.equal(light,undefined);asset.update(.15);
  const materials=new Set<THREE.Material>(),textures=new Set<THREE.Texture>();
  asset.assetGroup.traverse(o=>{if(o instanceof THREE.Mesh){
   const m=o.material as THREE.MeshStandardMaterial;materials.add(m);if(m.map)textures.add(m.map);
@@ -103,6 +103,21 @@ test('camp fire flickers and every added light, texture and material is owned by
  let disposedMaterials=0,disposedTextures=0;
  materials.forEach(m=>m.addEventListener('dispose',()=>disposedMaterials++));textures.forEach(t=>t.addEventListener('dispose',()=>disposedTextures++));
  asset.dispose();asset.dispose();assert.equal(disposedMaterials,materials.size);assert.equal(disposedTextures,textures.size);
+});
+
+test('camp fire is one animated pixel plane that follows the camera',()=>{
+ const asset=createStructure(fixture('camp'));
+ const fire=asset.assetGroup.getObjectByName('CampFireBillboard') as THREE.Mesh<THREE.PlaneGeometry,THREE.MeshBasicMaterial>;
+ assert.ok(fire);assert.equal(fire.geometry.index!.count,6);
+ const map=fire.material.map!;
+ assert.equal(map.magFilter,THREE.NearestFilter);assert.equal(fire.castShadow,false);
+ assert.equal(fire.userData.excludeFromOBJ,true);
+ asset.update(0);const first=map.offset.x;asset.update(.25);assert.notEqual(map.offset.x,first);
+ const camera=new THREE.PerspectiveCamera();camera.position.set(4,3,6);camera.lookAt(0,.5,0);camera.updateMatrixWorld(true);
+ asset.group.rotation.y=.6;asset.group.updateMatrixWorld(true);
+ fire.onBeforeRender(null as any,null as any,camera,fire.geometry,fire.material,null as any);
+ assert.ok(fire.getWorldQuaternion(new THREE.Quaternion()).angleTo(camera.getWorldQuaternion(new THREE.Quaternion()))<1e-6);
+ asset.dispose();
 });
 
 test('camp survives ruin processing and exports tent canvas and cooking props as finite OBJ geometry',()=>{

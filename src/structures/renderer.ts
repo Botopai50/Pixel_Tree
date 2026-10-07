@@ -1,4 +1,5 @@
-import {buildCampPiece,campCanvasTexture,campEndgrainTexture,campBarkTexture} from './geometry/camp';
+import {createCampFire} from './geometry/campFire';
+import {buildCampPiece,campCanvasTexture,campCutWoodMaterial,campKettleTexture} from './geometry/camp';
 import {buildTempleGlyph,createTempleGlyphTexture,createTemplePavingTexture} from './geometry/temple';
 import {trimAtWall} from './geometry/abutment';
 import {paintSurface,paintForgedIron} from './surfacePainting';
@@ -15,8 +16,7 @@ import * as THREE from 'three';import type {StructurePlan,StructureConfig,PieceS
 function pieceGeometry(p:PieceSpec,plan:StructurePlan){if(plan.type==='camp'){if(p.role==='camp-barrel')return buildFortressBarrel(p);const geometry=buildCampPiece(p);if(geometry)return geometry;}if(p.role==='lighthouse-finial'){const g=new THREE.ConeGeometry(p.size[0]/2,p.size[1],8);g.translate(...p.position);return g;}if(p.role==='lantern'&&plan.type==='lighthouse'){const g=new THREE.CylinderGeometry(p.size[0]/2,p.size[0]/2,p.size[1],8);g.rotateY(Math.PI/8);g.translate(...p.position);return g;}if(p.role==='temple-glyph')return buildTempleGlyph(p);if(p.role==='fortress-window-glow')return buildFortressWindow(p);if(['fortress-banner','fortress-tower-standard','castle-banner','castle-standard'].includes(p.role))return buildFortressBanner(p);if((p.role==='fortress-barrel'||p.role==='tower-barrel'||p.role==='barn-barrel'))return buildFortressBarrel(p);if(p.role==='fortress-well'||p.role==='fortress-well-rim')return buildFortressParapet(p);if(['fortress-barrel-hoop','fortress-barrel-lid','fortress-well-depth','tower-barrel-hoop','tower-barrel-lid','barn-barrel-hoop','barn-barrel-lid'].includes(p.role)){const g=new THREE.CylinderGeometry(p.size[0]/2,p.size[0]/2,p.size[1],12);g.translate(...p.position);return g;}if(p.role==='fortress-watch-roof')return buildMillCap(p);if(p.role==='fortress-tower')return buildFortressTower(p,plan.pieces.find(x=>x.role==='fortress-curtain')!.size[1]);if(p.role==='fortress-parapet'||p.role==='fortress-tower-timber-ring')return buildFortressParapet(p);if(p.role==='fortress-gate-wall')return buildFortressGateWall(p);if(p.role==='fortress-gate')return buildMillDoor(p);if(['fortress-tower-foot','fortress-tower-cornice','fortress-tower-band','fortress-watch-loft'].includes(p.role)){const sides=p.role==='fortress-watch-loft'?8:12;const g=new THREE.CylinderGeometry(p.size[0]/2,p.size[0]/2,p.size[1],sides);g.rotateY(Math.PI/sides);g.translate(...p.position);return g;}if(p.role==='mill-gallery'||p.role==='mill-entry-gallery')return buildMillGallery(p);if(p.role==='mill-door')return buildMillDoor(p);if(p.role==='mill-door-arch'){const g=buildArch(p.size[0],p.size[2],.64);g.translate(...p.position);return g;}if(p.role==='mill-cap-seam')return buildMillSeam(p,plan.pieces.find(x=>x.id===p.support)!);if(p.role==='mill-cap')return buildMillCap(p);if(p.role==='mill-eave')return buildMillEave(p,plan.pieces.find(x=>x.role==='mill-cap')!);if(p.role==='mill-peak')return buildMillPeak(p);if(p.role==='mill-body')return buildMillBody(p,plan.pieces.filter(x=>x.role==='mill-body').findIndex(x=>x.id===p.id));if(['mill-cap','mill-belt','mill-collar','mill-plinth'].includes(p.role)){const g=new THREE.CylinderGeometry(p.size[2]/2,p.size[0]/2,p.size[1],12);g.rotateY(Math.PI/12);g.translate(...p.position);return g;}if(p.role==='porch-cover'&&p.material==='thatch'){const g=buildThatchRoof({id:p.id,volume:p.support??'',x:0,z:0,y:.065,width:p.size[2]*2,depth:p.size[0],rise:0,eaves:0,kind:'thatch',material:'thatch'},true,.55);g.rotateY(-Math.PI/2);g.translate(0,0,p.size[2]/2);g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...p.rotation??[0,0,0])));g.translate(...p.position);return g;}if(p.role==='roof-fascia'||p.role==='eave-fascia'){const hip=plan.roofs.find(r=>r.id===p.support&&r.kind==='hip');if(hip)return buildHipFascia(hip,p.role==='roof-fascia'?(p.position[2]<hip.z?'front':'back'):(p.position[0]<hip.x?'left':'right'));}if(p.role==='hip-cap'||p.role==='hip-ridge-cap')return buildHipCover(plan.roofs.find(r=>r.id===p.support)!,p.position,p.end!);if(p.role==='chimney'||p.role==='chimney-cap')return buildChimney(p.position,p.size);const roof=(p.role==='ridge-cap'||p.role==='eave-fascia')?plan.roofs.find(r=>r.id===p.support&&(r.kind==='gable'||r.kind==='thatch')):undefined;if(roof)return p.role==='ridge-cap'?buildRidgeCap(roof):buildEaveFascia(roof,p.position[0]<roof.x);if(p.kind==='beam')return buildBeam(p.position,p.end!,p.size[0],0,p.cuts);if(p.kind==='stairs')return buildStairs({id:p.id,from:p.position,to:p.end!,width:p.size[0],role:p.role});let g:THREE.BufferGeometry;
  if(p.kind==='column'){g=new THREE.CylinderGeometry(p.size[0]*.45,p.size[0]*.55,p.size[1],8);g.translate(...p.position);}else if(p.kind==='arch'){g=buildArch(p.size[0],p.size[2]);g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...p.rotation??[0,0,0])));g.translate(...p.position);}else if(p.kind==='wheel'){g=new THREE.CylinderGeometry(p.size[0]/2,p.size[0]/2,p.size[2],12);g.rotateX(Math.PI/2);g.translate(...p.position);}else if(p.kind==='rock'){g=new THREE.IcosahedronGeometry(1,0);g.scale(...p.size);g.translate(...p.position);}else g=box(p.position,p.size,p.rotation);return g;}
 export function renderStructure(plan:StructurePlan,c:StructureConfig){const resources=new StructureResources(),materials=createStructureMaterials(c,resources,plan.seed),assetGroup=new THREE.Group();assetGroup.name='StructureAsset';const attach=(g:THREE.BufferGeometry,material: keyof typeof materials,name:string,grain?:THREE.Vector3):THREE.Mesh<THREE.BufferGeometry,THREE.Material>=>{g=paintUV(g,grain,material==='roof');if(material==='stone'&&(c.type==='castle'||c.type==='ruinedCastle')){const uv=g.getAttribute('uv');for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*.75,uv.getY(i)*.75);}if(material==='thatch'&&!g.getAttribute('thatchLayer'))g.setAttribute('thatchLayer',new THREE.Float32BufferAttribute(new Float32Array(g.getAttribute('position').count),1));resources.geometries.add(g);const mesh=new THREE.Mesh(g,materials[material]);mesh.name=name;mesh.castShadow=material!=='water';mesh.receiveShadow=true;assetGroup.add(mesh);return mesh;};
- const campMaterials=new Map<string,THREE.MeshStandardMaterial>();
- let campFireLight:THREE.PointLight|undefined;
+ const campMaterials=new Map<string,THREE.Material>();
  if(c.type==='camp'){
   const canvas=campCanvasTexture(c.texelsPerMetre,plan.seed);resources.textures.add(canvas);materials.cloth.map=canvas;
   const material=(role:string,base:THREE.MeshStandardMaterial,color:string,emissive?:string)=>{
@@ -25,15 +25,48 @@ export function renderStructure(plan:StructurePlan,c:StructureConfig){const reso
    resources.materials.add(m);campMaterials.set(role,m);return m;
   };
   material('camp-bedroll-blue',materials.cloth,'#577789');material('camp-bedroll-red',materials.cloth,'#8e4935');
-  material('camp-flame',materials.cloth,'#ffc133','#ff9f13');
-  const bark=campBarkTexture(plan.seed);resources.textures.add(bark);
-  for(const role of ['camp-burning-log','camp-stump','camp-firewood','camp-fallen-log'])material(role,materials.wood,'#ffffff').map=bark;
-  for(const role of ['camp-stump-end','camp-firewood-end','camp-log-end']){
-   const m=material(role,materials.wood,'#ffffff');m.map=campEndgrainTexture();resources.textures.add(m.map);
+  const kettleIron=campKettleTexture(c.texelsPerMetre,plan.seed);
+  resources.textures.add(kettleIron);
+  for(const role of ['camp-kettle','camp-kettle-handle','camp-pot-chain']){
+   const iron=material(role,materials.metal,'#ffffff');iron.map=kettleIron;iron.roughness=.95;iron.metalness=0;iron.flatShading=true;
+   iron.emissiveMap=kettleIron;iron.emissive.set('#ffffff');iron.emissiveIntensity=.08;
+   if(role==='camp-kettle'){
+    const baseCompile=iron.onBeforeCompile;
+    iron.onBeforeCompile=(shader,renderer)=>{
+     baseCompile.call(iron,shader,renderer);
+     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+      if(vStructurePos.y>1.215){
+       diffuseColor.rgb*=1.25;
+      }`);
+    };
+    iron.customProgramCacheKey=()=> 'camp_kettle_cast_iron';
+   }
   }
-  if(plan.pieces.some(p=>p.role==='camp-flame'&&!p.removed)){
-   campFireLight=new THREE.PointLight('#ffad42',6,5,2);campFireLight.position.set(0,.8,0);assetGroup.add(campFireLight);
-  }
+   const treeWood=campCutWoodMaterial(c.texelsPerMetre,plan.seed,c.palette.wood);
+   treeWood.textures.forEach(texture=>resources.textures.add(texture));
+   resources.materials.add(treeWood.bark);resources.materials.add(treeWood.end);
+   for(const role of ['camp-stump','camp-firewood','camp-fallen-log'])campMaterials.set(role,treeWood.bark);
+   const burntLogs=new THREE.ShaderMaterial({
+    uniforms:{...treeWood.bark.uniforms},vertexShader:treeWood.bark.vertexShader,
+    fragmentShader:treeWood.bark.fragmentShader.replace('gl_FragColor = vec4(col, 1.0);',`
+     vec2 burnCell=floor(vec2(vWood.y,vAngleU*6.2831853*vWood.z)*uTexelsPerMetre);
+     float burnNoise=bhash2(floor(burnCell/2.0)+uTextureSeed);
+     float burnDistance=abs((burnCell.x+.5)/uTexelsPerMetre-.425);
+     float burnEdge=.305+(burnNoise-.5)*.055;
+     if(burnDistance<burnEdge){
+      float burnLevel=burnDistance<burnEdge-.055?.95:.72;
+      float crack=bhash2(burnCell+17.0);
+      vec3 charcoal=vec3(.09,.082,.074)+col*.06;
+      if(crack<.18)charcoal*=.55;
+      else if(crack>.94)charcoal+=vec3(.04,.038,.035);
+      col=mix(col,charcoal,burnLevel);
+     }
+     gl_FragColor=vec4(col,1.0);
+    `),
+   });
+   burntLogs.name='CampFirewoodCharredTexture';resources.materials.add(burntLogs);
+   campMaterials.set('camp-burning-log',burntLogs);
+   for(const role of ['camp-stump-end','camp-firewood-end','camp-log-end','camp-burning-log-end'])campMaterials.set(role,treeWood.end);
  }
  const timber=materials.wood.clone();timber.name='SolidTimber';timber.onBeforeCompile=materials.wood.onBeforeCompile;timber.customProgramCacheKey=materials.wood.customProgramCacheKey;timber.map=paintSurface('wood',c.palette.wood,c.texelsPerMetre,plan.seed,c.finish,true);resources.textures.add(timber.map);resources.materials.add(timber);
  for(const w of plan.walls){if(w.removed)continue;const openings=plan.openings.filter(o=>o.wall===w.id);
@@ -142,7 +175,9 @@ export function renderStructure(plan:StructurePlan,c:StructureConfig){const reso
   for(const child of [...assetGroup.children])if(child instanceof THREE.Mesh&&!(child instanceof THREE.InstancedMesh)){const mat=child.material as THREE.Material;const list=batches.get(mat)??[];list.push(child);batches.set(mat,list);}
   for(const [mat,meshes] of batches){if(meshes.length<2)continue;const geometries=meshes.map(m=>m.geometry);geometries.forEach(g=>resources.geometries.delete(g));const geo=merge(geometries);resources.geometries.add(geo);meshes.forEach(m=>m.removeFromParent());const mesh=new THREE.Mesh(geo,mat);mesh.name='Architecture_'+Object.keys(materials).find(key=>materials[key as keyof typeof materials]===mat);mesh.castShadow=mesh.receiveShadow=true;assetGroup.add(mesh);}
  }
- assetGroup.scale.setScalar(c.scale);assetGroup.updateMatrixWorld(true);return {assetGroup,bounds:new THREE.Box3().setFromObject(assetGroup),resources,materials,update:(time:number)=>{if(campFireLight){const flicker=.88+Math.sin(time*7)*.08+Math.sin(time*11.3)*.04;campFireLight.intensity=6*flicker;campMaterials.get('camp-flame')!.emissiveIntensity=2*flicker;}},dispose:resources.dispose};}
+ const fire=c.type==='camp'&&plan.pieces.filter(p=>p.role==='camp-burning-log'&&!p.removed).length>=3?createCampFire(c.texelsPerMetre):undefined;
+ if(fire){resources.geometries.add(fire.geometry);resources.materials.add(fire.material);resources.textures.add(fire.texture);assetGroup.add(fire.mesh);}
+ assetGroup.scale.setScalar(c.scale);assetGroup.updateMatrixWorld(true);return {assetGroup,bounds:new THREE.Box3().setFromObject(assetGroup),resources,materials,update:(time:number)=>{fire?.update(time);},dispose:resources.dispose};}
 
 
 

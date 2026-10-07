@@ -121,35 +121,48 @@ class Canvas {
  * each lit along its upper edge and shaded along its lower one.
  */
 function frondTexture(r: Ramp): THREE.CanvasTexture {
-  const W = 24;
-  const H = 64;
+  const W = 32, H = 64;
   const c = new Canvas(W, H);
-  const mid = (W - 1) / 2;
-  const rachis = r.dark.clone().lerp(new THREE.Color('#6b5a2c'), 0.35);
-  // Leaflets three texels tall, one straight after another, so the frond is
-  // a solid saw-edged blade: lit along each leaflet's upper row, shaded
-  // along its lower one, and only a notch between neighbours.
-  for (let y = 1; y < H; y += 3) {
-    const t = 1 - y / H;                        // 0 at the base .. 1 at the tip
-    const reach = Math.max(1.5, (mid - 1) * Math.pow(Math.sin(Math.PI * (0.06 + 0.94 * (1 - t))), 0.7) * (1 - t * 0.25));
+  const mid = 15;
+  // This shader writes colours directly. Use display greens rather than the
+  // linear colour bytes that made the old blade and rachis almost black.
+  const leaf = r.mid.clone().convertLinearToSRGB();
+  const shade = r.dark.clone().convertLinearToSRGB().lerp(leaf, .30);
+  const light = r.light.clone().convertLinearToSRGB().lerp(leaf, .48);
+  const stem = leaf.clone().lerp(new THREE.Color('#9aab61').convertLinearToSRGB(), .24);
+  for (let pair = 0; pair < 11; pair++) {
+    const rootY = 5 + pair * 5;
+    const t = rootY / H;
+    const reach = 4 + 10.5 * Math.pow(Math.sin(Math.PI * t), .65);
     for (const side of [-1, 1]) {
-      for (let k = 1; k <= reach; k++) {
-        // leaflets sweep toward the tip as they go out, and taper at the end
-        const yy = y - Math.floor(k / 3);
-        const x = mid + side * k;
-        const rows = k > reach - 1.2 ? 2 : 3;
-        for (let d = 0; d < rows; d++) {
-          c.set(x, yy + d, d === 0 ? r.light : d === rows - 1 && rows === 3 ? r.dark : r.mid);
+      const stagger = side > 0 ? 1 : 0;
+      const length = reach - ((pair + (side > 0 ? 1 : 0)) % 3) * .55;
+      for (let k = 1; k <= Math.ceil(length); k++) {
+        const u = k / length;
+        if (u > 1) continue;
+        const centerY = rootY + stagger - u * 4;
+        const half = .45 + Math.sin(Math.PI * u) * 1.25;
+        const top = Math.ceil(centerY - half), bottom = Math.floor(centerY + half);
+        for (let y = top; y <= bottom; y++) {
+          const edge = y === bottom && k > 2;
+          const glint = y === top && u > .22 && u < .72 && pair % 3 !== 1;
+          c.set(mid + side * k, y, edge ? shade : glint ? light : leaf);
         }
+        // Short central veins follow each leaflet, without a bright full stripe.
+        if (k > 1 && k < length * .55 && pair % 2 === 0)
+          c.set(mid + side * k, centerY, leaf.clone().lerp(light, .25));
       }
     }
   }
-  for (let y = 0; y < H; y++) {
-    c.set(Math.floor(mid), y, rachis);
-    c.set(Math.ceil(mid), y, rachis);
+  for (let y = 3; y < H - 2; y++) {
+    c.set(mid, y, stem);
+    if (y % 6 === 0) c.set(mid, y, light);
   }
-  // (no outline: round a saw-edged frond it filled every notch, and from a
-  // step back the fern read as black)
+  // A pointed terminal leaflet finishes the frond instead of a blunt comb.
+  for (let y = 0; y < 6; y++) {
+    const half = Math.min(2, Math.floor(y / 2));
+    for (let x = mid - half; x <= mid + half; x++) c.set(x, y, x < mid ? light : leaf);
+  }
   return c.texture();
 }
 

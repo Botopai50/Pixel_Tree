@@ -66,6 +66,7 @@ const FRAGMENT = /* glsl */ `
   uniform float uTexelsPerMetre;
   uniform float uRingsPerMetre;
   uniform float uSeed;
+  uniform float uCompactCuts;
   uniform vec3 uTexLightDir;
   varying vec2 vUv;
   varying float vGrainR;
@@ -105,16 +106,29 @@ const FRAGMENT = /* glsl */ `
       if (d < texel * 0.55 && rho < len && rw > texel * 1.5) idx = 0.0;
     }
 
+    // Small firewood needs a readable centre within its limited texel budget.
+    bool compact = uCompactCuts > 0.5 && R < 0.15;
+    if (compact) {
+      idx = rho < 0.40 ? 5.0 : 4.0;
+      if (abs(rho - 0.56 + wob * 0.04) < 0.65 / across) idx = 3.0;
+      if (c.x > 0.0 && abs(c.y) < 0.35 / across && rho > 0.15 && rho < 0.65) idx = 2.0;
+    }
+
     // the bark round the rim, with a dark outline
     float fromRim = (1.0 - rho) * R / texel;                // in texels
-    if (fromRim < 1.0) idx = 0.0;
-    else if (fromRim < 2.0) idx = 1.0;
+    float rimWidth = compact ? 0.65 : 2.0;
+    if (fromRim < rimWidth * 0.5) idx = 0.0;
+    else if (fromRim < rimWidth) idx = 1.0;
 
     // light in whole steps: the splinters' shaded walls fall darker
     float ndl = dot(normalize(vNormal), normalize(uTexLightDir));
     if (idx > 0.5) {
-      if (ndl < -0.05) idx -= 2.0;
-      else if (ndl < 0.35) idx -= 1.0;
+      if (compact) {
+        if (idx > 3.5 && ndl < 0.35) idx -= 1.0;
+      } else {
+        if (ndl < -0.05) idx -= 2.0;
+        else if (ndl < 0.35) idx -= 1.0;
+      }
     }
     idx = clamp(idx, 0.0, 5.0);
     gl_FragColor = vec4(texture2D(uPalette, vec2((idx + 0.5) / 6.0, 0.5)).rgb, 1.0);
@@ -136,6 +150,7 @@ export function createPixelEndGrainMaterial(config: TreeConfig): EndGrainMateria
       uTexelsPerMetre: { value: params.barkTexelsPerMetre * 2.2 },
       uRingsPerMetre: { value: 7 },
       uSeed: { value: (config.seed % 991) * 0.61 },
+      uCompactCuts: { value: 0 },
       uTexLightDir: { value: pixelTextureLightDir(params) },
     },
     vertexShader: VERTEX,

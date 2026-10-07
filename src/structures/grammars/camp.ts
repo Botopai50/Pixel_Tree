@@ -46,13 +46,12 @@ export function camp(c:GrammarContext){
   a.piece('rock',[Math.cos(angle)*rr,height/2,Math.sin(angle)*rr],[.27,height/2,.23],'stone','fire-ring','ground',[0,-angle,0]);
  }
  for(let i=0;i<5;i++){
-  const angle=i*Math.PI/5;
-  a.piece('column',[Math.sin(angle)*.15,.16,Math.cos(angle)*.15],[.21,.85,.21],'wood','camp-burning-log','ground',[0,angle,Math.PI/2]);
+  const angle=i*Math.PI/5,rotation:V3=[0,angle,Math.PI/2];
+  const log=a.piece('column',[0,.16,0],[.21,.85,.21],'wood','camp-burning-log','ground',rotation);
+  for(const side of [-1,1])a.piece('column',[-side*Math.cos(angle)*.435,.16,side*Math.sin(angle)*.435],[.19,.025,.19],'wood','camp-burning-log-end',log,rotation);
  }
- for(let i=0;i<7;i++){
-  const angle=i*Math.PI*2/7,r=i===0?0:.31,h=a.value(i===0?.85:.54,.22);
-  a.piece('column',[Math.cos(angle)*r,.19+h/2,Math.sin(angle)*r],[.25,h,.25],'cloth','camp-flame');
- }
+ // Preserve the existing seeded prop sizes after removing the seven flames.
+ for(let i=0;i<7;i++)a.value(i===0?.85:.54,.22);
  const rackHeight=1.95,rackWidth=fireRadius*2.08,rackPosts:string[]=[];
  for(const side of [-1,1])for(const end of [-1,1]){
   rackPosts.push(a.beam([side*rackWidth/2,0,end*.44],[side*rackWidth*.45,rackHeight+.14,-end*.08],.12,'wood','camp-cooking-post'));
@@ -98,12 +97,12 @@ export function camp(c:GrammarContext){
  const wood=place(.8,1.05,utilityHub),woodX=wood.x,woodZ=wood.z,rows=2+Math.floor(props()*2);
  for(let row=0;row<rows;row++)for(let i=0;i<rows-row;i++){
   const x=woodX+(i-(2-row)/2)*.22,y=.12+row*.19,z=woodZ;
-  a.piece('column',[x,y,z],[.22,.90,.22],'wood','camp-firewood','ground',[Math.PI/2,0,0]);
-  a.piece('column',[x,y,z-.46],[.19,.025,.19],'wood','camp-firewood-end','ground',[Math.PI/2,0,0]);
+  const firewood=a.piece('column',[x,y,z],[.22,.90,.22],'wood','camp-firewood','ground',[Math.PI/2,0,0]);
+  for(const side of [-1,1])a.piece('column',[x,y,z+side*.46],[.19,.025,.19],'wood','camp-firewood-end',firewood,[Math.PI/2,0,0]);
  }
  const logLength=.90+props()*.55,log=place(logLength+.1,.55,3);
- a.piece('column',[log.x,.24,log.z],[.46,logLength,.46],'wood','camp-fallen-log','ground',[0,0,Math.PI/2]);
- a.piece('column',[log.x-logLength/2-.015,.24,log.z],[.42,.035,.42],'wood','camp-log-end','ground',[0,0,Math.PI/2]);
+ const fallenLog=a.piece('column',[log.x,.24,log.z],[.46,logLength,.46],'wood','camp-fallen-log','ground',[0,0,Math.PI/2]);
+ for(const side of [-1,1])a.piece('column',[log.x+side*(logLength/2+.015),.24,log.z],[.42,.035,.42],'wood','camp-log-end',fallenLog,[0,0,Math.PI/2]);
  if(props()<.25+p.complexity*.65){
   const {x,z}=place(1.25,.25,utilityHub);
   const posts=[-1,1].map(side=>a.beam([x+side*.53,0,z],[x+side*.53,1.45,z],.10,'wood','camp-drying-post'));

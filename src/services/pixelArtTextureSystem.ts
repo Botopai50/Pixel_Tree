@@ -1882,6 +1882,7 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
   uniform float uTexelsPerMetre;   // apparent pixel size, in texels per metre
   uniform float uTexelsPerLobe;    // how many texels across one lobe
   uniform float uForcedLobes;      // >0 pins the ridge count (modelled ribs)
+  uniform float uBarkDarkCoverage;
   uniform float uLitSign;
   // Shade cast by a dense crown on the wood inside it (0 = off). Set for the
   // pine, whose trunk and limbs run up through the middle of its needles
@@ -2041,6 +2042,7 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
       float seamWidth = uPlatedMode > 0.5
         ? 0.55 + lh2 * 0.35
         : 0.9 + uBarkVariation * 0.5 + lh2 * 0.5;
+      seamWidth *= uBarkDarkCoverage;
       if (seamTexels < seamWidth) {
         idx -= (1.6 + uShadowStrength * 1.6) * qs;
         crevice = 1.0;
@@ -2169,6 +2171,11 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
     // ...except under a dense crown, where the wood genuinely is that dark
     off = clamp(off, -2.0 - floor(crownCover * 1.5 + 0.5), 3.0);
     idx = clamp(idx + off, 0.0, N1);
+
+    // Keep the darkest tones in narrower grooves; the rest becomes mid brown.
+    if (uBarkDarkCoverage < 1.0 && crevice < 0.5) {
+      idx = max(idx, floor((1.0 - uBarkDarkCoverage) * N1 * 0.7 + 0.5));
+    }
 
     // Moss. It used to be switched on a whole ridge (or plate) at a time, so it
     // came out as long random green stripes. It grows in cushions instead: a
@@ -3260,9 +3267,10 @@ export function createPixelSucculentMaterial(
  */
 export function createPixelBarkMaterial(
   config: TreeConfig,
-  sharedUniforms: Record<string, THREE.IUniform>
+  sharedUniforms: Record<string, THREE.IUniform>,
+  textures?: {structure:THREE.Texture;palette:THREE.Texture;steps:number;params:PixelTextureParams}
 ): THREE.ShaderMaterial {
-  const bark = getPixelBarkTextures(config);
+  const bark = textures??getPixelBarkTextures(config);
   return new THREE.ShaderMaterial({
     uniforms: {
       ...sharedUniforms,
@@ -3292,6 +3300,7 @@ export function createPixelBarkMaterial(
           : bark.params.barkTexelsPerLobe,
       },
       uForcedLobes: { value: 0 },
+      uBarkDarkCoverage: { value: 1 },
       // crown shade: off unless the tree's generator switches it on
       uCrownShade: { value: 0 },
       uCrownBottomY: { value: 0 },

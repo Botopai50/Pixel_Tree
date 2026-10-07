@@ -5,10 +5,17 @@ const periods:Record<SurfaceMaterial,[number,number]>={wood:[.84,2.8],stone:[2.8
 const fract=(n:number)=>n-Math.floor(n);
 const hash=(x:number,y:number,seed:number)=>fract(Math.sin(x*127.1+y*311.7+seed*.37)*43758.5453);
 
+export function surfaceColorRamp(color:string){
+ const base=new THREE.Color(color).convertLinearToSRGB(),rgb=[base.r,base.g,base.b];
+ return Array.from({length:7},(_,i)=>{
+  const strength=[.36,.51,.67,.83,1,1.13,1.28][i],warm=Math.max(0,i-3)*.017;
+  return rgb.map((c,k)=>Math.round(Math.min(1,c*strength+warm*(k===0?1:k===1?.75:.25)+(i<3&&k===2?.035:0))*255));
+ });
+}
+
 /** Forged iron has a continuous face, without the repeating bright stripes of sheet metal. */
-export function paintForgedIron(density:number,seed:number){
+export function paintForgedIron(density:number,seed:number,palette=[[34,47,58],[46,62,76],[61,80,95],[74,95,110],[93,114,126],[117,136,144]]){
  const size=Math.max(8,Math.round(density)),data=new Uint8Array(size*size*4);
- const palette=[[34,47,58],[46,62,76],[61,80,95],[74,95,110],[93,114,126],[117,136,144]];
  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
   const patch=hash(Math.floor(x/5),Math.floor(y/4),seed),pixel=hash(x,y,seed+17);
   let tone=patch<.18?1:patch>.82?3:2;
@@ -26,11 +33,7 @@ export function paintForgedIron(density:number,seed:number){
  */
 export function paintSurface(kind:SurfaceMaterial,color:string,density:number,seed:number,finish:number,solidTimber=false){
  const period=periods[kind],width=Math.max(8,Math.round(period[0]*density)),height=Math.max(8,Math.round(period[1]*density));
- const base=new THREE.Color(color).convertLinearToSRGB(),rgb=[base.r,base.g,base.b];
- const ramp=Array.from({length:7},(_,i)=>{
-  const strength=[.36,.51,.67,.83,1,1.13,1.28][i],warm=Math.max(0,i-3)*.017;
-  return rgb.map((c,k)=>Math.round(Math.min(1,c*strength+warm*(k===0?1:k===1?.75:.25)+(i<3&&k===2?.035:0))*255));
- });
+ const ramp=surfaceColorRamp(color);
  const data=new Uint8Array(width*height*4);
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
   let tone=4;const cluster=hash(Math.floor(x/4),Math.floor(y/5),seed);
