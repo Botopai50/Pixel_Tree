@@ -85,14 +85,7 @@ export function mine(c:GrammarContext) {
  a.plan.accesses.push({id:'mine-path',from:[0,0,-d],to:[0,0,d*.4],width:mouth*.8,role:'tunnel'});
  return a.finish();
 }
-export function dock(c:GrammarContext) {
- const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth),base=a.value(1.1);
- const deck=a.piece('box',[0,base,0],[w*.3,.22,d],'wood','dock-deck');
- const head=a.piece('box',[0,base,d*.31],[w,.22,d*.22],'wood','dock-head',deck);
- for(const side of [-1,1])for(let i=0;i<4;i++)a.piece('column',[side*w*.14,base*.7,-d*.4+i*d*.27],[.3,base*1.4,.3],'wood','mooring');
- a.depend(deck,a.plan.pieces.filter(p=>p.role==='mooring').map(p=>p.id),2);const headPiers=[-1,1].map(side=>a.piece('column',[side*w*.43,base/2,d*.31],[.35,base,.35],'wood','head-pier'));a.depend(head,[deck,...headPiers],2);a.stairs([0,0,-d/2-2],[0,base,-d/2],w*.3);
- a.plan.propZones.push({id:'dock-water',x:0,z:1,width:w+4,depth:d+4,y:-.08,kind:'water'});return a.finish();
-}
+export {dock} from './dock';
 export {lighthouse} from './lighthouse';
 export function underground(c:GrammarContext) {
  const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth),h=a.value(p.height);
