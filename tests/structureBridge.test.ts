@@ -6,6 +6,81 @@ import {buildStructurePlan} from '../src/structures/plan';
 import {renderStructure} from '../src/structures/renderer';
 import {normalizeStructureConfig} from '../src/structures/config';
 import {createStructure} from '../src/structures/generator';
+import type {BridgeStyle} from '../src/structures/types';
+
+test('bridge styles produce distinct supported, deterministic geometry at small and large dimensions',()=>{
+ for(const style of ['stoneArch','covered','suspension','stepped'] as BridgeStyle[])for(const patch of [{},{width:3,depth:2,height:2},{width:30,depth:8,height:9}]){
+  const source=fixture('bridge',42,{...patch,bridgeStyle:style}),plan=buildStructurePlan(source);
+  assert.deepEqual(plan,buildStructurePlan(source));
+  const role=style==='stoneArch'?'bridge-stone-arch':style==='covered'?'bridge-covered-roof':style==='suspension'?'bridge-rope-hanger':'bridge-deck-girder';
+  assert.ok(plan.pieces.some(p=>p.role===role));
+  const render=renderStructure(plan,normalizeStructureConfig(source.structure));
+  assert.ok(!render.bounds.isEmpty());
+  render.assetGroup.traverse(o=>{if(o instanceof THREE.Mesh)assert.ok(Array.from(o.geometry.getAttribute('position').array).every(Number.isFinite));});
+  render.dispose();
+ }
+ const suspended=buildStructurePlan(fixture('bridge',42,{bridgeStyle:'suspension'}));
+ const boards=suspended.pieces.filter(p=>p.role==='deck-plank');
+ assert.ok(boards[Math.floor(boards.length/2)].position[1]<boards[0].position[1]);
+ assert.ok(!suspended.pieces.some(p=>p.role==='bridge-pier'));
+});
+
+test('covered bridge has clear timber side panels without diagonal overlay',()=>{
+ const plan=buildStructurePlan(fixture('bridge',42,{bridgeStyle:'covered'}));
+ const panels=plan.pieces.filter(p=>p.role==='bridge-covered-side-board');
+ assert.ok(panels.length>0);
+ assert.ok(!plan.pieces.some(p=>p.role==='bridge-rail-brace'));
+ assert.ok(plan.pieces.some(p=>p.role==='bridge-covered-brace'));
+});
+
+test('suspension ropes tie into treads and four wrapped towers on solid bank landings',()=>{
+ const plan=buildStructurePlan(fixture('bridge',42,{bridgeStyle:'suspension'}));
+ const towers=plan.pieces.filter(p=>p.role==='bridge-rope-tower');
+ assert.equal(towers.length,4);
+ for(const tower of towers){
+  const wraps=plan.pieces.filter(p=>p.role==='bridge-rope-wrap'&&p.support===tower.id);
+  assert.equal(wraps.length,4);
+  assert.ok(wraps.every(p=>p.size[0]>tower.size[0]+p.size[1]&&p.size[2]>tower.size[2]+p.size[1]));
+ }
+ const hangers=plan.pieces.filter(p=>p.role==='bridge-rope-hanger');
+ assert.ok(hangers.length>=6);
+ for(const hanger of hangers){
+  const board=plan.pieces.find(p=>p.id===hanger.support)!;
+  assert.equal(board.role,'deck-plank');
+  assert.equal(board.position[0],hanger.position[0]);
+  assert.ok(hanger.end![1]>hanger.position[1]+1);
+  assert.ok(plan.pieces.some(p=>p.role==='bridge-rope-tread-lashing'&&p.support===board.id));
+ }
+ assert.ok(!plan.pieces.some(p=>p.role==='bridge-pier'));
+ const landings=plan.pieces.filter(p=>p.role==='bridge-rope-landing'),landingY=landings[0].position[1]+landings[0].size[1]/2;
+ for(const bar of plan.pieces.filter(p=>p.role==='bridge-rope-end-crossbar'))assert.ok(bar.position[1]-bar.size[0]/2-landingY>=2.25,'portal must leave walking headroom');
+ const stairs=plan.accesses.filter(p=>p.role==='stairs');assert.equal(stairs.length,2);
+ for(const access of stairs){
+  assert.equal(access.from[1],0);assert.equal(access.to[1],landingY);
+  const treads=plan.pieces.filter(p=>p.role==='bridge-stair-tread'&&Math.sign(p.position[0])===Math.sign(access.to[0]));
+  assert.ok(treads.length>2);
+  assert.ok(Math.abs(Math.max(...treads.map(p=>p.position[1]+p.size[1]/2))-landingY)<1e-8);
+ }
+ assert.equal(plan.pieces.filter(p=>p.role==='bridge-variant-bank').length,2);
+ assert.ok(plan.pieces.some(p=>p.role==='bridge-rope-anchor-brace'));
+});
+
+test('stepped bridge has a raised stone bank and a lower horizontal river span',()=>{
+ const plan=buildStructurePlan(fixture('bridge',42,{bridgeStyle:'stepped'}));
+ const water=plan.propZones.find(z=>z.kind==='water')!;
+ const riverBoards=plan.pieces.filter(p=>p.role==='deck-plank'&&Math.abs(p.position[0]-water.x)<water.width/2);
+ assert.ok(riverBoards.length>4);
+ assert.ok(riverBoards.every(p=>p.position[1]===riverBoards[0].position[1]));
+ const landings=plan.pieces.filter(p=>p.role==='deck-plank');
+ assert.ok(Math.max(...landings.map(p=>p.position[1]))>riverBoards[0].position[1]+.7);
+ assert.ok(plan.accesses.some(s=>s.to[1]>s.from[1])&&plan.accesses.filter(s=>s.to[1]<s.from[1]).length===2);
+ for(const tread of plan.pieces.filter(p=>p.role==='bridge-stair-tread')){
+  const stone=plan.pieces.find(p=>p.id===tread.support)!;
+  assert.equal(stone.material,'stone');
+  assert.ok(Math.abs(stone.position[1]+stone.size[1]/2-(tread.position[1]-.07))<1e-8);
+ }
+ assert.ok(!plan.pieces.some(p=>p.material==='stone'&&p.size[2]>1&&Math.abs(p.position[0]-water.x)<water.width/2));
+});
 
 test('timber bridge has supported piers, braced rail bays and stairs meeting both landings',()=>{
  for(const patch of [{},{width:3,depth:2,height:2},{width:30,depth:8,height:9}])for(const seed of [1,42,7010]){

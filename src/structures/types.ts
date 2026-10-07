@@ -4,7 +4,8 @@ export type StructureId=`structure_${StructureKind}`;
 export type V3=[number,number,number];
 export type SurfaceMaterial='wood'|'stone'|'plaster'|'roof'|'thatch'|'metal'|'cloth'|'dark'|'earth'|'water';
 export type RoofKind='auto'|'gable'|'hip'|'shed'|'flat'|'thatch';
-export interface StructureConfig {campTentCount?:number;type:StructureKind;biome:RockBiome;scale:number;width:number;depth:number;height:number;floors:number;complexity:number;roof:RoofKind;roofPitch:number;eaves:number;asymmetry:number;finish:number;openingDensity:number;annexes:boolean;balconies:boolean;ruin:number;vegetation:number;snow:number;texelsPerMetre:number;palette:{wood:string;stone:string;plaster:string;roof:string};cutaway:boolean;}
+export type BridgeStyle='timber'|'stoneArch'|'covered'|'suspension'|'stepped';
+export interface StructureConfig {bridgeStyle?:BridgeStyle;campTentCount?:number;type:StructureKind;biome:RockBiome;scale:number;width:number;depth:number;height:number;floors:number;complexity:number;roof:RoofKind;roofPitch:number;eaves:number;asymmetry:number;finish:number;openingDensity:number;annexes:boolean;balconies:boolean;ruin:number;vegetation:number;snow:number;texelsPerMetre:number;palette:{wood:string;stone:string;plaster:string;roof:string};cutaway:boolean;}
 export interface StructureAssetConfig {id:StructureId;species:StructureId;name:string;seed:number;structure:StructureConfig;}
 export interface VolumeSpec {id:string;x:number;z:number;width:number;depth:number;bottom:number;height:number;floors:number;role:string;}
 export interface WallSpec {id:string;volume:string;start:V3;end:V3;bottom:number;height:number;thickness:number;material:SurfaceMaterial;gable?:{peak:number;ratio:number};topLeft?:number;topRight?:number;removed?:boolean;damage?:number;}

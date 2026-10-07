@@ -1,8 +1,14 @@
 import {Architect} from '../blueprint';
 import type {GrammarContext,V3} from '../types';
+import {bridgeVariant} from './bridgeVariants';
+import {steppedBridge} from './steppedBridge';
+import {suspensionBridge} from './suspensionBridge';
 
 /** Timber footbridge carried by stone shoes, with open wooden stairs at both banks. */
 export function bridge(c:GrammarContext){
+ if(c.config.bridgeStyle==='stepped')return steppedBridge(c);
+ if(c.config.bridgeStyle==='suspension')return suspensionBridge(c);
+ if(c.config.bridgeStyle&&c.config.bridgeStyle!=='timber'&&c.config.bridgeStyle!=='covered')return bridgeVariant(c);
  const a=new Architect(c),p=c.config;
  const w=a.value(p.width,.06),d=a.value(p.depth,.04),h=a.value(p.height,.06);
  const walkingY=h+.17,railZ=d/2-.08,bays=Math.max(2,Math.round(w/3.7));
@@ -52,8 +58,10 @@ export function bridge(c:GrammarContext){
    a.piece('box',[mid,h+1.17,z],[right-left-.34,.25,.21],'wood','bridge-handrail',parent);
    a.piece('box',[mid,h+.29,z],[right-left-.34,.16,.17],'wood','bridge-rail-sill',parent);
    const baluster=a.piece('box',[mid,h+.71,z],[.15,.68,.16],'wood','bridge-baluster',parent);
-   a.beam([left+.22,h+1.02,z],[mid-.09,h+.39,z],.16,'wood','bridge-rail-brace',parent);
-   a.beam([mid+.09,h+.39,z],[right-.22,h+1.02,z],.16,'wood','bridge-rail-brace',baluster);
+   if(p.bridgeStyle!=='covered'){
+    a.beam([left+.22,h+1.02,z],[mid-.09,h+.39,z],.16,'wood','bridge-rail-brace',parent);
+    a.beam([mid+.09,h+.39,z],[right-.22,h+1.02,z],.16,'wood','bridge-rail-brace',baluster);
+   }
   }
  }
  // Individual timber treads rest on a continuous stepped stone foundation.
@@ -99,5 +107,22 @@ export function bridge(c:GrammarContext){
  }
  a.plan.propZones.push({id:'stream',x:0,z:0,width:Math.max(1,w-.95),depth:d+9,y:0,kind:'water'});
  for(const sx of [-1,1])for(const sz of [-1,1])a.plan.propZones.push({id:`bridge-bank-${sx}-${sz}`,x:sx*(w/2+run*.55),z:sz*(d/2+1.3),width:1.5,depth:1.2,y:0,kind:'garden'});
+ if(p.bridgeStyle==='covered'){
+  const roofY=h+3.0,rise=Math.max(.8,d*.34),half=d/2+.45,angle=Math.atan2(rise,half);
+  for(let i=0;i<=bays;i++)for(const sz of [-1,1]){
+   const x=-w/2+i*w/bays,z=sz*railZ;
+   const post=a.piece('box',[x,(h+.17+roofY)/2,z],[.34,roofY-h-.17,.34],'wood','bridge-covered-post',postIds[sz<0?0:1][i]);
+   a.piece('box',[x,h+1.15,z],[.40,.14,.40],'metal','bridge-covered-collar',post);
+   for(const dx of [-1,1])if(x+dx*.7>-w/2&&x+dx*.7<w/2)a.beam([x,roofY-.9,z],[x+dx*.7,roofY,z],.22,'wood','bridge-covered-brace',post);
+   if(sz===1){a.beam([x,roofY,-railZ],[x,roofY,railZ],.24,'wood','bridge-covered-tie',post);for(const side of [-1,1])a.beam([x,roofY,side*half],[x,roofY+rise,0],.26,'wood','bridge-covered-rafter',post);}
+  }
+  for(const side of [-1,1]){
+   a.piece('box',[0,roofY+rise/2,side*half/2],[w+.9,.14,Math.hypot(half,rise)],'roof','bridge-covered-roof',deck,[side*angle,0,0]);
+   a.beam([-w/2-.45,roofY,side*half],[w/2+.45,roofY,side*half],.26,'wood','bridge-covered-eave',deck);
+   for(const x of [-w/2-.45,w/2+.45])a.beam([x,roofY,side*half],[x,roofY+rise,0],.28,'wood','bridge-covered-roof-frame',deck);
+  }
+  a.beam([-w/2-.45,roofY+rise,0],[w/2+.45,roofY+rise,0],.26,'wood','bridge-covered-ridge',deck);
+  for(const sz of [-1,1])for(let i=0;i<boards;i++)a.piece('box',[-w/2+(i+.5)*boardWidth,h+.58,sz*(railZ-.145)],[boardWidth-.02,.76,.11],'wood','bridge-covered-side-board',deck);
+ }
  return a.finish();
 }
