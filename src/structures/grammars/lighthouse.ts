@@ -1,4 +1,5 @@
 import {Architect} from '../blueprint';
+import {STONE_COURSE_HEIGHT} from '../surfacePainting';
 import type {GrammarContext,V3} from '../types';
 
 /** Masonry shaft and a timber beacon pavilion, based on the reference tower. */
@@ -6,20 +7,45 @@ export function lighthouse(c:GrammarContext) {
  const a=new Architect(c),p=c.config,variation=a.value(1,.07);
  const w=p.width*variation,d=p.depth*variation,h=a.value(p.height,.08);
  const tw=w*.68,td=d*.68;
- const tower=a.building(0,0,tw,td,h,3,{material:'stone',roof:'flat',role:'lighthouse-tower'});
+ const tower=a.building(0,0,tw,td,h,3,{base:STONE_COURSE_HEIGHT*2,material:'stone',roof:'flat',role:'lighthouse-tower'});
+ // Narrow shafts can round the generic window count down to zero.
+ // Keep a sparse seeded arrangement in that case, with at least one opening.
+ if(!a.plan.openings.some(o=>o.kind==='window')){
+  const windowRnd=c.streams.streamFor('lighthouse','minimum-windows');
+  const walls=a.plan.walls.filter(wall=>wall.volume===tower.id).slice(1);
+  for(let level=0;level<3;level++){
+   if(level>0&&windowRnd()<.4)continue;
+   const wall=walls[Math.floor(windowRnd()*walls.length)],storey=h/3;
+   a.plan.openings.push({id:wall.id+'_minimum_window_'+level,wall:wall.id,kind:'window',offset:0,width:Math.min(.9,Math.hypot(wall.end[0]-wall.start[0],wall.end[2]-wall.start[2])*.25),bottom:level*storey+storey*.4,height:Math.min(1.1,storey*.35)});
+  }
+ }
  const base=tower.bottom,top=base+h,foundation=a.plan.pieces.find(x=>x.role==='foundation')!.id;
  const towerRoof=a.plan.roofs.find(x=>x.volume===tower.id)!;
  towerRoof.eaves=0;towerRoof.material='stone';towerRoof.plainEdge=true;
  // Wide, stepped foot and timber belts separate the three masonry storeys.
- a.piece('box',[0,.12,0],[tw+.85,.24,td+.85],'stone','lighthouse-foot');
- a.piece('box',[0,.32,0],[tw+.48,.32,td+.48],'stone','lighthouse-foot-step');
+ const foot=a.piece('box',[0,STONE_COURSE_HEIGHT/2,0],[tw+1.5,STONE_COURSE_HEIGHT,td+1.5],'stone','lighthouse-foot');
+ a.piece('box',[0,STONE_COURSE_HEIGHT*1.5,0],[tw+.9,STONE_COURSE_HEIGHT,td+.9],'stone','lighthouse-foot-step',foot);
  const corners=(ww:number,dd:number,y:number):V3[]=>[[-ww/2,y,-dd/2],[ww/2,y,-dd/2],[ww/2,y,dd/2],[-ww/2,y,dd/2]];
  for(const level of [1,2,3]) {
-  const y=base+h*level/3-.10,cs=corners(tw+.16,td+.16,y);
-  for(let side=0;side<4;side++)a.beam(cs[side],cs[(side+1)%4],.30,'wood','lighthouse-timber-belt',foundation);
-  for(const [x,,z] of cs){
-   const post=a.beam([x,y-.72,z],[x,y-.14,z],.24,'wood','lighthouse-belt-post',foundation);
-   a.piece('box',[x,y,z],[.36,.34,.36],'metal','lighthouse-belt-clamp',post);
+  const y=base+h*level/3-.10,bracketWidth=.46,beltDepth=.32;
+  // Flat face timbers meet at butt joints instead of thin square beams on corners.
+  for(const side of [0,1,2,3]){
+   const alongX=side%2===0,sign=side<2?-1:1;
+   const span=alongX?tw:td,face=(alongX?td:tw)/2;
+   const point=(u:number,yy:number,out:number):V3=>alongX?[u,yy,sign*(face+out)]:[sign*(face+out),yy,u];
+   const size=(length:number,height:number,depth:number):V3=>alongX?[length,height,depth]:[depth,height,length];
+   const belt=a.piece('box',point(0,y,beltDepth/2),size(span+(alongX?beltDepth*2:0),bracketWidth,beltDepth),'wood','lighthouse-timber-belt',foundation);
+   for(const edge of [-1,1]){
+    // The stone corner post occupies the first .14 m of each facade.
+    // Put the wooden hanger and its plate beside it, rather than across the quoin.
+    const u=edge*(span/2-.14-bracketWidth/2-.05);
+    // A long back leg and a shorter projecting cheek form the stepped corbel.
+    const post=a.piece('box',point(u,y-.61,.065),size(bracketWidth,1.06,.15),'wood','lighthouse-belt-post',foundation);
+    a.piece('box',point(u,y-.345,.205),size(bracketWidth,.53,.13),'wood','lighthouse-belt-post',post);
+    const plate=a.piece('box',point(u,y,beltDepth+.029),size(bracketWidth,bracketWidth,.058),'metal','lighthouse-belt-clamp',belt);
+    for(const uu of [-.13,.13])for(const yy of [-.13,.13])a.piece('box',point(u+uu,y+yy,beltDepth+.069),size(.055,.055,.022),'dark','lighthouse-belt-rivet',plate);
+    a.depend(plate,[belt,post],1);
+   }
   }
  }
  const deckY=top+.18,deckWidth=w,deckDepth=d;
@@ -42,7 +68,9 @@ export function lighthouse(c:GrammarContext) {
   for(let i=0;i<count;i++){
    const x=start[0]+(end[0]-start[0])*i/count,z=start[2]+(end[2]-start[2])*i/count;
    const post=a.beam([x,deckY-.18,z],[x,deckY+1.16,z],.23,'wood','lighthouse-balcony-post',deck);
-   for(const y of [.04,1.14])a.piece('box',[x,deckY+y,z],[.30,.18,.30],'metal','lighthouse-post-cap',post);
+   // The lower collar must stand proud of the .30 m fascia, whose side faces
+   // otherwise coincide with the collar throughout their overlapping height.
+   for(const y of [.04,1.14]){const width=y===.04?.34:.30;a.piece('box',[x,deckY+y,z],[width,.18,width],'metal','lighthouse-post-cap',post);}
   }
  }
  const pavilionHeight=Math.min(3.2,Math.max(2.2,h*.22)),roofY=deckY+pavilionHeight;

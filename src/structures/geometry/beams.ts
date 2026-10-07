@@ -1,7 +1,7 @@
 import * as THREE from 'three';import type {V3} from '../types';
-export function buildBeam(start:V3,end:V3,section:number,jointCuts=0,cuts?:{start:V3;end:V3}){
+export function buildBeam(start:V3,end:V3,section:number,jointCuts=0,cuts?:{start:V3;end:V3},faceHeight=section){
  const a=new THREE.Vector3(...start),span=new THREE.Vector3(...end).sub(a),length=Math.max(.001,span.length()-jointCuts*2),axis=span.clone().normalize();
- const g=new THREE.BoxGeometry(section,length,section,1,2,1),positions=g.attributes.position;
+ const g=new THREE.BoxGeometry(faceHeight,length,section,1,2,1),positions=g.attributes.position;
  const rotation=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),axis);
  if(cuts){
   for(let i=0;i<positions.count;i++){

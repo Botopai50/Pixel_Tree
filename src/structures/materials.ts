@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type {StructureConfig,SurfaceMaterial} from './types';
 import {pixelMossNoiseGLSL} from '../services/mossStyle';
 import {buildPixelMossRamp} from '../services/pixelArtTextureSystem';
-import {paintSurface} from './surfacePainting';
+import {paintSurface,paintForgedIron} from './surfacePainting';
+import {bridgeWaterTexture} from './geometry/bridge';
 
 export class StructureResources {
  geometries=new Set<THREE.BufferGeometry>();materials=new Set<THREE.Material>();
@@ -20,13 +21,30 @@ export function createStructureMaterials(c:StructureConfig,resources:StructureRe
  const colors:Record<SurfaceMaterial,string>={wood:c.palette.wood,stone:c.palette.stone,plaster:c.palette.plaster,roof:c.palette.roof,thatch:'#c59138',metal:'#687681',cloth:(c.type==='watchtower'||c.type==='ruinedTower'||c.type==='lighthouse')?'#ffd071':c.type==='windmill'?'#ead3a0':c.type==='fortress'?'#a93840':'#b97a58',dark:c.type==='windmill'?'#24435a':'#1f2830',earth:'#978568',water:'#3c858f'};
  const result={} as Record<SurfaceMaterial,THREE.MeshStandardMaterial>;
  for(const [name,color] of Object.entries(colors)){
-  const kind=name as SurfaceMaterial,map=paintSurface(kind,color,c.texelsPerMetre,seed,c.finish);resources.textures.add(map);
+  const kind=name as SurfaceMaterial,map=kind==='water'&&c.type==='bridge'?bridgeWaterTexture(c.texelsPerMetre,seed):kind==='metal'&&c.type==='lighthouse'?paintForgedIron(c.texelsPerMetre,seed):paintSurface(kind,color,c.texelsPerMetre,seed,c.finish,false,kind==='metal'&&c.type==='bridge');resources.textures.add(map);
   const mossAffinity=kind==='stone'?1:kind==='wood'?.45:kind==='plaster'?.16:0;
   const mossHeight=kind==='stone'?1.8:kind==='wood'?1.1:.65;
   const material=new THREE.MeshStandardMaterial({color:'#ffffff',map,roughness:kind==='metal'?.65:1,metalness:kind==='metal'?.15:0,side:kind==='cloth'?THREE.DoubleSide:THREE.FrontSide});
   if(kind==='cloth'&&(c.type==='watchtower'||c.type==='ruinedTower'||c.type==='lighthouse')){material.emissive.set('#ffad38');material.emissiveIntensity=.65;}
   material.userData.pixelDensity=c.texelsPerMetre;
   material.onBeforeCompile=shader=>{
+   if(kind==='metal'&&c.type==='bridge'){
+    shader.vertexShader='attribute vec3 ironLocalPosition,ironHalfSize;varying vec3 vIronLocal,vIronHalf;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvIronLocal=ironLocalPosition;vIronHalf=ironHalfSize;');
+    shader.fragmentShader='varying vec3 vIronLocal,vIronHalf;\n'+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+     vec3 ironDistances=max(vIronHalf-abs(vIronLocal),vec3(0.));
+     float ironEdge=min(max(ironDistances.x,ironDistances.y),min(max(ironDistances.x,ironDistances.z),max(ironDistances.y,ironDistances.z)));
+     vec3 ironCell=floor(vIronLocal*${c.texelsPerMetre.toFixed(1)});
+     float ironChip=fract(sin(dot(ironCell,vec3(12.9898,78.233,37.719)))*43758.5453);
+     float ironFacet=fract(sin(dot(floor(ironCell/3.),vec3(41.71,17.31,63.29)))*29371.37);
+     diffuseColor.rgb*=.96+ironFacet*.08;
+     if(ironChip<.022)diffuseColor.rgb*=.84;
+     else if(ironChip>.985)diffuseColor.rgb*=1.10;
+     float ironWear=(1.-step(.018+ironChip*.013,ironEdge))*(ironChip>.14?.36:.12);
+     diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.28,.34,.38),ironWear);
+    `);
+   }
    shader.uniforms.uPixelDensity={value:c.texelsPerMetre};shader.uniforms.uStructureMoss={value:c.vegetation*mossAffinity};
    shader.uniforms.uStructureMossHeight={value:mossHeight};
    shader.uniforms.uStructureMossPalette={value:mossPalette};
@@ -63,7 +81,12 @@ export function createStructureMaterials(c:StructureConfig,resources:StructureRe
     if(vStructureNormal.y>.35&&uStructureSnow>0.){float sn=step(1.-uStructureSnow,mossField(cell+73.));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.76,.83,.9),sn);}
    `);
   };
-  material.customProgramCacheKey=()=>kind+'_painted';resources.materials.add(material);result[kind]=material;
+  material.customProgramCacheKey=()=>kind+'_painted'+(kind==='metal'&&c.type==='bridge'?'_barrel-iron-bridge-v3':'');resources.materials.add(material);result[kind]=material;
+ }
+ if(c.type==='bridge'){
+  result.metal.roughness=.65;result.metal.metalness=.15;
+  result.dark.map=result.metal.map;result.dark.color.set('#aaa69d');
+  result.dark.roughness=.9;result.dark.metalness=.20;
  }
  return result;
 }

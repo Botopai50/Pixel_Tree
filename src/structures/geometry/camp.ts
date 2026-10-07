@@ -13,6 +13,10 @@ export function buildCampPiece(p:PieceSpec):THREE.BufferGeometry|undefined{
   // Two folded wings leave a triangular, physically open entrance.
   g=merge([-1,1].map(side=>extrudePolygon([[side*w/2,0],[0,h],[side*w*.23,h*.20],[side*w*.31,0]],p.size[2])));
  }else if(p.role==='camp-back-canvas')g=extrudePolygon([[-w/2,0],[w/2,0],[0,h]],p.size[2]);
+ else if(p.role==='camp-hearth-ground'){
+  g=new THREE.PlaneGeometry(w,p.size[2]);g.rotateX(-Math.PI/2);g.translate(0,h/2,0);
+  g.userData.preservePaintUV=true;
+ }
  else if(p.role==='camp-kettle'){
   const r=w/2;
   g=new THREE.LatheGeometry([
@@ -60,6 +64,18 @@ export function buildCampPiece(p:PieceSpec):THREE.BufferGeometry|undefined{
  g.translate(...p.position);return g;
 }
 
+/** Static camp wood uses the same scene fog as the surrounding standard materials. */
+function enableCampWoodFog(material:THREE.ShaderMaterial){
+ material.fog=true;
+ material.uniforms={...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),...material.uniforms};
+ material.vertexShader='#include <fog_pars_vertex>\n'+material.vertexShader.replace(/}\s*$/,`
+  #ifdef USE_FOG
+   vFogDepth = -(viewMatrix * modelMatrix * vec4(position, 1.0)).z;
+  #endif
+ }`);
+ material.fragmentShader='#include <fog_pars_fragment>\n'+material.fragmentShader.replace(/}\s*$/,`\n #include <fog_fragment>\n }`);
+}
+
 /** Tree bark keeps its drawing, while only its colours follow the camp barrel. */
 export function campCutWoodMaterial(density:number,seed:number,woodColor='#855b3e'){
  const config={...TREE_PRESETS.hyrule_oak,seed,barkColor:woodColor,mossAmount:0,snowCover:0};
@@ -77,6 +93,7 @@ export function campCutWoodMaterial(density:number,seed:number,woodColor='#855b3
  bark.uniforms.uTexelsPerMetre.value=density;bark.uniforms.uTexelsPerLobe.value=8;bark.uniforms.uBarkDarkCoverage.value=.75;
  const end=createPixelEndGrainMaterial(config);end.material.uniforms.uTexelsPerMetre.value=density;
  end.material.uniforms.uCompactCuts.value=1;
+ enableCampWoodFog(bark);enableCampWoodFog(end.material);
  for(const texture of [end.palette as THREE.DataTexture]){
   const data=texture.image.data;
   for(let i=0;i<data.length;i+=4){
@@ -86,6 +103,26 @@ export function campCutWoodMaterial(density:number,seed:number,woodColor='#855b3
   texture.needsUpdate=true;
  }
  return {bark,end:end.material,textures:[palette,structure,end.palette]};
+}
+
+/** One texture pixel per world texel, including the irregular dirt outline. */
+export function campHearthTexture(width:number,depth:number,density:number,seed:number){
+ const columns=Math.max(2,Math.round(width*density)),rows=Math.max(2,Math.round(depth*density));
+ const data=new Uint8Array(columns*rows*4);
+ const noise=(x:number,y:number)=>{const n=Math.sin(x*127.1+y*311.7+seed*.37)*43758.5453;return n-Math.floor(n);};
+ const palette=[[63,54,44],[80,66,50],[98,78,55],[118,95,65],[138,112,78],[156,128,89]];
+ for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+  const xx=(x+.5)/columns-.5,zz=(y+.5)/rows-.5,r=Math.hypot(xx,zz),angle=Math.atan2(zz,xx);
+  const edge=.44+Math.sin(angle*5+seed)*.024+Math.sin(angle*9-seed)*.018;
+  const patch=noise(Math.floor(x/3),Math.floor(y/3)),pixel=noise(x,y);
+  const outside=r>edge||(r>edge-.025&&pixel<.25);
+  let tone=r<.19?1:r<.29?2:3;
+  if(patch>.72)tone++;else if(patch<.16)tone--;
+  if(pixel>.94)tone++;else if(pixel<.06)tone--;
+  data.set([...palette[Math.max(0,Math.min(5,tone))],outside?0:255],(y*columns+x)*4);
+ }
+ const map=new THREE.DataTexture(data,columns,rows);map.name='CampHearthWorldPixels';map.colorSpace=THREE.SRGBColorSpace;
+ map.magFilter=map.minFilter=THREE.NearestFilter;map.generateMipmaps=false;map.needsUpdate=true;return map;
 }
 
 export function campCanvasTexture(density:number,seed:number){

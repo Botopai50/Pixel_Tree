@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {campCanvasTexture,campCutWoodMaterial} from '../src/structures/geometry/camp';
+import {campCanvasTexture,campCutWoodMaterial,campHearthTexture,buildCampPiece} from '../src/structures/geometry/camp';
 import {fixture} from './structureFixtures';
 import {buildStructurePlan} from '../src/structures/plan';
 import {renderStructure} from '../src/structures/renderer';
@@ -16,6 +16,23 @@ test('camp textures share the configured world pixel density',()=>{
  }
 });
 
+test('hearth dirt uses world-sized pixels and an irregular cutout on a flat surface',()=>{
+ const p=buildStructurePlan(fixture('camp')).pieces.find(p=>p.role==='camp-hearth-ground')!;
+ for(const density of [8,20,40]){
+  const map=campHearthTexture(p.size[0],p.size[2],density,42);
+  assert.ok(Math.abs(map.image.width/p.size[0]-density)<.5);
+  assert.ok(Math.abs(map.image.height/p.size[2]-density)<.5);
+  const alpha=Array.from(map.image.data).filter((_,i)=>i%4===3);
+  assert.ok(alpha.includes(0)&&alpha.includes(255));
+  assert.equal(map.magFilter,THREE.NearestFilter);map.dispose();
+ }
+ const geometry=buildCampPiece(p)!;
+ assert.ok(geometry.userData.preservePaintUV);
+ const positions=geometry.getAttribute('position');
+ for(let i=0;i<positions.count;i++)assert.ok(Math.abs(positions.getY(i)-p.position[1]-p.size[1]/2)<1e-6);
+ geometry.dispose();
+});
+
 test('camp bark retains branch metrics and cut faces retain their owned grain shader',()=>{
  const source=fixture('camp',9753),asset=renderStructure(buildStructurePlan(source),normalizeStructureConfig(source.structure));
  let barkFound=false,endFound=false;
@@ -23,6 +40,11 @@ test('camp bark retains branch metrics and cut faces retain their owned grain sh
   if(!(object instanceof THREE.Mesh))return;
   const material=object.material,geometry=object.geometry;
   if(!(material instanceof THREE.ShaderMaterial))return;
+  assert.equal(material.fog,true);
+  assert.ok(material.uniforms.fogColor&&material.uniforms.fogDensity);
+  assert.match(material.vertexShader,/fog_pars_vertex/);
+  assert.match(material.vertexShader,/vFogDepth = -/);
+  assert.match(material.fragmentShader,/fog_fragment/);
   if(material.uniforms.uLobedMode){
    barkFound=true;
    for(const name of ['aWood','aBarkAngle']){

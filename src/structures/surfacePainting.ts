@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type {SurfaceMaterial} from './types';
 
 const periods:Record<SurfaceMaterial,[number,number]>={wood:[.84,2.8],stone:[2.8,1.6],plaster:[3.2,3.2],roof:[2.8,2],thatch:[2.4,2.4],metal:[1.2,1.2],cloth:[2.4,2.4],dark:[1,1],earth:[3.2,3.2],water:[3.2,3.2]};
+export const STONE_COURSE_HEIGHT=periods.stone[1]/4;
 const fract=(n:number)=>n-Math.floor(n);
 const hash=(x:number,y:number,seed:number)=>fract(Math.sin(x*127.1+y*311.7+seed*.37)*43758.5453);
 
@@ -31,7 +32,7 @@ export function paintForgedIron(density:number,seed:number,palette=[[34,47,58],[
 /** Variation belongs to a board, block or tile, rather than unrelated noise
  * at every pixel. Cool shadows and warm edges share the selected palette.
  */
-export function paintSurface(kind:SurfaceMaterial,color:string,density:number,seed:number,finish:number,solidTimber=false){
+export function paintSurface(kind:SurfaceMaterial,color:string,density:number,seed:number,finish:number,solidTimber=false,softMetal=false){
  const period=periods[kind],width=Math.max(8,Math.round(period[0]*density)),height=Math.max(8,Math.round(period[1]*density));
  const ramp=surfaceColorRamp(color);
  const data=new Uint8Array(width*height*4);
@@ -92,9 +93,29 @@ export function paintSurface(kind:SurfaceMaterial,color:string,density:number,se
   }else if(kind==='water'){
    tone=3;if(y%12<2&&cluster>.4)tone=5;else if(cluster<.15)tone=2;
   }else if(kind==='earth')tone=cluster>.78?5:cluster<.22?3:4;
-  else if(kind==='metal')tone=x<width*.25?3:x<width*.42?6:4;
+  else if(kind==='metal')tone=softMetal?4:x<width*.25?3:x<width*.42?6:4;
   else tone=1;
-  const paint=ramp[Math.max(0,Math.min(6,Math.round(tone)))];data.set([...paint,255],(y*width+x)*4);
+  let paint=ramp[Math.max(0,Math.min(6,Math.round(tone)))];
+  if(kind==='metal'&&softMetal){
+   const strength=.96+hash(Math.floor(x/4),Math.floor(y/4),seed+47)*.07;
+   paint=paint.map(v=>Math.round(v*strength));
+   // Local worn facets keep the barrel's pale iron accents without repeating stripes.
+   const worn=hash(Math.floor(x/3),Math.floor(y/2),seed+61);
+   const chip=hash(x,y,seed+73);
+   const darkPatch=hash(Math.floor(x/4),Math.floor(y/3),seed+83);
+   if(darkPatch<.20&&chip>.20){
+    const amount=.40+chip*.15;
+    paint=paint.map((v,i)=>Math.round(v*(1-amount)+ramp[2][i]*amount));
+   }else if(worn>.90&&chip>.35){
+    const amount=.25+chip*.25;
+    paint=paint.map((v,i)=>Math.round(v*(1-amount)+ramp[6][i]*amount));
+    if(worn>.97&&chip>.80){
+     const highlight=[230,235,237];
+     paint=paint.map((v,i)=>Math.round(v*.25+highlight[i]*.75));
+    }
+   }
+  }
+  data.set([...paint,255],(y*width+x)*4);
  }
  const map=new THREE.DataTexture(data,width,height);map.colorSpace=THREE.SRGBColorSpace;
  map.magFilter=THREE.NearestFilter;
