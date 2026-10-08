@@ -19,20 +19,7 @@ export function village(c:GrammarContext) {
 }
 export {outpost} from './outpost';
 export {treehouse} from './treehouse';
-export function desert(c:GrammarContext) {
- const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth),h=a.value(p.height);
- const lower=a.building(0,0,w,d,h*.6,1,{material:'plaster',roof:p.roof==='auto'?'flat':p.roof,role:'terrace'});
- const upper=a.building(w*.15,d*.1,w*.53,d*.55,h*.55,1,{base:lower.bottom+lower.height+.16,material:'plaster',roof:p.roof==='auto'?'flat':p.roof,role:'upper-terrace'});
- const foundation=a.plan.pieces.find(x=>x.role==='foundation'&&x.position[0]===upper.x&&x.position[2]===upper.z)!;
- foundation.size[1]=.16;foundation.position[1]=upper.bottom-.08;
- const lowerRoof=a.plan.roofs.find(x=>x.volume===lower.id)!;
- foundation.support=lowerRoof.id;a.plan.supports.find(x=>x.component===foundation.id)!.on=lowerRoof.id;
- for(const v of [lower,upper])for(const side of [-1,1])a.piece('box',[v.x+side*(v.width/2-.12),v.bottom+v.height+.42,v.z],[.24,.6,v.depth],'plaster','parapet',v.id+'_roof');
- const stairX=-w/2-p.eaves-.8,stairZ=-d/2+Math.min(4,d*.65),level=lowerRoof.y+.12;const pier=a.piece('column',[stairX,level/2,stairZ],[.4,level,.4],'stone','terrace-pier');a.piece('box',[stairX,level-.1,stairZ],[1.6,.2,1.6],'stone','outside-landing',pier);a.stairs([stairX,0,stairZ-Math.max(3,level*1.3)],[stairX,level,stairZ],1.6);
- a.piece('cloth',[-w*.15,2.7,-d/2-1],[w*.43,.12,2.2],'cloth','shade-awning');
- for(const side of [-1,1])a.beam([-w*.15+side*w*.21,0,-d/2-2],[-w*.15+side*w*.21,2.7,-d/2-2],.15,'wood','awning-post');
- return a.finish();
-}
+export {desert} from './desert';
 export function swamp(c:GrammarContext) {
  const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth),base=a.value(2.2);
  const v=a.building(0,0,w*.78,d*.75,a.value(p.height),1,{base,material:'wood',roof:p.roof==='auto'?'thatch':p.roof,role:'stilt-house'});
