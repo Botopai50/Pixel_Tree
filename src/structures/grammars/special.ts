@@ -17,17 +17,7 @@ export function village(c:GrammarContext) {
  a.plan.propZones.push({id:'village-garden',x:0,z:d*.4,width:3,depth:3,y:0,kind:'garden'});
  return a.finish();
 }
-export function outpost(c:GrammarContext) {
- const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth);
- a.building(0,d*.14,w*.42,d*.35,p.height*.65,1,{material:'wood',role:'guardhouse'});
- const corners:V3[]=[[-w/2,0,-d/2],[w/2,0,-d/2],[w/2,0,d/2],[-w/2,0,d/2]];
- for(let s=0;s<4;s++) {
-  const start=corners[s],end=corners[(s+1)%4],n=Math.ceil(Math.hypot(end[0]-start[0],end[2]-start[2])/.65);
-  for(let i=0;i<=n;i++){const x=start[0]+(end[0]-start[0])*i/n,z=start[2]+(end[2]-start[2])*i/n;if(s===0&&Math.abs(x)<1.5)continue;const h=a.value(p.height*.5,.06);a.piece('column',[x,h/2,z],[.55,h,.55],'wood','palisade');}
- }
- a.piece('arch',[0,2.4,-d/2],[3,1,.4],'wood','outpost-entry');
- return a.finish();
-}
+export {outpost} from './outpost';
 export function treehouse(c:GrammarContext) {
  const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth),y=a.value(p.height*.65);
  const tree=a.piece('tree',[0,0,d*.05],[w*.8,y+8,d*.8],'wood','living-tree');

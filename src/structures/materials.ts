@@ -18,17 +18,17 @@ export function createStructureMaterials(c:StructureConfig,resources:StructureRe
  mossPalette.colorSpace=THREE.SRGBColorSpace;
  mossPalette.magFilter=mossPalette.minFilter=THREE.NearestFilter;
  mossPalette.generateMipmaps=false;mossPalette.needsUpdate=true;resources.textures.add(mossPalette);
- const colors:Record<SurfaceMaterial,string>={wood:c.palette.wood,stone:c.palette.stone,plaster:c.palette.plaster,roof:c.palette.roof,thatch:(c.type==='bridge'||c.type==='dock')?'#b49b65':'#c59138',metal:'#687681',cloth:(c.type==='watchtower'||c.type==='ruinedTower'||c.type==='lighthouse')?'#ffd071':c.type==='windmill'?'#ead3a0':c.type==='fortress'?'#a93840':'#b97a58',dark:c.type==='windmill'?'#24435a':'#1f2830',earth:'#978568',water:'#3c858f'};
+ const colors:Record<SurfaceMaterial,string>={wood:c.palette.wood,stone:c.palette.stone,plaster:c.palette.plaster,roof:c.palette.roof,thatch:(c.type==='bridge'||c.type==='dock'||c.type==='outpost')?'#b49b65':'#c59138',metal:'#687681',cloth:c.type==='outpost'?'#ffd071':(c.type==='watchtower'||c.type==='ruinedTower'||c.type==='lighthouse')?'#ffd071':c.type==='windmill'?'#ead3a0':c.type==='fortress'?'#a93840':'#b97a58',dark:c.type==='windmill'?'#24435a':'#1f2830',earth:'#978568',water:'#3c858f'};
  const result={} as Record<SurfaceMaterial,THREE.MeshStandardMaterial>;
  for(const [name,color] of Object.entries(colors)){
-  const kind=name as SurfaceMaterial,map=kind==='water'&&(c.type==='bridge'||c.type==='dock')?bridgeWaterTexture(c.texelsPerMetre,seed):kind==='metal'&&c.type==='lighthouse'?paintForgedIron(c.texelsPerMetre,seed):paintSurface(kind,color,c.texelsPerMetre,seed,c.finish,false,kind==='metal'&&(c.type==='bridge'||c.type==='dock'));resources.textures.add(map);
+  const kind=name as SurfaceMaterial,map=kind==='water'&&(c.type==='bridge'||c.type==='dock'||c.type==='outpost')?bridgeWaterTexture(c.texelsPerMetre,seed):kind==='metal'&&c.type==='lighthouse'?paintForgedIron(c.texelsPerMetre,seed):paintSurface(kind,color,c.texelsPerMetre,seed,c.finish,false,kind==='metal'&&(c.type==='bridge'||c.type==='dock'||c.type==='outpost'));resources.textures.add(map);
   const mossAffinity=kind==='stone'?1:kind==='wood'?.45:kind==='plaster'?.16:0;
   const mossHeight=kind==='stone'?1.8:kind==='wood'?1.1:.65;
   const material=new THREE.MeshStandardMaterial({color:'#ffffff',map,roughness:kind==='metal'?.65:1,metalness:kind==='metal'?.15:0,side:kind==='cloth'?THREE.DoubleSide:THREE.FrontSide});
   if(kind==='cloth'&&(c.type==='watchtower'||c.type==='ruinedTower'||c.type==='lighthouse')){material.emissive.set('#ffad38');material.emissiveIntensity=.65;}
   material.userData.pixelDensity=c.texelsPerMetre;
   material.onBeforeCompile=shader=>{
-   if(kind==='metal'&&(c.type==='bridge'||c.type==='dock')){
+   if(kind==='metal'&&(c.type==='bridge'||c.type==='dock'||c.type==='outpost')){
     shader.vertexShader='attribute vec3 ironLocalPosition,ironHalfSize;varying vec3 vIronLocal,vIronHalf;\n'+shader.vertexShader;
     shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvIronLocal=ironLocalPosition;vIronHalf=ironHalfSize;');
     shader.fragmentShader='varying vec3 vIronLocal,vIronHalf;\n'+shader.fragmentShader;
@@ -81,9 +81,9 @@ export function createStructureMaterials(c:StructureConfig,resources:StructureRe
     if(vStructureNormal.y>.35&&uStructureSnow>0.){float sn=step(1.-uStructureSnow,mossField(cell+73.));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.76,.83,.9),sn);}
    `);
   };
-  material.customProgramCacheKey=()=>kind+'_painted'+(kind==='metal'&&(c.type==='bridge'||c.type==='dock')?'_barrel-iron-bridge-v3':'');resources.materials.add(material);result[kind]=material;
+  material.customProgramCacheKey=()=>kind+'_painted'+(kind==='metal'&&(c.type==='bridge'||c.type==='dock'||c.type==='outpost')?'_barrel-iron-bridge-v3':'');resources.materials.add(material);result[kind]=material;
  }
- if((c.type==='bridge'||c.type==='dock')){
+ if((c.type==='bridge'||c.type==='dock'||c.type==='outpost')){
   result.metal.roughness=.65;result.metal.metalness=.15;
   result.dark.map=result.metal.map;result.dark.color.set('#aaa69d');
   result.dark.roughness=.9;result.dark.metalness=.20;
