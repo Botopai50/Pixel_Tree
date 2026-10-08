@@ -21,8 +21,8 @@ function paintedGrid(width:number,height:number,cell:(x:number,y:number)=>[numbe
 }
 
 /** One authored pixel grid for the whole blossom, rather than differently oriented petal grids. */
-function blossom(p:Profile) {
-  const N=16,step=2/N;
+function blossom(p:Profile,N=16) {
+  const step=2/N;
   const point=(x:number,y:number)=>[(x/N-.5)*2,(y/N-.5)*2];
   const edge=(x:number,z:number)=>{
     const angle=Math.atan2(z,x),lobe=(Math.cos(angle*p.petals)+1)*.5;
@@ -61,19 +61,25 @@ export function createFlowerBloom(profile:Profile,color:string,light:THREE.Vecto
   return {geometry:blossom(profile),...paletteMaterial(color,profile.pollen,light)};
 }
 
-export function createWildflowerKit(config:TreeConfig,light:THREE.Vector3) {
+export function createWildflowerKit(config:TreeConfig,light:THREE.Vector3,texelsPerMetre?:number) {
   const settings=config.prop!,p=FLOWER_PROFILES[settings.biome];
   const flower=createFlowerBloom(p,settings.color,light);
   const green=p.family==='umbela seca'?'#8d8554':ROCK_BIOMES[settings.biome].grass;
   const foliage=paletteMaterial(green,green,light);
   const source=buildPixelSaplingLeafPixels({...config,species:p.leaf});
-  const leaf=paintedGrid(source.width,source.height,(x,y)=>{
-    const at=((source.height-1-y)*source.width+x)*4;
+  const leafHeight=texelsPerMetre?Math.max(4,Math.round(settings.size*(p.layout==='rosette'?.5:.34)*texelsPerMetre)):source.height;
+  const leafWidth=Math.max(2,Math.round(source.width/source.height*leafHeight*(texelsPerMetre?p.leafWidth:1)));
+  const leaf=paintedGrid(leafWidth,leafHeight,(x,y)=>{
+    const sx=Math.min(source.width-1,Math.floor((x+.5)*source.width/leafWidth));
+    const sy=Math.min(source.height-1,Math.floor((y+.5)*source.height/leafHeight));
+    const at=((source.height-1-sy)*source.width+sx)*4;
     return source.pixels[at+3]?[Math.round(source.pixels[at]/255*5),0]:null;
-  },(x,y)=>[(x-source.width/2)/source.height,.10*Math.sin(y/source.height*Math.PI),y/source.height]);
+  },(x,y)=>[(x-leafWidth/2)/leafHeight,.10*Math.sin(y/leafHeight*Math.PI),y/leafHeight]);
+  leaf.userData.pixelGrid=leafHeight;
   const bloom=flower.geometry,stem=new THREE.CylinderGeometry(.012,.018,1,5);
   stem.setAttribute('ink',new THREE.Float32BufferAttribute(Array.from({length:stem.attributes.position.count},()=>[2,0]).flat(),2));
   const resources={geometries:[leaf,bloom,stem],materials:[flower.material,foliage.material],textures:[flower.texture,foliage.texture]};
+  const coarseBlooms=new Map<number,THREE.BufferGeometry>();
   const attach=(geometry:THREE.BufferGeometry,material:THREE.Material,parent:THREE.Object3D)=>{
     const mesh=new THREE.Mesh(geometry,material);mesh.castShadow=mesh.receiveShadow=true;parent.add(mesh);return mesh;
   };
@@ -89,12 +95,18 @@ export function createWildflowerKit(config:TreeConfig,light:THREE.Vector3) {
     for(let l=0;l<p.leaves;l++) {
       const mesh=attach(leaf,foliage.material,plant),basal=p.layout==='rosette';
       mesh.position.y=basal?.014:height*(.18+l*.13);
-      const length=size*(basal?.5:.34);
-      mesh.scale.set(length*p.leafWidth,length,length);mesh.rotation.set(basal?-.28:-.65,l*2.39996,0);
+      const length=texelsPerMetre?leafHeight/texelsPerMetre:size*(basal?.5:.34);
+      mesh.scale.set(length*(texelsPerMetre?1:p.leafWidth),length,length);mesh.rotation.set(basal?-.28:-.65,l*2.39996,0);
     }
     const head=(position:THREE.Vector3,scale=1,droop=false)=>{
-      const mesh=attach(bloom,flower.material,plant);mesh.name='PixelWildflowerBloom';mesh.position.copy(position);
-      mesh.scale.setScalar(radius*scale);mesh.rotation.set(droop?Math.PI+.45:(rnd()-.5)*.18,rnd()*Math.PI*2,0);
+      let geometry=bloom,headRadius=radius*scale;
+      if(texelsPerMetre){
+        const grid=Math.max(3,Math.round(2*headRadius*texelsPerMetre));
+        if(!coarseBlooms.has(grid)){const coarse=blossom(p,grid);coarseBlooms.set(grid,coarse);resources.geometries.push(coarse);}
+        geometry=coarseBlooms.get(grid)!;headRadius=grid/(2*texelsPerMetre);
+      }
+      const mesh=attach(geometry,flower.material,plant);mesh.name='PixelWildflowerBloom';mesh.position.copy(position);
+      mesh.scale.setScalar(headRadius);mesh.rotation.set(droop?Math.PI+.45:(rnd()-.5)*.18,rnd()*Math.PI*2,0);
       return mesh;
     };
     if(p.layout==='spike') {

@@ -61,7 +61,16 @@ export function outpost(c:GrammarContext){
    opening.width=Math.min(opening.width,Math.max(.20,(last-first)/2));
    opening.offset=Math.max(first+opening.width,Math.min(-bd*.25,last-opening.width));
   }
-  if(opening.wall===home.id+'_wall_3')opening.offset=bd*.25;
+ }
+ // The uncovered side has its own layout stream and no mirrored window bay.
+ const sideWall=home.id+'_wall_3',windowLayout=c.streams.streamFor('outpost-side-windows',sideWall);
+ a.plan.openings=a.plan.openings.filter(o=>o.wall!==sideWall||o.kind!=='window');
+ if(p.openingDensity>0){
+  const count=bd>=3.5&&windowLayout()<.5?2:1,width=Math.min(.9,(bd-.9)/4.6),span=bd/2-.38-width;
+  const offsets=count===1?[(windowLayout()<.5?-1:1)*span*(.45+windowLayout()*.5)]:[
+   -span+windowLayout()*Math.max(0,span-width-.15),span-windowLayout()*Math.max(0,span-width-.15),
+  ];
+  for(let i=0;i<count;i++)a.plan.openings.push({id:sideWall+'_window_0_'+i,wall:sideWall,kind:'window',offset:offsets[i],width,bottom:bh*.4,height:Math.min(1.1,bh*.35)});
  }
  const homeRoot=a.plan.pieces.find(piece=>piece.role==='foundation')!.id;
  for(const sx of [-1,1])for(const sz of [-1,1]){

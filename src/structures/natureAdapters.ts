@@ -1,41 +1,68 @@
 import * as THREE from 'three';
 import {TREE_PRESETS} from '../constants/presets';
-import {ROCK_BIOMES} from '../constants/rockBiomes';
 import {createGroundProps} from '../services/groundPropGenerator';
 import {createProceduralRock} from '../services/rockGenerator';
-import {runSpaceColonization,buildFullTreeGeometry} from '../services/spaceColonization';
-import {buildPixelSaplingLeafPixels} from '../services/pixelArtTextureSystem';
+import {createTree} from '../services/treeGenerator';
+import {createSceneLitPixelBarkMaterial,getPixelLeafColorAtlas,resolvePixelTextureParams} from '../services/pixelArtTextureSystem';
 import type {TreeConfig} from '../types';
-import type {StructureConfig,PieceSpec} from './types';
+import type {StructureConfig,PieceSpec,StructurePlan} from './types';
+import {bendLivingTree} from './treeLean';
 import type {StructureResources} from './materials';
 
 /** Original generator keeps ownership of detached asset and its unused presentation resources. */
-export function natureAsset(kind:'flowers'|'leaves'|'rock',c:StructureConfig,seed:number) {
+export function natureAsset(kind:'flowers'|'leaves'|'rock',c:StructureConfig,seed:number,flowerTexelsPerMetre?:number) {
  const original=Object.values(TREE_PRESETS).find(p=>kind==='rock'?p.rock?.biome===c.biome&&!p.rock.gravel&&!p.rock.ore:p.prop?.kind===kind&&p.prop.biome===c.biome)!;
  const config:TreeConfig={...original,seed};
  if(kind==='rock')config.rock={...original.rock!,width:.65,height:.45,depth:.55,count:1,mushrooms:false,ore:undefined,gravel:false,moss:c.vegetation*.5,snow:c.snow};
  else config.prop={...original.prop!,count:1,size:kind==='flowers'?.4:.55,spread:.15,density:.2};
- const instance=kind==='rock'?createProceduralRock(config):createGroundProps(config);
+ const instance=kind==='rock'?createProceduralRock(config):createGroundProps(config,flowerTexelsPerMetre);
  const group=instance.group.getObjectByName('RockAsset') as THREE.Group;
  group.removeFromParent();let disposed=false;
  return {group,update:instance.update,dispose:()=>{if(disposed)return;disposed=true;instance.dispose();}};
 }
 
-/** Uses the existing branching algorithm and leaf silhouettes without a second presentation island. */
-export function livingTree(p:PieceSpec,c:StructureConfig,seed:number,resources:StructureResources,wood:THREE.Material) {
- const original=TREE_PRESETS.hyrule_oak;
- const config:TreeConfig={...original,seed,trunkHeight:p.size[1],trunkRadiusBase:Math.max(.28,p.size[0]*.065),trunkRadiusTop:.17,trunkCurvature:0,branchStartHeight:.75,canopySpread:p.size[0]*.6,scaAttractorCount:160,scaCrownShape:'dome',scaStepSize:.25};
- const data=runSpaceColonization(config),group=new THREE.Group();group.name='LivingTree';group.position.set(...p.position);
- const trunkGeometry=buildFullTreeGeometry(data.rootNode,8,1,.15);resources.geometries.add(trunkGeometry);
- const trunk=new THREE.Mesh(trunkGeometry,wood);trunk.name='TreeSupportTrunk';trunk.castShadow=trunk.receiveShadow=true;group.add(trunk);
- const leaf=buildPixelSaplingLeafPixels(config),pixels=new Uint8Array(leaf.pixels),color=new THREE.Color(ROCK_BIOMES[c.biome].grass).convertLinearToSRGB();
- for(let i=0;i<pixels.length;i+=4){const tone=pixels[i]/255;pixels[i]=Math.round(color.r*255*(.55+tone*.45));pixels[i+1]=Math.round(color.g*255*(.55+tone*.45));pixels[i+2]=Math.round(color.b*255*(.55+tone*.45));}
- const texture=new THREE.DataTexture(pixels,leaf.width,leaf.height);texture.magFilter=texture.minFilter=THREE.NearestFilter;texture.generateMipmaps=false;texture.colorSpace=THREE.SRGBColorSpace;texture.needsUpdate=true;resources.textures.add(texture);
- const mat=new THREE.MeshStandardMaterial({map:texture,alphaTest:.5,side:THREE.DoubleSide,roughness:1});resources.materials.add(mat);
- const geo=new THREE.PlaneGeometry(1.4,2.1);resources.geometries.add(geo);
- const anchors=data.foliageClusters.length?data.foliageClusters.map(x=>x.position):data.leafNodes.map(x=>x.position);
- const count=Math.min(420,Math.max(120,anchors.length*6)),cards=new THREE.InstancedMesh(geo,mat,count),matrix=new THREE.Matrix4(),q=new THREE.Quaternion(),s=new THREE.Vector3(1,1,1);cards.name='TreeSupportLeaves';resources.instances.add(cards);
- let state=(seed>>>0)+31;const rnd=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
- for(let i=0;i<count;i++){const anchor=(anchors[i%Math.max(1,anchors.length)]??new THREE.Vector3(0,p.size[1],0)).clone();anchor.add(new THREE.Vector3((rnd()-.5)*2,(rnd()-.5)*1.8,(rnd()-.5)*2));q.setFromEuler(new THREE.Euler((rnd()-.5)*2,rnd()*Math.PI*2,(rnd()-.5)));matrix.compose(anchor,q,s);cards.setMatrixAt(i,matrix);}
- cards.castShadow=cards.receiveShadow=true;group.add(cards);return group;
+/** The game's full tree generator owns its bark, canopy and animation resources. */
+export function livingTree(p:PieceSpec,c:StructureConfig,seed:number,resources:StructureResources,plan?:StructurePlan) {
+ const species=c.biome==='akkala'?'akkala_birch':c.biome==='korok'?'korok_ancient':c.biome==='satori'?'satori_sakura':'hyrule_oak';
+ const original=TREE_PRESETS[species];
+ const radius=Math.max(.70,Math.min(1.35,p.size[0]*.15));
+ const config:TreeConfig={...original,seed,trunkHeight:p.size[1],trunkRadiusBase:radius,trunkRadiusTop:radius*.38,trunkCurvature:.19,rootSpread:1.05,branchStartHeight:.58,branchLength:original.branchLength*1.08,canopySpread:1.24,crownWidth:1.0,crownHeight:1.05,clusterRadius:(original.clusterRadius??1.45)*.90,patchSpacing:(original.patchSpacing??1)*1.35,showAttractors:false,showApples:false,showMushrooms:false,showFallingLeaves:false,snowCover:c.snow};
+ const instance=createTree(config),group=instance.group;
+ group.name='LivingTree';group.position.set(...p.position);group.userData.treeSpecies=species;
+ const house=plan?.volumes[0],deck=plan?.pieces.find(piece=>piece.role==='tree-platform');
+ if(house&&deck){
+  const away=new THREE.Vector2(p.position[0]-house.x,p.position[2]-house.z).normalize();
+  // Share the gentle lean between the free side of the deck and its rear edge.
+  away.y+=.45;away.normalize();
+  // Allow the canopy to overlap the roof's silhouette before asking for a stronger lean.
+  const tolerance=.65,clearance=Math.max(0,radius-tolerance);
+  const slope=THREE.MathUtils.clamp(.22+clearance*.20,.22,.34);
+  bendLivingTree(group,{direction:[away.x,away.y],start:deck.position[1]+.3,slope});
+ }
+ const nativeBark=createSceneLitPixelBarkMaterial(config),bark=nativeBark.material;
+ const leafMap=getPixelLeafColorAtlas(config).clone();leafMap.colorSpace=THREE.SRGBColorSpace;leafMap.needsUpdate=true;
+ const leaves=new THREE.MeshStandardMaterial({map:leafMap,roughness:1,side:THREE.DoubleSide,alphaTest:config.alphaTest??.5,fog:true});
+ const tileRes=resolvePixelTextureParams(config).tileRes;
+ // Only select each existing leaf's atlas tile; lighting and fog stay native.
+ leaves.onBeforeCompile=shader=>{
+  shader.vertexShader='attribute float aAtlasIndex;\n'+shader.vertexShader;
+  shader.vertexShader=shader.vertexShader.replace('#include <uv_vertex>',`#include <uv_vertex>
+   float inset=.5/${tileRes.toFixed(1)};
+   vec2 tileUV=mix(vec2(inset),vec2(1.-inset),uv);
+   vMapUv=vec2((tileUV.x+mod(aAtlasIndex,4.))*.25,(tileUV.y+1.-floor(aAtlasIndex/4.))*.5);`);
+ };
+ leaves.customProgramCacheKey=()=> 'structure-native-tree-leaves-'+tileRes;
+ nativeBark.textures.forEach(texture=>resources.textures.add(texture));resources.textures.add(leafMap);resources.materials.add(bark);resources.materials.add(leaves);
+ const ground:THREE.Object3D[]=[];
+ group.traverse(o=>{if(o.userData.ground||o.name==='GroundMound')ground.push(o);if(o instanceof THREE.InstancedMesh)resources.instances.add(o);});
+ ground.forEach(o=>o.removeFromParent());
+ group.traverse(o=>{
+  if(!(o instanceof THREE.Mesh))return;
+  if(o instanceof THREE.InstancedMesh&&o.geometry.getAttribute('aAtlasIndex'))o.material=leaves;
+  else if(o.material===instance.barkMaterial){
+   o.material=bark;
+  }
+ });
+ let disposed=false;
+ return {group,update:instance.update,dispose:()=>{if(disposed)return;disposed=true;instance.dispose();}};
 }

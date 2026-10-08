@@ -18,21 +18,7 @@ export function village(c:GrammarContext) {
  return a.finish();
 }
 export {outpost} from './outpost';
-export function treehouse(c:GrammarContext) {
- const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth),y=a.value(p.height*.65);
- const tree=a.piece('tree',[0,0,d*.05],[w*.8,y+8,d*.8],'wood','living-tree');
- const deck=a.piece('box',[0,y,0],[w,.3,d],'wood','tree-platform',tree);
- // The cabin stands to one side of the trunk rather than swallowing it.
- const home=a.building(w*.32,-d*.12,w*.4,d*.56,2.5,1,{base:y+.15,material:'wood',roof:p.roof==='auto'?'thatch':p.roof,role:'tree-cabin'});
- for(const item of a.plan.pieces.filter(x=>x.role==='foundation'&&x.position[1]>1)) {
-  item.size[1]=.16;item.position[1]=y+.07;item.support=deck;
-  a.plan.supports.find(x=>x.component===item.id)!.on=deck;
- }
- for(const side of [-1,1])a.beam([0,y*.4,0],[side*w*.42,y-.15,0],.28,'wood','tree-strut',tree);
- a.stairs([-w/2-2,0,-d/2],[ -w/2,y,-d/2],1.3);
- for(const z of [-d/2,d/2])a.beam([-w/2,y+1,z],[w/2,y+1,z],.12,'wood','tree-rail',deck);
- return a.finish();
-}
+export {treehouse} from './treehouse';
 export function desert(c:GrammarContext) {
  const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth),h=a.value(p.height);
  const lower=a.building(0,0,w,d,h*.6,1,{material:'plaster',roof:p.roof==='auto'?'flat':p.roof,role:'terrace'});

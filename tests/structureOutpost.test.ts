@@ -5,6 +5,17 @@ import {fixture} from './structureFixtures';
 import {buildStructurePlan} from '../src/structures/plan';
 import {createStructure} from '../src/structures/generator';
 import {buildOutpostPiece} from '../src/structures/geometry/outpost';
+test('uncovered side varies between one offset window and two spaced windows',()=>{
+ const counts=new Set<number>(),sides=new Set<number>(),layouts=new Set<string>();
+ for(let seed=1;seed<=30;seed++){
+  const plan=buildStructurePlan(fixture('outpost',seed)),home=plan.volumes[0],windows=plan.openings.filter(o=>o.kind==='window'&&o.wall===home.id+'_wall_3').sort((a,b)=>a.offset-b.offset);
+  counts.add(windows.length);layouts.add(windows.map(o=>o.offset.toFixed(3)).join(','));
+  if(windows.length===1)sides.add(Math.sign(windows[0].offset));
+  for(const o of windows)assert.ok(Math.abs(o.offset)+o.width+.30<home.depth/2,'open shutter must clear corner posts');
+  if(windows.length===2)assert.ok(windows[1].offset-windows[0].offset>windows[0].width+windows[1].width+.20,'window leaves must not overlap');
+ }
+ assert.deepEqual([...counts].sort(),[1,2]);assert.deepEqual([...sides].sort(),[-1,1]);assert.ok(layouts.size>20);
+});
 test('chipped stake tips retain a central pyramid apex and four sloping faces',()=>{
  const plan=buildStructurePlan(fixture('outpost',42));
  for(const tip of plan.pieces.filter(p=>p.role==='outpost-stake-tip').slice(0,8)){

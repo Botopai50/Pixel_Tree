@@ -3261,10 +3261,42 @@ export function createPixelSucculentMaterial(
   });
 }
 
-/**
- * Builds the bark ShaderMaterial. Shares `sharedUniforms` with the rest of the
- * tree so wind and time keep working exactly as before.
- */
+/** Reuse native bark albedo drawing, while Three handles scene lights and fog. */
+export function createSceneLitPixelBarkMaterial(config: TreeConfig) {
+  const native = createPixelBarkMaterial(config, {});
+  const textures = [native.uniforms.uStruct.value.clone(), native.uniforms.uPalette.value.clone()] as THREE.Texture[];
+  textures.forEach(texture => { texture.needsUpdate = true; });
+  native.uniforms.uStruct.value = textures[0];
+  native.uniforms.uPalette.value = textures[1];
+  // Share the exact drawing code, including its metre-sized texels and continuous ridges.
+  const source = PIXEL_BARK_FRAGMENT_SHADER;
+  const declarations = source.slice(0, source.indexOf('varying vec3 vNormal;'));
+  const drawing = source.slice(source.indexOf('float N1 ='), source.indexOf('vec3 N = normalize(vNormal);'));
+  const material = new THREE.MeshStandardMaterial({roughness: config.barkRoughness, fog: true});
+  material.onBeforeCompile = shader => {
+    Object.assign(shader.uniforms, native.uniforms);
+    shader.vertexShader = `attribute vec3 aWood; attribute vec2 aBarkAngle;
+      uniform float uBarkVScale;
+      varying vec3 vWood; varying vec2 vBarkAngle; varying vec2 vBarkUv; varying float vAngleU;
+      ` + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      vWood=aWood; vBarkAngle=aBarkAngle; vBarkUv=vec2(uv.x,uv.y*uBarkVScale); vAngleU=uv.x;`);
+    shader.fragmentShader = declarations + `
+      varying vec3 vWood; varying vec2 vBarkAngle; varying vec2 vBarkUv; varying float vAngleU;
+      float bhash(float n){return fract(sin(n*12.9898)*43758.5453123);}
+      ` + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      { ${drawing}
+        idx=clamp(idx,0.,N1);
+        diffuseColor.rgb=texture2D(uPalette,vec2((idx+.5)/uPaletteSteps,${PALETTE_ROW_MAIN})).rgb;
+      }`);
+  };
+  material.customProgramCacheKey = () => 'scene-lit-native-bark-v1';
+  native.dispose();
+  return {material, textures};
+}
+
+/** Native bark ShaderMaterial shares time and wind uniforms with the tree. */
 export function createPixelBarkMaterial(
   config: TreeConfig,
   sharedUniforms: Record<string, THREE.IUniform>,

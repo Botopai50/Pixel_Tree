@@ -7,7 +7,7 @@ import { resolvePixelTextureParams, pixelTextureLightDir } from './pixelArtTextu
 import { createDryLeafVariants } from './dryLeafSystem';
 import { createWildflowerKit } from './wildflowerSystem';
 
-export function createGroundProps(config: TreeConfig): TreeInstance {
+export function createGroundProps(config: TreeConfig, flowerTexelsPerMetre?:number): TreeInstance {
   const settings = config.prop!;
   const biome = ROCK_BIOMES[settings.biome];
   const group = new THREE.Group(); group.name = `BotW_${settings.kind}`;
@@ -23,7 +23,7 @@ export function createGroundProps(config: TreeConfig): TreeInstance {
   const detail = THREE.MathUtils.clamp(settings.density, 0, 1);
   const dryLeaves = settings.kind === 'leaves' ? createDryLeafVariants(config, light) : [];
   dryLeaves.forEach(leaf => { geometries.add(leaf.geometry); materials.add(leaf.material); textures.add(leaf.texture); textures.add(leaf.palette); });
-  const wildflowers=settings.kind==='flowers'?createWildflowerKit(config,light):null;
+  const wildflowers=settings.kind==='flowers'?createWildflowerKit(config,light,flowerTexelsPerMetre):null;
   wildflowers?.geometries.forEach(g=>geometries.add(g));
   wildflowers?.materials.forEach(m=>materials.add(m));
   wildflowers?.textures.forEach(t=>textures.add(t));
@@ -86,6 +86,7 @@ export function createGroundProps(config: TreeConfig): TreeInstance {
       }
     }
   }
+  wildflowers?.geometries.forEach(g=>geometries.add(g));
   asset.updateMatrixWorld(true);
   const bounds=new THREE.Box3().setFromObject(asset);
   const radius=bounds.isEmpty()?1.2:Math.hypot(Math.max(Math.abs(bounds.min.x),Math.abs(bounds.max.x)),Math.max(Math.abs(bounds.min.z),Math.abs(bounds.max.z)))+.4;
