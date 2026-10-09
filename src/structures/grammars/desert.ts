@@ -16,7 +16,7 @@ export function desert(c:GrammarContext){
   const doorWidth=Math.min(1.3,v.width*.35);
   a.plan.openings.push({id:v.id+'_front-door',wall:v.id+'_wall_0',kind:'door',offset:0,width:doorWidth,bottom:0,height:2.05});
   if(v===lower)for(const side of [-1,1])a.plan.openings.push({id:v.id+'_front-window_'+side,wall:v.id+'_wall_0',kind:'window',offset:side*w*.32,width:.75,bottom:1.02,height:.96,shutterAngles:[0,0]});
-  for(const side of [1,3])a.plan.openings.push({id:v.id+'_side-window_'+side,wall:v.id+'_wall_'+side,kind:'window',offset:0,width:.75,bottom:1.02,height:.96,shutterAngles:[0,0]});
+  for(const side of (v===lower?[3]:[1,3]))a.plan.openings.push({id:v.id+'_side-window_'+side,wall:v.id+'_wall_'+side,kind:'window',offset:0,width:.75,bottom:1.02,height:.96,shutterAngles:[0,0]});
   const r=a.plan.roofs.find(roof=>roof.volume===v.id)!;r.material='stone';r.eaves=.28;r.flatThickness=.18;r.plainEdge=true;
   for(const zz of [v.z-v.depth/2-.28,v.z+v.depth/2+.28])a.beam([v.x-v.width/2-.38,r.y-.08,zz],[v.x+v.width/2+.38,r.y-.08,zz],.27,'wood','desert-terrace-fascia',r.id);
   for(const xx of [v.x-v.width/2-.28,v.x+v.width/2+.28])a.beam([xx,r.y-.08,v.z-v.depth/2-.14],[xx,r.y-.08,v.z+v.depth/2+.14],.27,'wood','desert-terrace-fascia',r.id);
@@ -69,8 +69,8 @@ export function desert(c:GrammarContext){
  }
  const outerX=stairX+width/2,backZ=d/2;
  const stairBack=backZ-topZ;
- a.piece('box',[outerX,terrace+.39,backZ],[.35,.88,.35],'plaster','desert-stair-parapet-end-post',lower.id+'_roof');
- a.beam([w/2,terrace+.49,backZ],[outerX,terrace+.49,backZ],.14,'wood','desert-stair-rear-rail',lower.id+'_roof');
+ a.piece('box',[outerX-.175,terrace+.415,backZ],[.35,.83,.35],'plaster','desert-stair-parapet-end-post',lower.id+'_roof');
+ a.beam([w/2,terrace+.49,backZ],[outerX-.175,terrace+.49,backZ],.14,'wood','desert-stair-rear-rail',lower.id+'_roof');
  stair.size[0]=width-.24;stair.position=[...stair.position];stair.end=[...stair.end!];stair.position[0]-=.12;stair.end[0]-=.12;
  // Fill the whole landing down to the ground; its thin slab alone left an open slot.
  a.piece('box',[(w/2+outerX-.24)/2,(lower.bottom+h)/2,topZ+stairBack/2],[outerX-w/2-.24,lower.bottom+h,stairBack],'plaster','desert-stair-landing-wall',lower.id+'_roof');
@@ -91,19 +91,20 @@ export function desert(c:GrammarContext){
  for(const yy of [lower.bottom,lower.bottom+h-.145])a.beam([w/2-.14,yy,backZ],[outerX-.14,yy,backZ],.24,'wood','desert-stair-rear-frame',lower.id+'_roof');
  a.beam([w/2+.15,lower.bottom+h-.08,backZ+.28],[outerX+.15,lower.bottom+h-.08,backZ+.28],.27,'wood','desert-stair-rear-fascia',lower.id+'_roof');
  a.beam([outerX,lower.bottom+h-.85,backZ],[outerX-.65,lower.bottom+h-.20,backZ],.13,'wood','desert-stair-corner-brace',lower.id+'_roof');
- a.piece('box',[stairX+.27,terrace-.09,topZ+.49],[width+.02,.18,.98],'stone','desert-stair-landing',lower.id+'_roof');
+ a.piece('box',[(w/2+.28+outerX)/2,terrace-.09,topZ+(stairBack+.28)/2],[outerX-w/2-.28,.18,stairBack+.28],'stone','desert-stair-landing',lower.id+'_roof');
  // A single stepped solid replaces overlapping parapet boxes.
  const sideWall=a.piece('box',[outerX-.12,0,topZ-run],[.24,terrace,run],'plaster','desert-stair-side-wall',stairId);
- a.plan.pieces.find(piece=>piece.id===sideWall)!.end=[outerX-.12,lower.bottom+h,backZ-.09];
+ a.plan.pieces.find(piece=>piece.id===sideWall)!.end=[outerX-.12,lower.bottom+h,backZ-.175];
  const doorZ=-d/2;
  a.stairs([0,0,doorZ-.90],[0,.30,doorZ-.02],1.6);
- const awningWidth=w*.61,reach=1.65,awningY=lower.bottom+h-.40,awningZ=doorZ-reach/2;
- a.piece('cloth',[0,awningY,awningZ],[awningWidth,.10,reach],'cloth','desert-awning',lower.id);
+ const awningWidth=w*.61,reach=1.65,awningY=lower.bottom+h-.40,awningBackZ=doorZ-.28,awningZ=(doorZ-reach+awningBackZ)/2;
+ a.piece('cloth',[0,awningY,awningZ],[awningWidth,.10,reach-.28],'cloth','desert-awning',lower.id);
  for(const side of [-1,1]){
   const x=side*(awningWidth/2-.12),z=doorZ-reach+.08;
   const post=a.beam([x,0,z],[x,awningY-.26,z],.21,'wood','desert-awning-post');
   for(const yy of [.35,awningY-.55])a.piece('box',[x,yy,z],[.25,.13,.25],'metal','desert-awning-collar',post);
-  a.beam([x,awningY-.22,z],[x,awningY+.10,doorZ+.04],.15,'wood','desert-awning-rafter',post);
+  const rafterX=side*(awningWidth/2-.085);
+  a.beam([rafterX,awningY-.25,doorZ-reach],[rafterX,awningY+.31,awningBackZ],.17,'wood','desert-awning-rafter',post);
  }
  a.beam([-awningWidth/2,awningY-.25,doorZ-reach],[awningWidth/2,awningY-.25,doorZ-reach],.17,'wood','desert-awning-header');
  // Small wooden hoods over the upper door and lower windows.
@@ -116,15 +117,18 @@ export function desert(c:GrammarContext){
  banner(upper.x-upper.width*.31,terrace+1.37,upper.z-upper.depth/2-.13,upper.id);
  // Side shade and banner are turned toward the uncovered side wall.
  const sideShade=a.piece('cloth',[-w/2-.55,lower.bottom+2.70,0],[1.1,.08,1.6],'cloth','desert-side-awning',lower.id);
- a.beam([-w/2-.05,lower.bottom+2.80,-.85],[-w/2-.95,lower.bottom+2.48,-.85],.09,'wood','desert-shade-rafter',sideShade);
+ for(const z of [-.8,.8])a.beam([-w/2-.025,lower.bottom+2.675,z],[-w/2-1.1,lower.bottom+2.375,z],.09,'wood','desert-shade-rafter',sideShade);
+ for(const side of [-1,1]){
+  const wallX=upper.x+side*upper.width/2,shadeY=upper.bottom+2.55;
+  const shade=a.piece('cloth',[wallX+side*.55,shadeY,upper.z],[1.1,.08,1.6],'cloth','desert-side-awning',upper.id,[0,side>0?Math.PI:0,0]);
+  for(const z of [upper.z-.8,upper.z+.8])a.beam([wallX+side*.025,shadeY-.025,z],[wallX+side*1.1,shadeY-.325,z],.09,'wood','desert-shade-rafter',shade);
+ }
  const pot=(x:number,y:number,z:number,size:number,plant=true)=>{const id=a.piece('box',[x,y+size*.43,z],[size,size*.86,size],'earth','desert-pot');if(plant)a.piece('box',[x,y+size*.86,z],[size*.95,size*1.05,size*.95],'wood','desert-succulent',id);};
  pot(-w*.31,0,doorZ-.45,.46);pot(-w*.31-.38,0,doorZ-.38,.26,false);pot(w*.42,terrace,d*.30,.51);pot(stairX+.25,0,topZ-run-.38,.45);pot(-w/2-.42,0,-d*.25,.42);
  const crate=(x:number,y:number,z:number)=>{const id=a.piece('box',[x,y+.23,z],[.55,.46,.5],'wood','desert-crate');for(const xx of [-.23,.23])a.piece('box',[x+xx,y+.23,z-.26],[.08,.48,.06],'wood','desert-crate-frame',id);a.beam([x-.22,y+.05,z-.30],[x+.22,y+.40,z-.30],.07,'wood','desert-crate-brace',id);};
  crate(w*.35,terrace,upper.z-upper.depth/2-.25);crate(-w*.34,0,doorZ-.62);
  const benchX=w*.31,z=doorZ-.75;
  a.piece('box',[benchX,.50,z],[1.15,.13,.45],'wood','desert-bench');for(const sx of [-1,1])for(const sz of [-1,1])a.piece('box',[benchX+sx*.46,.23,z+sz*.15],[.12,.46,.12],'wood','desert-bench-leg');
- const lamp=(x:number,y:number,z:number,support:string)=>{a.piece('box',[x,y,z],[.15,.25,.15],'cloth','desert-lamp-glass',support);for(const dy of [-.16,.16])a.piece('box',[x,y+dy,z],[.23,.07,.23],'metal','desert-lamp-cap',support);for(const sx of [-1,1])for(const sz of [-1,1])a.piece('box',[x+sx*.09,y,z+sz*.09],[.025,.29,.025],'metal','desert-lamp-bar',support);a.beam([x,y+.18,z],[x,y+.38,z+.1],.045,'metal','desert-lamp-hook',support);};
- for(const v of [lower,upper])for(const side of [-1,1])lamp(v.x+side*.96,v.bottom+1.65,v.z-v.depth/2-.24,v.id);
  // The ground-level plinth is uninterrupted stone, without a timber belt.
  for(const piece of a.plan.pieces)if(['wall-frame','desert-stair-rear-frame'].includes(piece.role)&&piece.end&&Math.abs(piece.position[1]-lower.bottom)<.01&&Math.abs(piece.end[1]-lower.bottom)<.01)piece.removed=true;
  const hosts=new Map(a.plan.volumes.map(v=>[v.id,v.id+'_roof']));

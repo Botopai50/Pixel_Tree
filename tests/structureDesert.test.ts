@@ -22,8 +22,8 @@ test('desert house has two usable terraces, front shade and an exterior stair re
   assert.ok(plan.pieces.some(p=>p.role==='corner-post'&&Math.abs(p.position[0]-outerX)<1e-6&&Math.abs(p.position[2]-lower.depth/2)<1e-6));
   assert.equal(plan.pieces.filter(p=>p.role==='desert-stair-side-wall').length,1);
   assert.ok(!plan.pieces.some(p=>p.role==='desert-stair-parapet'));
-  const endPost=plan.pieces.find(p=>p.role==='desert-stair-parapet-end-post')!,rearRail=plan.pieces.find(p=>p.kind==='beam'&&p.material==='wood'&&p.end&&Math.abs(p.position[2]-lower.depth/2)<1e-6&&Math.abs(p.position[1]-(upper.bottom+.49))<1e-6&&Math.max(p.position[0],p.end[0])>=outerX-1e-6)!;
-  assert.equal(endPost.position[0],outerX);assert.equal(endPost.position[2],lower.depth/2);
+  const endPost=plan.pieces.find(p=>p.role==='desert-stair-parapet-end-post')!,rearRail=plan.pieces.find(p=>p.kind==='beam'&&p.material==='wood'&&p.end&&Math.abs(p.position[2]-lower.depth/2)<1e-6&&Math.abs(p.position[1]-(upper.bottom+.49))<1e-6&&Math.max(p.position[0],p.end[0])>=outerX-.175-1e-6)!;
+  assert.ok(Math.abs(endPost.position[0]+endPost.size[0]/2-outerX)<1e-6);assert.ok(Math.abs(endPost.position[2]-lower.depth/2)<1e-6);
   assert.ok(rearRail?.end&&Math.abs(Math.max(rearRail.position[0],rearRail.end[0])-endPost.position[0])<1e-6);
   const infill=plan.pieces.find(p=>p.role==='desert-stair-landing-wall')!;
   assert.equal(infill.position[1]-infill.size[1]/2,0);

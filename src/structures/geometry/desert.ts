@@ -11,6 +11,20 @@ export function desertTerraceMaterial(density:number,seed:number,resources:Struc
 }
 
 export function buildDesertPiece(p:PieceSpec):THREE.BufferGeometry|undefined{
+ if(p.role==='desert-stair-parapet-end-post'){
+  const original=box(p.position,p.size),g=original.toNonIndexed(),normal=g.getAttribute('normal'),indices:number[]=[];
+  for(let i=0;i<normal.count;i+=3)if(normal.getY(i)>-.5)indices.push(i,i+1,i+2);
+  const result=new THREE.BufferGeometry();for(const [name,attribute] of Object.entries(g.attributes)){const values:number[]=[];for(const i of indices)for(let k=0;k<attribute.itemSize;k++)values.push(attribute.array[i*attribute.itemSize+k]);result.setAttribute(name,new THREE.Float32BufferAttribute(values,attribute.itemSize));}g.dispose();original.dispose();return result;
+ }
+ if(p.role==='desert-stair-landing'){
+  const left=p.position[0]-p.size[0]/2,right=p.position[0]+p.size[0]/2;
+  const front=p.position[2]-p.size[2]/2,back=p.position[2]+p.size[2]/2,join=back-.455,inner=right-.24;
+  const shape=new THREE.Shape();shape.moveTo(left,front);shape.lineTo(inner,front);shape.lineTo(inner,join);shape.lineTo(right,join);shape.lineTo(right,back);shape.lineTo(left,back);shape.closePath();
+  const g=new THREE.ExtrudeGeometry(shape,{depth:p.size[1],bevelEnabled:false,steps:1});g.rotateX(Math.PI/2);g.translate(0,p.position[1]+p.size[1]/2,0);
+  const pos=g.getAttribute('position'),indices:number[]=[];
+  for(let i=0;i<pos.count;i+=3)if(![i,i+1,i+2].every(j=>Math.abs(pos.getX(j)-inner)<1e-5&&pos.getZ(j)<=join+1e-5))indices.push(i,i+1,i+2);
+  const result=new THREE.BufferGeometry();for(const [name,attribute] of Object.entries(g.attributes)){const values:number[]=[];for(const i of indices)for(let k=0;k<attribute.itemSize;k++)values.push(attribute.array[i*attribute.itemSize+k]);result.setAttribute(name,new THREE.Float32BufferAttribute(values,attribute.itemSize));}g.dispose();return result;
+ }
  if(p.role==='desert-access-stairs'||p.role==='desert-stair-landing-wall'){
   const original=p.kind==='stairs'?buildStairs({id:p.id,from:[p.position[0],p.position[1]-.036,p.position[2]],to:[p.end![0],p.end![1]-.036,p.end![2]],width:p.size[0],role:p.role}):box(p.position,p.size);
   const g=original.index?original.toNonIndexed():original,positions=g.getAttribute('position'),right=p.position[0]+p.size[0]/2,indices:number[]=[];
@@ -56,7 +70,7 @@ export function buildDesertPiece(p:PieceSpec):THREE.BufferGeometry|undefined{
  if(p.role==='desert-awning'||p.role==='desert-side-awning'){
   const nx=16,nz=8,positions:number[]=[],uv:number[]=[];
   const side=p.role==='desert-side-awning';
-  const vertex=(u:number,v:number)=>{positions.push(p.position[0]+(u-.5)*p.size[0],p.position[1]+(side?u:v)*.30-.28-.15*Math.sin(u*Math.PI)*Math.sin(v*Math.PI),p.position[2]+(v-.5)*p.size[2]);uv.push(u,v);};
+  const vertex=(u:number,v:number)=>{positions.push(p.position[0]+(u-.5)*p.size[0],p.position[1]+(side?(p.rotation?.[1]?1-u:u)*.30-.28:v*.645-.25)-.15*Math.sin(u*Math.PI)*Math.sin(v*Math.PI),p.position[2]+(v-.5)*p.size[2]);uv.push(u,v);};
   for(let z=0;z<nz;z++)for(let x=0;x<nx;x++)for(const [u,v] of [[x/nx,z/nz],[(x+1)/nx,(z+1)/nz],[(x+1)/nx,z/nz],[x/nx,z/nz],[x/nx,(z+1)/nz],[(x+1)/nx,(z+1)/nz]])vertex(u,v);
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.computeVertexNormals();g.userData.preservePaintUV=true;return g;
  }
