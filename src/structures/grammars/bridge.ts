@@ -16,7 +16,7 @@ export function bridge(c:GrammarContext){
  const cap=(position:V3,post:string,width=.42)=>a.piece('box',position,[width,.12,width],'metal','bridge-post-cap',post);
  const plate=(x:number,y:number,z:number,parent:string)=>{
   const id=a.piece('box',[x,y,z],[.33,.33,.045],'metal','bridge-joint-plate',parent);
-  for(const xx of [-.09,.09])for(const yy of [-.09,.09])a.piece('box',[x+xx,y+yy,z+Math.sign(z)*.03],[.045,.045,.024],'dark','bridge-rivet',id);
+  for(const xx of [-.09,.09])for(const yy of [-.09,.09])a.piece('box',[x+xx,y+yy,z+Math.sign(z)*.03],[.045,.045,.024],'metal','bridge-rivet',id);
  };
  // Tall masonry abutments carry the landings at the two banks.
  // Both exposed masonry edges align with the timber piers' centre lines.

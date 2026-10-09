@@ -10,10 +10,17 @@ import {bendLivingTree} from './treeLean';
 import type {StructureResources} from './materials';
 
 /** Original generator keeps ownership of detached asset and its unused presentation resources. */
-export function natureAsset(kind:'flowers'|'leaves'|'rock',c:StructureConfig,seed:number,flowerTexelsPerMetre?:number) {
+export function natureAsset(kind:'flowers'|'leaves'|'rock'|'reeds'|'fern',c:StructureConfig,seed:number,flowerTexelsPerMetre?:number,rockSize?:[number,number,number]) {
+ if(kind==='reeds'||kind==='fern'){
+  const instance=createTree({...TREE_PRESETS[kind==='reeds'?'reed_clump':'fern_plant'],...(kind==='fern'?{trunkHeight:.45}:{}),seed}),group=instance.group.getObjectByName('GroundPlant') as THREE.Group;
+  // The structure supplies the water; keep the native plant and its wind/sprite callbacks.
+  group.children.filter(child=>child.userData.ground).forEach(child=>child.removeFromParent());
+  group.removeFromParent();group.name=kind==='reeds'?'SwampNativeReeds':'MineNativeFern';let disposed=false;
+  return {group,update:instance.update,dispose:()=>{if(disposed)return;disposed=true;instance.dispose();}};
+ }
  const original=Object.values(TREE_PRESETS).find(p=>kind==='rock'?p.rock?.biome===c.biome&&!p.rock.gravel&&!p.rock.ore:p.prop?.kind===kind&&p.prop.biome===c.biome)!;
  const config:TreeConfig={...original,seed};
- if(kind==='rock')config.rock={...original.rock!,width:.65,height:.45,depth:.55,count:1,mushrooms:false,ore:undefined,gravel:false,moss:c.vegetation*.5,snow:c.snow};
+ if(kind==='rock')config.rock={...original.rock!,width:rockSize?.[0]??.65,height:rockSize?.[1]??.45,depth:rockSize?.[2]??.55,count:1,mushrooms:false,ore:undefined,gravel:false,moss:c.vegetation*.5,snow:c.snow};
  else config.prop={...original.prop!,count:1,size:kind==='flowers'?.4:.55,spread:.15,density:.2};
  const instance=kind==='rock'?createProceduralRock(config):createGroundProps(config,flowerTexelsPerMetre);
  const group=instance.group.getObjectByName('RockAsset') as THREE.Group;

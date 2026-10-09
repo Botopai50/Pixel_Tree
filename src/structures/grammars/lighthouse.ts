@@ -43,7 +43,7 @@ export function lighthouse(c:GrammarContext) {
     const post=a.piece('box',point(u,y-.61,.065),size(bracketWidth,1.06,.15),'wood','lighthouse-belt-post',foundation);
     a.piece('box',point(u,y-.345,.205),size(bracketWidth,.53,.13),'wood','lighthouse-belt-post',post);
     const plate=a.piece('box',point(u,y,beltDepth+.029),size(bracketWidth,bracketWidth,.058),'metal','lighthouse-belt-clamp',belt);
-    for(const uu of [-.13,.13])for(const yy of [-.13,.13])a.piece('box',point(u+uu,y+yy,beltDepth+.069),size(.055,.055,.022),'dark','lighthouse-belt-rivet',plate);
+    for(const uu of [-.13,.13])for(const yy of [-.13,.13])a.piece('box',point(u+uu,y+yy,beltDepth+.069),size(.055,.055,.022),'metal','lighthouse-belt-rivet',plate);
     a.depend(plate,[belt,post],1);
    }
   }

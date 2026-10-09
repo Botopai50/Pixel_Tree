@@ -13,7 +13,7 @@ export function steppedBridge(c:GrammarContext){
  const collar=(x:number,y:number,z:number,id:string)=>a.piece('box',[x,y,z],[.42,.12,.42],'metal','bridge-post-shoe',id);
  const plate=(x:number,y:number,z:number,parent:string)=>{
   const id=a.piece('box',[x,y,z],[.32,.32,.045],'metal','bridge-joint-plate',parent);
-  for(const xx of [-.09,.09])for(const yy of [-.09,.09])a.piece('box',[x+xx,y+yy,z+Math.sign(z)*.03],[.043,.043,.025],'dark','bridge-rivet',id);
+  for(const xx of [-.09,.09])for(const yy of [-.09,.09])a.piece('box',[x+xx,y+yy,z+Math.sign(z)*.03],[.043,.043,.025],'metal','bridge-rivet',id);
  };
  // Solid stone under both approaches, but an open timber span over the water.
  for(let section=0;section<nodes.length-1;section++){

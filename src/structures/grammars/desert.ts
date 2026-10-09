@@ -32,6 +32,8 @@ export function desert(c:GrammarContext){
   }
   for(const x of [v.x-v.width/2,v.x+v.width/2])a.piece('box',[x,v.bottom+.22,v.z],[.22,.44,v.depth],'stone','desert-wall-base',v.id);
  }
+ const timberRandom=c.streams.streamFor('desert-parapet-timber','walls');
+ let parapetBay=0,nextTimberBay=2+Math.floor(timberRandom()*5);
  const rail=(from:V3,to:V3,support:string,open=false)=>{
   const dx=to[0]-from[0],dz=to[2]-from[2],length=Math.hypot(dx,dz),n=Math.max(1,Math.ceil(length/1.35));
   for(let i=0;i<=n;i++){
@@ -43,7 +45,11 @@ export function desert(c:GrammarContext){
    const horizontal=Math.abs(dx)>Math.abs(dz),span=length/n-.34;
    if(open){a.beam([from[0]+dx*i/n,from[1]+.49,from[2]+dz*i/n],[from[0]+dx*(i+1)/n,from[1]+.49,from[2]+dz*(i+1)/n],.14,'wood','desert-parapet-rail',support);continue;}
    const box=(along:number,yy:number,width:number,height:number)=>a.piece('box',[mid.x+(horizontal?along:0),from[1]+yy,mid.z+(horizontal?0:along)],[horizontal?width:.19,height,horizontal?.19:width],'plaster','desert-parapet',support);
-   box(0,.21,span,.42);box(0,.64,span,.16);
+   box(0,.21,span,.42);
+   if(parapetBay++===nextTimberBay){
+    a.piece('box',[mid.x,from[1]+.64,mid.z],[horizontal?span:.19,.16,horizontal?.19:span],'wood','desert-parapet-timber-bar',support);
+    nextTimberBay+=7+Math.floor(timberRandom()*4);
+   }else box(0,.64,span,.16);
    const gap=Math.min(.21,span*.3),side=(span-gap)/2;
    for(const sign of [-1,1])box(sign*(gap/2+side/2),.49,side,.14);
   }
@@ -123,8 +129,6 @@ export function desert(c:GrammarContext){
   const shade=a.piece('cloth',[wallX+side*.55,shadeY,upper.z],[1.1,.08,1.6],'cloth','desert-side-awning',upper.id,[0,side>0?Math.PI:0,0]);
   for(const z of [upper.z-.8,upper.z+.8])a.beam([wallX+side*.025,shadeY-.025,z],[wallX+side*1.1,shadeY-.325,z],.09,'wood','desert-shade-rafter',shade);
  }
- const pot=(x:number,y:number,z:number,size:number,plant=true)=>{const id=a.piece('box',[x,y+size*.43,z],[size,size*.86,size],'earth','desert-pot');if(plant)a.piece('box',[x,y+size*.86,z],[size*.95,size*1.05,size*.95],'wood','desert-succulent',id);};
- pot(-w*.31,0,doorZ-.45,.46);pot(-w*.31-.38,0,doorZ-.38,.26,false);pot(w*.42,terrace,d*.30,.51);pot(stairX+.25,0,topZ-run-.38,.45);pot(-w/2-.42,0,-d*.25,.42);
  const crate=(x:number,y:number,z:number)=>{const id=a.piece('box',[x,y+.23,z],[.55,.46,.5],'wood','desert-crate');for(const xx of [-.23,.23])a.piece('box',[x+xx,y+.23,z-.26],[.08,.48,.06],'wood','desert-crate-frame',id);a.beam([x-.22,y+.05,z-.30],[x+.22,y+.40,z-.30],.07,'wood','desert-crate-brace',id);};
  crate(w*.35,terrace,upper.z-upper.depth/2-.25);crate(-w*.34,0,doorZ-.62);
  const benchX=w*.31,z=doorZ-.75;

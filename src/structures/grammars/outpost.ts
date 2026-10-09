@@ -7,8 +7,8 @@ export function outpost(c:GrammarContext){
  const collar=(x:number,y:number,z:number,size:number,parent:string)=>{
   const plate=a.piece('box',[x,y,z],[size,.20,size],'metal','outpost-iron-collar',parent);
   for(const side of [-1,1])for(const offset of [-size*.23,size*.23]){
-   a.piece('box',[x+offset,y,z+side*(size/2+.018)],[.05,.055,.035],'dark','outpost-rivet',plate);
-   a.piece('box',[x+side*(size/2+.018),y,z+offset],[.035,.055,.05],'dark','outpost-rivet',plate);
+   a.piece('box',[x+offset,y,z+side*(size/2+.018)],[.05,.055,.035],'metal','outpost-rivet',plate);
+   a.piece('box',[x+side*(size/2+.018),y,z+offset],[.035,.055,.05],'metal','outpost-rivet',plate);
   }
  };
  const post=(x:number,z:number)=>{
@@ -43,7 +43,7 @@ export function outpost(c:GrammarContext){
   }
   for(const y of [.47,gateY*.53,gateY-.27]){
    const bar=a.piece('box',[cx,y,-d/2-.12],[gate/2-.17,.14,.07],'metal','outpost-gate-strap',leftPost);
-   for(const dx of [-gate*.18,gate*.18])a.piece('box',[cx+dx,y,-d/2-.168],[.055,.055,.025],'dark','outpost-rivet',bar);
+   for(const dx of [-gate*.18,gate*.18])a.piece('box',[cx+dx,y,-d/2-.168],[.055,.055,.025],'metal','outpost-rivet',bar);
   }
   a.piece('box',[side*.25,gateY*.48,-d/2-.19],[.20,.20,.05],'metal','outpost-door-ring',leftPost);
   const bannerX=side*gate/2,bannerPost=side<0?leftPost:rightPost;
@@ -89,7 +89,7 @@ export function outpost(c:GrammarContext){
    const run=bw*(sx<0?(roof.ridgeRatio??.5):1-(roof.ridgeRatio??.5)),pitch=Math.atan(roof.rise/run);
    const x=home.x+sx*(bw/2+roof.eaves*.55),y=roof.y-roof.rise/run*roof.eaves*.55+.18/Math.cos(pitch);
    const plate=a.piece('box',[x,y,finialZ+side*.04],[.38,.045,.34],'metal','outpost-roof-strap',homeRoot,[0,0,-sx*pitch]);
-   for(const offset of [-.11,.11])a.piece('box',[x+offset*Math.cos(pitch),y-sx*offset*Math.sin(pitch)+.035,finialZ+side*.04],[.05,.035,.05],'dark','outpost-rivet',plate,[0,0,-sx*pitch]);
+   for(const offset of [-.11,.11])a.piece('box',[x+offset*Math.cos(pitch),y-sx*offset*Math.sin(pitch)+.035,finialZ+side*.04],[.05,.035,.05],'metal','outpost-rivet',plate,[0,0,-sx*pitch]);
   }
   // Structural rafters sit under the skin; native roof trim owns the eave joint.
   for(const sx of [-1,1])a.beam([home.x+sx*bw/2,base+bh-.16,z],peak,.24,'wood','outpost-roof-rafter',homeRoot,{start:[1,0,0],end:[1,0,0]});
@@ -98,7 +98,7 @@ export function outpost(c:GrammarContext){
   for(const sx of [-1,1])a.beam([home.x+sx*bw*.30,base+bh+.08,z],[home.x,base+bh+roof.rise*.62,z],.20,'wood','outpost-gable-brace',homeRoot);
   for(const sx of [-1,0,1]){
    const x=home.x+sx*bw*.38,y=base+bh-.08,plate=a.piece('box',[x,y,z+side*.17],[.28,.30,.06],'metal','outpost-gable-joint-plate',homeRoot);
-   for(const offset of [-.08,.08])a.piece('box',[x+offset,y,z+side*.215],[.045,.045,.03],'dark','outpost-rivet',plate);
+   for(const offset of [-.08,.08])a.piece('box',[x+offset,y,z+side*.215],[.045,.045,.03],'metal','outpost-rivet',plate);
   }
  }
  // Vertical board cladding respects every native door and window opening.

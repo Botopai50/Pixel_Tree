@@ -23,9 +23,9 @@ export function buildStructureNature(p:StructurePlan,c:StructureConfig,architect
    const zone=zones[i%Math.max(1,zones.length)];let x:number,z:number;
    if(zone&&trial<8){x=zone.x+(rnd()-.5)*zone.width;z=zone.z+(rnd()-.5)*zone.depth;}else {x=bounds.min.x-2+rnd()*(bounds.max.x-bounds.min.x+4);z=bounds.min.z-2+rnd()*(bounds.max.z-bounds.min.z+4);}
    if(blockedByArchitecture(p,x,z,.8))continue;
-   if((c.type==='bridge'||c.type==='dock')&&p.propZones.some(zone=>zone.kind==='water'&&Math.abs(x-zone.x)<zone.width/2+.15&&Math.abs(z-zone.z)<zone.depth/2+.15))continue;
+   if((c.type==='bridge'||c.type==='dock'||c.type==='swamp')&&p.propZones.some(zone=>zone.kind==='water'&&Math.abs(x-zone.x)<zone.width/2+.15&&Math.abs(z-zone.z)<zone.depth/2+.15))continue;
    if(attachments.some(o=>Math.hypot(o.group.position.x-x,o.group.position.z-z)<1.1))continue;
-   const kind=i%4===0?'rock':c.ruin>.15&&i%3===0?'leaves':'flowers',asset=natureAsset(kind,c,p.seed+i*71);asset.group.position.set(x,0,z);asset.group.name='StructureNature_'+kind;attachments.push(asset);group.add(asset.group);break;
+   const kind=c.type==='snowy'||i%4===0?'rock':c.ruin>.15&&i%3===0?'leaves':'flowers',asset=natureAsset(kind,c,p.seed+i*71);asset.group.position.set(x,0,z);asset.group.name='StructureNature_'+kind;attachments.push(asset);group.add(asset.group);break;
   }
  }
  if(c.type==='treehouse'){

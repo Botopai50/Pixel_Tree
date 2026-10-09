@@ -9,6 +9,6 @@ export function buildStructurePlan(asset:StructureAssetConfig):StructurePlan{con
 for(const opening of plan.openings)if(opening.kind==='window'){
  const rnd=structureStreams(seed).streamFor('window-pose',opening.id),state=rnd();
  const partial=()=>Math.round(35+rnd()*45),open=()=>Math.round(145+rnd()*25);
- opening.shutterAngles=state<.25?[0,0]:state<.65?[partial(),rnd()<.3?0:partial()]:[open(),open()];
+ if(plan.type==='snowy')continue;opening.shutterAngles=state<.25?[0,0]:state<.65?[partial(),rnd()<.3?0:partial()]:[open(),open()];
 }
 const errors=validateStructurePlan(plan);if(errors.length)throw Error(errors.join('; '));return plan;}

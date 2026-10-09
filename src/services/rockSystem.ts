@@ -1,3 +1,4 @@
+import {rockSnowColors,ROCK_SNOW_PAINT_GLSL,ROCK_SNOW_COVERAGE_GLSL,ROCK_SNOW_RIM_GLSL} from './rockSnowStyle';
 import * as THREE from 'three';
 import { TreeConfig } from '../types';
 import { buildPixelMossRamp, pixelTextureLightDir, resolvePixelTextureParams } from './pixelArtTextureSystem';
@@ -129,13 +130,9 @@ const STONE_FRAGMENT = /* glsl */ `
 
   ${pixelMossNoiseGLSL('uMossSeed')}
 
-  float snowField(vec3 p) {
-    return mnoise3(p / 16.0 + 91.0) * 0.78
-      + mnoise3(p / 5.0 + 113.0) * 0.17 + mhash3(floor(p) + 71.0) * 0.05;
-  }
-  float snowCoverage(vec3 p, vec3 normal) {
-    return min(0.94, uSnow * (0.32 + max(0.0, normalize(normal).y) * 0.9)) - snowField(p);
-  }
+  ${ROCK_SNOW_PAINT_GLSL}
+  ${ROCK_SNOW_COVERAGE_GLSL}
+  ${ROCK_SNOW_RIM_GLSL}
 
   void main() {
     float N1 = uSteps - 1.0;
@@ -273,58 +270,7 @@ const STONE_FRAGMENT = /* glsl */ `
     float fissure = abs(vnoise(vec3(cc * 2.5, uSeed + 57.0)) - 0.5);
     if (uCracks > 0.0 && row > 0.5 && fissure < 0.025 * uCracks) idx = max(0.0, idx - 2.0);
     vec3 color = texture2D(uPalette, vec2((idx + 0.5) / uSteps, row)).rgb;
-    // Broad pale blankets with small exposed islands, blue-grey broken
-    // shadows and a stepped rim. Continuous coverage crosses stone facets.
-    float snowMask = snowCoverage(surfaceP, surfaceN);
-    float belowSnow = snowCoverage(surfaceP + surfaceDown, surfaceN + surfaceDownN);
-    float belowSnow2 = snowCoverage(surfaceP + surfaceDown * 2.0, surfaceN + surfaceDownN * 2.0);
-    float aboveSnow = snowCoverage(surfaceP - surfaceDown, surfaceN - surfaceDownN);
-    // Find the border in every direction, not just below a snow patch. The
-    // same two-texel broken fringe surrounds both islands and outer edges.
-    bool onSnow = snowMask > 0.0;
-    float borderDistance = 3.0;
-    if (uSnow > 0.0) {
-    for (int i = 1; i <= 2; i++) {
-      float r = float(i);
-      bool down = snowCoverage(surfaceP + surfaceDown * r, surfaceN + surfaceDownN * r) > 0.0;
-      bool up = snowCoverage(surfaceP - surfaceDown * r, surfaceN - surfaceDownN * r) > 0.0;
-      bool left = snowCoverage(surfaceP - surfaceAcross * r, surfaceN - surfaceAcrossN * r) > 0.0;
-      bool right = snowCoverage(surfaceP + surfaceAcross * r, surfaceN + surfaceAcrossN * r) > 0.0;
-      if (down != onSnow || up != onSnow || left != onSnow || right != onSnow) borderDistance = min(borderDistance, r);
-    }
-    }
-    vec3 exposedColor = color;
-    // Small connected chips rather than independent salt-and-pepper pixels.
-    float fringe = mnoise3(surfaceP / 3.0 + 173.0) * 0.65
-      + mhash3(floor(surfaceP) + 173.0) * 0.35;
-    if (uSnow > 0.0 && snowMask > 0.0) {
-      float snowLight = dot(surfaceN, normalize(uTexLightDir));
-      float pigment = mnoise3(surfaceP / 9.0 + 137.0);
-      float speckle = mhash3(floor(surfaceP) + 151.0);
-      bool lowerRim = belowSnow <= 0.0 || belowSnow2 <= 0.0;
-      bool upperRim = aboveSnow <= 0.0;
-      color = uSnowColors[2];
-      if (pigment < 0.38 || snowLight < -0.1) color = uSnowColors[1];
-      if (pigment > 0.65 && snowLight > 0.25) color = uSnowColors[3];
-      // Sparse one-pixel flecks interrupt the shaded bands, as in the reference.
-      if (speckle < 0.12 && pigment < 0.57) color = uSnowColors[1];
-      if (speckle > 0.88 && pigment < 0.44) color = uSnowColors[2];
-      if (uSnowRim > 0.5 && borderDistance < 2.5) {
-        float band = (3.0 - borderDistance) / 2.0;
-        // Broken dark pixels retain thickness without a solid painted stripe.
-        if (fringe < band * 0.12) color = exposedColor;
-        else if (fringe < band * (lowerRim ? 0.54 : 0.38)) color = uSnowColors[0];
-        else if (fringe < band * 0.78) color = uSnowColors[1];
-        else if (upperRim && snowLight > 0.1) color = uSnowColors[3];
-      }
-    } else if (uSnowRim > 0.5 && uSnow > 0.0 && borderDistance < 2.5) {
-      float band = (3.0 - borderDistance) / 2.0;
-      // Detached pale and grey pixels cross onto the exposed surface, with
-      // sparse contact-shadow pixels tucked between them.
-      if (fringe < band * 0.18) color = uSnowColors[2];
-      else if (fringe < band * 0.3) color = uSnowColors[1];
-      else if (fringe < band * (aboveSnow > 0.0 ? 0.62 : 0.43)) color = mix(exposedColor, uSnowColors[0] * 0.75, 0.8);
-    }
+    color = rockSnowSurface(color,surfaceP,surfaceN,surfaceDown,surfaceDownN,surfaceAcross,surfaceAcrossN,uTexLightDir,uSnow,uSnowRim);
     gl_FragColor = vec4(color, 1.0);
   }
 `;
@@ -565,10 +511,7 @@ export function createPixelRockMaterial(config: TreeConfig, opts: {
       uSeed: { value: (config.seed % 997) * 0.37 },
       uSnow: { value: opts.snow ?? 0 },
       uSnowRim: { value: opts.snowRim === false ? 0 : 1 },
-      uSnowColors: { value: ['#354a65', '#a6b5c5', '#d1d7de', '#e6e9ed'].map(hex => {
-        const color = new THREE.Color(hex).convertLinearToSRGB();
-        return new THREE.Vector3(color.r, color.g, color.b);
-      }) },
+      uSnowColors: { value: rockSnowColors() },
       uCracks: { value: opts.cracks ?? 0 },
       uNaturalStone: { value: config.growthStage === 'rock' ? 1 : 0 },
       uMossSeed: { value: params.seed },

@@ -1,4 +1,17 @@
 import * as THREE from 'three';import type {PieceSpec} from '../types';
+import {buildAncientPiece} from './ancientRuins';
+import {merge} from './common';
+
+export function buildTemplePiece(p:PieceSpec){
+ if(p.role==='temple-ivy')return buildAncientPiece({...p,role:'ancient-ivy'});
+ if(p.material!=='stone'||p.kind!=='box'||p.role==='temple-glyph')return;
+ if(['temple-column','temple-wall-pier','temple-upper-pier'].includes(p.role)){
+  const count=Math.max(3,Math.ceil(p.size[1]/(p.size[0]*1.2))),height=p.size[1]/count,parts:THREE.BufferGeometry[]=[];
+  for(let i=0;i<count;i++)parts.push(buildAncientPiece({...p,role:'ancient-masonry',position:[p.position[0],p.position[1]-p.size[1]/2+(i+.5)*height,p.position[2]],size:[p.size[0],height-.009,p.size[2]]})!);
+  return merge(parts);
+ }
+ return buildAncientPiece({...p,role:'ancient-masonry'});
+}
 
 export function buildTempleGlyph(p:PieceSpec){
  const geometry=new THREE.PlaneGeometry(p.size[0],p.size[1]);

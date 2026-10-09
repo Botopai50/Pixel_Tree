@@ -20,34 +20,9 @@ export function village(c:GrammarContext) {
 export {outpost} from './outpost';
 export {treehouse} from './treehouse';
 export {desert} from './desert';
-export function swamp(c:GrammarContext) {
- const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth),base=a.value(2.2);
- const v=a.building(0,0,w*.78,d*.75,a.value(p.height),1,{base,material:'wood',roof:p.roof==='auto'?'thatch':p.roof,role:'stilt-house'});
- const f=a.plan.pieces.find(x=>x.role==='foundation')!;f.size[1]=.22;f.position[1]=base-.11;f.material='wood';
- for(const side of [-1,1])for(const end of [-1,1])a.piece('column',[side*v.width*.43,base/2,end*v.depth*.43],[.35,base,.35],'wood','stilt');
- a.depend(f.id,a.plan.pieces.filter(p=>p.role==='stilt').map(p=>p.id),2);const boardwalk=a.piece('box',[0,base-.05,-d*.48],[w,.2,1.9],'wood','boardwalk',f.id);
- a.plan.propZones.push({id:'swamp-water',x:0,z:0,width:w+3,depth:d+3,y:-.05,kind:'water'});
- return a.finish();
-}
-export function snowy(c:GrammarContext) {
- const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth),h=a.value(p.height);
- const v=a.building(0,0,w,d,h,p.floors,{base:.7,material:'wood',roof:p.roof==='auto'?'gable':p.roof,role:'alpine-home'});
- const roof=a.plan.roofs[0];
- if(roof.kind==='gable'||roof.kind==='thatch'){roof.rise=w*(.4+p.roofPitch*.35);for(const wall of a.plan.walls)if(wall.gable)wall.gable.peak=roof.rise;for(const z of [-d/2-.03,d/2+.03])for(const side of [-1,1])a.beam([side*(w/2-.11),roof.y,z],[ -w/2+w*(roof.ridgeRatio??.5),roof.y+roof.rise,z],.22,'wood','snow-brace',roof.id);}
- else for(const z of [-d/2-.03,d/2+.03])a.beam([-w/2,roof.y+(roof.kind==='shed'&&roof.shedDirection===-1?roof.rise:0),z],[w/2,roof.y+(roof.kind==='shed'&&roof.shedDirection!==-1?roof.rise:0),z],.22,'wood','snow-brace',roof.id);
- a.chimney(v);return a.finish();
-}
-export function mine(c:GrammarContext) {
- const a=new Architect(c),p=c.config,w=a.value(p.width),d=a.value(p.depth),h=a.value(p.height),mouth=Math.min(w*.42,4);
- // Leave a real empty throat surrounded by separate outcrops.
- for(const side of [-1,1])a.piece('rock',[side*(mouth/2+w*.17),h*.36,d*.1],[w*.28,h*.4,d*.5],'stone','outcrop');
- a.piece('rock',[0,h*.77,d*.12],[w*.5,h*.21,d*.45],'stone','mine-crown');
- a.piece('arch',[0,mouth*.48,-d*.27],[mouth,2,.42],'wood','mine-mouth');
- for(let i=0;i<3;i++)for(const side of [-1,1])a.beam([side*mouth*.45,0,-d*.25+i*d*.22],[side*mouth*.45,mouth*.48,-d*.25+i*d*.22],.25,'wood','tunnel-support');
- for(const side of [-1,1])a.beam([side*.46,.08,-d*.55],[side*.46,.08,d*.45],.09,'metal','rail');
- a.plan.accesses.push({id:'mine-path',from:[0,0,-d],to:[0,0,d*.4],width:mouth*.8,role:'tunnel'});
- return a.finish();
-}
+export {swamp} from './swamp';
+export {snowy} from './snowy';
+export {mine} from './mine';
 export {dock} from './dock';
 export {lighthouse} from './lighthouse';
 export function underground(c:GrammarContext) {

@@ -42,7 +42,7 @@ export function dock(c:GrammarContext){
    for(let i=0;i<seams.length-1;i++){
     const xx=(seams[i]+seams[i+1])/2,zz=s.z-s.depth/2+(row+.5)*rowDepth;
     const board=a.piece('box',[xx,y-.07,zz],[seams[i+1]-seams[i]-.014,.14,rowDepth-.014],'wood','deck-plank',floor);
-    for(const x of [seams[i]+.07,seams[i+1]-.07])a.piece('box',[x,y+.012,zz],[.027,.023,.027],'dark','dock-plank-nail',board);
+    for(const x of [seams[i]+.07,seams[i+1]-.07])a.piece('box',[x,y+.012,zz],[.027,.023,.027],'metal','dock-plank-nail',board);
    }
   }
   for(const side of [-1,1]){

@@ -32,13 +32,13 @@ test('desert house has two usable terraces, front shade and an exterior stair re
   const rearBase=plan.pieces.find(p=>p.role==='desert-wall-base'&&Math.abs(p.position[2]-lower.depth/2)<1e-6&&Math.abs(p.position[1]-(lower.bottom+.22))<1e-6)!;
   assert.ok(Math.abs(rearBase.position[0]+rearBase.size[0]/2-outerX)<1e-6);
   assert.ok(plan.pieces.some(p=>p.role==='desert-stair-wall-base'&&p.material==='stone'&&p.position[0]===outerX));
-  assert.equal(plan.pieces.filter(p=>p.role==='desert-rug').length,2);assert.ok(plan.pieces.some(p=>p.role==='desert-awning'));assert.ok(plan.pieces.some(p=>p.role==='desert-pot'));
+  assert.equal(plan.pieces.filter(p=>p.role==='desert-rug').length,2);assert.ok(plan.pieces.some(p=>p.role==='desert-awning'));assert.ok(!plan.pieces.some(p=>p.role==='desert-pot'||p.role==='desert-succulent'));
   assert.equal(new Set(plan.pieces.map(p=>p.id)).size,plan.pieces.length);
  }
 });
-test('desert pottery and cloth retain finite, matched UV buffers after rendering',()=>{
+test('desert cloth and stair walls retain finite, matched UV buffers after rendering',()=>{
  const asset=createStructure(fixture('desert',9,{vegetation:0}));const plan=asset.group.userData.structurePlan;
- for(const p of plan.pieces.filter((p:any)=>['desert-awning','desert-pot','desert-rug','desert-banner','desert-access-stairs','desert-stair-side-wall','desert-stair-rear-wall','desert-stair-landing-wall'].includes(p.role))){
+ for(const p of plan.pieces.filter((p:any)=>['desert-awning','desert-rug','desert-banner','desert-access-stairs','desert-stair-side-wall','desert-stair-rear-wall','desert-stair-landing-wall'].includes(p.role))){
   const mesh=asset.assetGroup.getObjectByName(p.id) as THREE.Mesh;assert.ok(mesh);
   assert.equal(mesh.geometry.attributes.uv.count,mesh.geometry.attributes.position.count);
   assert.ok(Array.from(mesh.geometry.attributes.uv.array).every(Number.isFinite));
