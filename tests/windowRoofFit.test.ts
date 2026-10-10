@@ -9,7 +9,7 @@ import {buildRoof} from '../src/structures/geometry/roofs';
 test('windows, frames and open leaves avoid annex roof triangles', () => {
  for(const seed of [2,3,5,8]){
   const source=fixture('largeHouse',seed),plan=buildStructurePlan(source);
-  const result=renderStructure(plan,{...source.structure,type:'underground'});
+  const result=renderStructure(plan,{...source.structure},{batch:false});
   const roofs=plan.roofs.map(r=>({spec:r,geometry:buildRoof(r)}));
   try{
    assert.ok(plan.openings.some(o=>o.kind==='window'),'all windows were removed');

@@ -1572,12 +1572,13 @@ export const PIXEL_LEAF_VERTEX_SHADER = /* glsl */ `
     vec3 outClump = normalize(worldPos.xyz - worldClump + vec3(0.0, 0.001, 0.0));
     vec3 outCrown = normalize(worldPos.xyz - worldCrown + vec3(0.0, 0.001, 0.0));
     vec3 softNorm = normalize(mix(outClump, outCrown, 0.35) + vec3(0.0, 0.20, 0.0));
-    vNormal = normalize(mat3(modelMatrix) * softNorm);
+    vNormal = softNorm;
 
     // per-CARD facing term: identical at every vertex of the quad
     vec4 cardMid = modelMatrix * instanceMatrix * vec4(0.0, 0.5, 0.0, 1.0);
     vec3 cardNrm = normalize(cardMid.xyz - worldClump + vec3(0.0, 0.001, 0.0));
-    vCardNdl = dot(cardNrm, normalize(uTexLightDir));
+    vec3 crownNrm = normalize(cardMid.xyz - worldCrown + vec3(0.0, 0.001, 0.0));
+    vCardNdl = dot(normalize(mix(cardNrm, crownNrm, 0.85) + vec3(0.0, 0.25, 0.0)), normalize(uTexLightDir));
 
     gl_Position = projectionMatrix * viewMatrix * worldPos;
   }
@@ -1621,14 +1622,14 @@ export const PIXEL_LEAF_FRAGMENT_SHADER = /* glsl */ `
     // Geometry-driven tone, deliberately zero-centred: the tile's own hierarchy
     // survives and the shader only pushes it up or down a whole step at a time.
     float tone =
-        vCardNdl * (1.30 + 0.45 * exposure)
-      + (heightN - 0.55) * 1.05
-      - vCrownDepth * (0.85 + uShadowStrength * 1.55)
-      - vNeighbor * (0.35 + uShadowStrength * 0.75)
-      + (vShade - 0.55) * 0.95
+        vCardNdl * (0.65 + 0.15 * exposure)
+      + (heightN - 0.50) * 0.65
+      - vCrownDepth * (0.30 + uShadowStrength * 0.45)
+      - vNeighbor * (0.12 + uShadowStrength * 0.20)
+      + (vShade - 0.50) * 0.30
       + (exposure - 0.55) * 0.75
       + vHueShift * 0.45
-      - uShadowStrength * 0.60;
+      - uShadowStrength * 0.15;
 
     // Jitter the quantisation threshold with the clump hash: the light
     // terminator breaks along leaf-cluster borders instead of sweeping a
@@ -1753,8 +1754,8 @@ export const PIXEL_CONIFER_FRAGMENT_SHADER = /* glsl */ `
 
     // one flat normal per spray: the whole spray steps together
     vec3 n = normalize(vNormal);
-    if (!gl_FrontFacing) n = -n;
-    float ndl = dot(n, normalize(uTexLightDir));
+    // Needle sprays transmit light on both sides, independently of the camera.
+    float ndl = abs(dot(n, normalize(uTexLightDir))) * 0.65;
 
     float heightN = clamp(
       (vWorldPos.y - uCrownBottomY) / max(0.5, uCrownTopY - uCrownBottomY), 0.0, 1.0);
@@ -2454,8 +2455,7 @@ export const PIXEL_SUCCULENT_FRAGMENT_SHADER = /* glsl */ `
 
     vec3 L = normalize(uTexLightDir);
     float ndl = dot(n, L);
-    vec3 V = normalize(cameraPosition - vWorldPos);
-    float facing = dot(n, V);
+    float facing = ndl; // Painted shading follows the sun, not the camera.
 
     bool isGroove = col < 0.5 && domeFade > 0.35;
     // exactly one crest column per rib, even when K is odd
@@ -2719,8 +2719,8 @@ const PIXEL_SAPLING_LEAF_FRAGMENT_SHADER = /* glsl */ `
   void main() {
     vec3 n = normalize(vNormal);
     float back = gl_FrontFacing ? 0.0 : 1.0;
-    if (!gl_FrontFacing) n = -n;
-    float ndl = dot(n, normalize(uTexLightDir));
+    // Needle sprays transmit light on both sides, independently of the camera.
+    float ndl = abs(dot(n, normalize(uTexLightDir))) * 0.65;
 
     // snow on the face turned to the sky only
     if (uSnow > 0.001 && n.y > 0.2) {
@@ -2807,9 +2807,9 @@ const PIXEL_SAPLING_STEM_FRAGMENT_SHADER = /* glsl */ `
     float fleck = h3(cell);
     vec3 n = normalize(vNormal);
     float ndl = dot(n, normalize(uTexLightDir));
-    float facing = dot(n, normalize(cameraPosition - vWorldPos));
+    float facing = ndl; // Keep the painted shadow fixed as the camera orbits.
     float idx = floor(N1 * 0.5 + ndl * (1.3 + uTextureContrast * 0.8) - uShadowStrength * 0.5 + 0.5);
-    if (facing < 0.3) idx -= 1.0;                              // contour
+    if (facing < -0.3) idx -= 1.0;                              // contour
     if (uBirch > 0.5) {
       if (fleck > 0.86) idx = min(idx, 1.0);                   // lenticels
     } else {
@@ -2857,9 +2857,9 @@ const PIXEL_PROP_FRAGMENT_SHADER = /* glsl */ `
     float N1 = uPaletteSteps - 1.0;
     vec3 n = normalize(vNormal);
     float ndl = dot(n, normalize(uTexLightDir));
-    float facing = dot(n, normalize(cameraPosition - vWorldPos));
+    float facing = ndl; // Keep the painted shadow fixed as the camera orbits.
     float idx = floor(N1 * 0.5 + ndl * (1.3 + uTextureContrast * 0.8) - uShadowStrength * 0.4 + 0.5);
-    if (facing < 0.3) idx -= 1.0;                                   // contour
+    if (facing < -0.3) idx -= 1.0;                                   // contour
     float around = atan(vLocal.z, vLocal.x) / 6.2831853 + 0.5;
     if (uPattern > 0.5) {
       // rows of scales: the lower half of each row sits in its own shadow,
@@ -3048,8 +3048,8 @@ const PIXEL_FLOWER_FRAGMENT_SHADER = /* glsl */ `
     vec3 radial = r > 0.001 ? vec3(p.x, 0.0, p.y) / r : vec3(0.0);
     vec3 nl = normalize(vec3(0.0, 1.0, 0.0) - radial * slope);
     vec3 n = normalize(vAxisX * nl.x + vAxisY * nl.y + vAxisZ * nl.z);
-    if (!gl_FrontFacing) n = -n;
-    float ndl = dot(n, normalize(uTexLightDir));
+    // Needle sprays transmit light on both sides, independently of the camera.
+    float ndl = abs(dot(n, normalize(uTexLightDir))) * 0.65;
 
     float tone;
     float row = 0.75;   // pink

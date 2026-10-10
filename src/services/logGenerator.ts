@@ -331,6 +331,8 @@ function addEndFace(
       else buf.indices.push(inner[j], inner[j1], centre);
     }
   }
+  // The lining must share the exact inner boundary, including tears and cut offsets.
+  return rings[K].map(idx=>new THREE.Vector3(buf.positions[idx*3],buf.positions[idx*3+1],buf.positions[idx*3+2]));
 }
 
 // -----------------------------------------------------------------------------
@@ -533,8 +535,8 @@ export function buildProceduralLog(
     const f0 = frames[0];
     const fN = frames[frames.length - 1];
     // (the rooted trunk's end is hidden in its root plate, but closed anyway)
-    addEndFace(grain, f0, rims.startRim, f0.t.clone().negate(), startKind, rnd, hollow);
-    addEndFace(grain, fN, rims.endRim, fN.t.clone(), endKind, rnd, hollow);
+    const innerStartRim=addEndFace(grain, f0, rims.startRim, f0.t.clone().negate(), startKind, rnd, hollow);
+    const innerEndRim=addEndFace(grain, fN, rims.endRim, fN.t.clone(), endKind, rnd, hollow);
 
     // ---- the hollow ---------------------------------------------------------
     if (hollow > 0) {
@@ -544,22 +546,16 @@ export function buildProceduralLog(
       const ringIdx: number[] = [];
       for (let i = 0; i < n; i++) {
         const f = frames[i];
-        const s = i / (n - 1);
+        const s = f.along / frames[n-1].along;
         // darker toward the middle, where no light gets in
         const shade = 0.3 + 0.7 * Math.pow(Math.abs(s - 0.5) * 2, 2.5);
         ringIdx.push(inner.count);
         for (let j = 0; j <= iradial; j++) {
           const a = (j / iradial) * Math.PI * 2;
           const p = ringPoint(f, a, radiusAt(s, a) * hollow);
-          // meet the end faces' inner edge
-          if (i === 0) {
-            const d = startJag(a);
-            p.addScaledVector(f.t, -d * Math.pow(hollow, 1.6));
-          }
-          if (i === n - 1) {
-            const d = endJag(a);
-            p.addScaledVector(f.t, d * Math.pow(hollow, 1.6));
-          }
+          // Reuse the cap boundary instead of approximating its jagged displacement.
+          if(i===0)p.copy(innerStartRim[j%iradial]);
+          if(i===n-1)p.copy(innerEndRim[j%iradial]);
           inner.push(p, (j / iradial) * 2, f.along * 0.8, shade);
         }
       }
@@ -578,6 +574,7 @@ export function buildProceduralLog(
       const innerMat = new THREE.MeshToonMaterial({ map: innerTex, vertexColors: true });
       const innerMesh = new THREE.Mesh(innerGeo, innerMat);
       innerMesh.name = 'LogHollow';
+      innerMesh.castShadow = true;
       innerMesh.receiveShadow = true;
       group.add(innerMesh);
       geometriesToDispose.push(innerGeo);

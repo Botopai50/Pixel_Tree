@@ -39,7 +39,7 @@ test('veranda rafters and posts remain below the underside of their pitched cove
  const roof=plan.pieces.find(p=>p.role==='porch-cover')!;
  const inverse=new THREE.Matrix4().compose(new THREE.Vector3(...roof.position),
   new THREE.Quaternion().setFromEuler(new THREE.Euler(...roof.rotation!)),new THREE.Vector3(1,1,1)).invert();
- const result=renderStructure(plan,{...source.structure,type:'underground'});
+ const result=renderStructure(plan,{...source.structure},{batch:false});
  try{
   const supports=plan.pieces.filter(p=>p.role==='veranda-rafter'||p.role==='veranda-post');
   assert.equal(supports.length,4);
@@ -62,7 +62,7 @@ test('veranda has joined wooden roof borders, a front beam and corner braces', (
  assert.equal(trims.length,3,'porch is missing its front and side borders');
  assert.equal(plan.pieces.filter(p=>p.role==='veranda-header').length,1);
  assert.equal(plan.pieces.filter(p=>p.role==='veranda-brace').length,2);
- const result=renderStructure(plan,{...source.structure,type:'underground'});
+ const result=renderStructure(plan,{...source.structure},{batch:false});
  try{
   for(const p of trims){
    const positions=(result.assetGroup.getObjectByName(p.id) as THREE.Mesh).geometry.getAttribute('position');

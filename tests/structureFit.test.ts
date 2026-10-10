@@ -10,7 +10,7 @@ const house = () => buildStructurePlan(fixture('house', 6539, {annexes: false, b
 test('all four eave corners share complete faces with the sloping fascia', () => {
   const source = fixture('house', 6539, {annexes: false, balconies: false});
   const plan = buildStructurePlan(source), roof = plan.roofs[0];
-  const result = renderStructure(plan, {...source.structure, type: 'underground'});
+  const result = renderStructure(plan,{...source.structure},{batch:false});
   const bounds = (id: string) => new THREE.Box3().setFromObject(result.assetGroup.getObjectByName(id)!);
   try {
     for (const eave of plan.pieces.filter(p => p.role === 'eave-fascia' && p.support === roof.id)) {
@@ -41,7 +41,7 @@ test('brace end faces fit the post and beam without protruding past either joint
   const brace = plan.pieces.find(p => p.role === 'facade-brace')!;
   const frame = plan.pieces.find(p => p.role === 'wall-frame' && Math.abs(p.position[1] - roof.y) < .3)!;
   const postFace = -roof.width / 2 + .15, beamFace = frame.position[1] - frame.size[0] / 2;
-  const result = renderStructure(plan, {...source.structure, type: 'underground'});
+  const result = renderStructure(plan,{...source.structure},{batch:false});
   try {
     const mesh = result.assetGroup.getObjectByName(brace.id) as THREE.Mesh;
     const pos = mesh.geometry.getAttribute('position');
@@ -61,7 +61,7 @@ test('ridge cap follows both roof slopes instead of ending in a rectangular bloc
   const plan = buildStructurePlan(source), roof = plan.roofs[0];
   const ridgeX = roof.x - roof.width / 2 + roof.width * roof.ridgeRatio!;
   const cap = plan.pieces.find(p => p.role === 'ridge-cap')!;
-  const result = renderStructure(plan, {...source.structure, type: 'underground'});
+  const result = renderStructure(plan,{...source.structure},{batch:false});
   try {
     const mesh = result.assetGroup.getObjectByName(cap.id) as THREE.Mesh;
     const pos = mesh.geometry.getAttribute('position');
@@ -77,7 +77,7 @@ test('ridge cap follows both roof slopes instead of ending in a rectangular bloc
 test('window trim and mullions meet without overlapping faces or gaps at the aperture', () => {
   const source = fixture('house', 6539, {annexes: false, balconies: false});
   const plan = buildStructurePlan(source), opening = plan.openings.find(o => o.kind === 'window')!;
-  const result = renderStructure(plan, {...source.structure, type: 'underground'});
+  const result = renderStructure(plan,{...source.structure},{batch:false});
   try {
     const parts = result.assetGroup.children.filter(o => o.name.startsWith(opening.id + '_') && /_(frame|mullion|crossbar|sill)$/.test(o.name));
     for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
@@ -129,7 +129,7 @@ test('ridge cap meets the inner gable fascia faces without passing through them'
 test('window shutters do not intersect their frames', () => {
   const source = fixture('house', 6539, {annexes: false, balconies: false});
   const plan = buildStructurePlan(source);
-  const result = renderStructure(plan, {...source.structure, type: 'underground'});
+  const result = renderStructure(plan,{...source.structure},{batch:false});
   try {
     const window = plan.openings.find(o => o.kind === 'window')!;
     assert.ok(window);
@@ -151,7 +151,7 @@ test('open shutters have half-window leaves, outward depth and visible hinges', 
   const plan = buildStructurePlan(source);
   const opening = plan.openings.find(o => o.kind === 'window')!;
   opening.shutterAngles = [155,155];
-  const result = renderStructure(plan, {...source.structure, type: 'underground'});
+  const result = renderStructure(plan,{...source.structure},{batch:false});
   try {
     const opening = plan.openings.find(o => o.kind === 'window')!;
     opening.shutterAngles = [155,155];

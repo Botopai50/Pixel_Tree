@@ -28,8 +28,8 @@ export function buildStructureNature(p:StructurePlan,c:StructureConfig,architect
    const kind=c.type==='snowy'||i%4===0?'rock':c.ruin>.15&&i%3===0?'leaves':'flowers',asset=natureAsset(kind,c,p.seed+i*71);asset.group.position.set(x,0,z);asset.group.name='StructureNature_'+kind;attachments.push(asset);group.add(asset.group);break;
   }
  }
- if(c.type==='treehouse'){
-  for(const planter of p.pieces.filter(piece=>piece.role==='tree-planter')){
+ if(c.type==='treehouse'&&p.pieces.some(piece=>piece.kind==='tree'&&!piece.removed)){
+  for(const planter of p.pieces.filter(piece=>piece.role==='tree-planter'&&!piece.removed)){
    for(let i=0;i<3;i++){
     const flowers=natureAsset('flowers',c,p.seed+Number(planter.id.slice(6))*71+i*13,c.texelsPerMetre);
     flowers.group.position.set(planter.position[0]+(i-1)*planter.size[0]*.24,planter.position[1]+.20,planter.position[2]);
@@ -79,7 +79,7 @@ export function buildStructureNature(p:StructurePlan,c:StructureConfig,architect
    }
   }
   variants.forEach(variant=>variant.trunkLeafCount=variant.matrices.length);
-  for(const x of [-c.width*.36,c.width*.40])for(let strand=0;strand<2;strand++){
+  if(!deck.removed)for(const x of [-c.width*.36,c.width*.40])for(let strand=0;strand<2;strand++){
    let previous:THREE.Vector3|undefined,nextNode=rnd()*2;const count=strand?16+Math.floor(rnd()*7):25+Math.floor(rnd()*5),phase=rnd()*6;
    for(let i=0;i<count;i++){
     const at=new THREE.Vector3(x+strand*.17+Math.sin(i*.45+phase)*.10,deck.position[1]+.9-i*.09,-deck.size[2]/2-.12-strand*.025),normal=Math.PI+(rnd()-.5)*.30;

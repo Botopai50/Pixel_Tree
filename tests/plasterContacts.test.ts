@@ -8,7 +8,7 @@ import {renderStructure} from '../src/structures/renderer';
 test('plaster painting follows wall contacts with seeded irregular pixel shadows', () => {
  const source=fixture('house',6539,{annexes:false,balconies:false,vegetation:0});
  const plan=buildStructurePlan(source);plan.openings=[];
- const result=renderStructure(plan,{...source.structure,type:'underground'});
+ const result=renderStructure(plan,{...source.structure},{batch:false});
  try{
   const w=plan.walls.find(w=>w.material==='plaster'&&!w.gable)!;
   const mesh=result.assetGroup.getObjectByName(w.id) as THREE.Mesh;

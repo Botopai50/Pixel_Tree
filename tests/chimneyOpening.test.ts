@@ -7,7 +7,7 @@ import {fixture} from './structureFixtures';
 
 test('chimney crown and shaft leave a continuous flue with a recessed dark interior',()=>{
  const source=fixture('largeHouse',2),plan=buildStructurePlan(source);
- const asset=renderStructure(plan,{...source.structure,type:'underground',scale:1});
+ const asset=renderStructure(plan,{...source.structure,scale:1},{batch:false});
  try{
   const cap=plan.pieces.find(p=>p.role==='chimney-cap')!;
   const recess=plan.pieces.find(p=>p.role==='chimney-recess')!;

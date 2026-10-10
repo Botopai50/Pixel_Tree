@@ -154,9 +154,7 @@ const STONE_FRAGMENT = /* glsl */ `
     if (g > 0.96) idx += 1.0;
     else if (g < 0.03) idx -= 1.0;
 
-    // dark contour where the stone turns away
-    float facing = dot(n, normalize(cameraPosition - vWorldPos));
-    if (facing < 0.28) idx -= 1.0;
+    // Facet tones follow the world-space sun, independent of the camera.
 
     idx = clamp(idx, 0.0, N1);
     float row = 0.75;
@@ -261,7 +259,7 @@ const STONE_FRAGMENT = /* glsl */ `
     // Painted ridge strokes: one quiet palette step on selected sunlit
     // crests, rather than a bright outline around every triangle. A coherent
     // wear mask interrupts the stroke in patches, keeping it hand-painted.
-    if (uNaturalStone > 0.5 && row > 0.5 && ndl > 0.35 && facing > 0.3 && nearest >= -0.15 && nearest < 1.0) {
+    if (uNaturalStone > 0.5 && row > 0.5 && ndl > 0.35 && nearest >= -0.15 && nearest < 1.0) {
       float ridge = e.x <= e.y && e.x <= e.z ? vEdgeFlag.x : (e.y <= e.z ? vEdgeFlag.y : vEdgeFlag.z);
       float strokeWear = vnoise(vec3(cc * 2.1, uSeed + 123.0));
       if (ridge > 0.75 && strokeWear > 0.38) idx = min(N1, idx + 1.0);

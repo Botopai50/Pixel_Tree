@@ -656,7 +656,8 @@ export function buildProceduralSapling(
       varying vec3 vWorldPos;
       varying vec2 vUv;
       void main() {
-        vNormal = normalize(normalMatrix * normal);
+        // Convert the inverse-transpose normal back to world space.
+        vNormal = normalize((normalMatrix * normal) * mat3(viewMatrix));
         vUv = uv;
         vec4 worldPos = modelMatrix * vec4(position, 1.0);
         vWorldPos = worldPos.xyz;
@@ -732,7 +733,8 @@ export function buildProceduralSapling(
       varying vec2 vUv;
 
       void main() {
-        vNormal = normalize(normalMatrix * normal);
+        // Convert the inverse-transpose normal back to world space.
+        vNormal = normalize((normalMatrix * normal) * mat3(viewMatrix));
         vUv = uv;
         vec3 pos = position;
 
@@ -1038,109 +1040,89 @@ export function buildProceduralSapling(
     }
 
   } else if (isPalm) {
-    // =========================================================
-    // BABY FARON PALM SPROUT (BROTO DE PALMEIRA)
-    // Germinated coconut on sand with a slender green stem and 4 young arching fronds
-    // =========================================================
-    // 1. Coconut seed on sand
-    const coconutGeo = new THREE.SphereGeometry(0.22, 14, 12);
-    coconutGeo.scale(1.0, 1.25, 0.95);
+    // A young coconut palm: short sheathed shoot, arching pinnate leaves,
+    // and one folded spear growing from the centre.
+    const coconutGeo = new THREE.SphereGeometry(0.21, 12, 8);
+    coconutGeo.scale(1.22, 0.88, 0.95);
     geometriesToDispose.push(coconutGeo);
-    const coconutMat = new THREE.MeshToonMaterial({ color: 0x5c4033 });
+    const coconutMat = createPixelPropMaterial(config, sharedUniforms, '#68503a', 'scales');
     materialsToDispose.push(coconutMat);
-
     const coconut = new THREE.Mesh(coconutGeo, coconutMat);
-    coconut.position.set(0, 0.14, 0);
-    coconut.rotation.z = 0.25;
-    coconut.rotation.x = 0.15;
+    coconut.name = 'PalmSeed';
+    coconut.position.set(-0.06, 0.12, 0.02);
+    coconut.rotation.set(0.12, rnd() * Math.PI, 0.3);
     coconut.castShadow = true;
     group.add(coconut);
 
-    // 2. Slender emerging green shoot
-    const palmStemCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0.04, 0.22, 0.02),
-      new THREE.Vector3(0.08, 0.55, -0.04),
-      new THREE.Vector3(0.12, 0.85, -0.08),
-      new THREE.Vector3(0.16, saplingHeight, -0.1),
-    ]);
-
-    const palmStemGeo = new THREE.TubeGeometry(palmStemCurve, 16, 0.038, 8, false);
-    geometriesToDispose.push(palmStemGeo);
-    // a young palm's shoot is green: pixel stem drawn with the foliage palette
     const palmStemMat = usePixelSapling
       ? createPixelSaplingStemMaterial(config, sharedUniforms, true)
-      : new THREE.MeshToonMaterial({ color: 0x73a832 });
+      : new THREE.MeshToonMaterial({ color: 0x648333 });
     materialsToDispose.push(palmStemMat);
+    const crownHeight = saplingHeight * 0.57;
+    const stemCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.035, 0.18, 0),
+      new THREE.Vector3(0.045, crownHeight * 0.65, -0.015),
+      new THREE.Vector3(0.07, crownHeight, -0.025),
+    ]);
+    const stemGeo = createClosedTaperedBranchGeo(stemCurve, 0.047, 0.022, 10, 7);
+    geometriesToDispose.push(stemGeo);
+    const stem = new THREE.Mesh(stemGeo, palmStemMat);
+    stem.name = 'PalmShoot'; stem.castShadow = true; group.add(stem);
+    const apex = stemCurve.getPoint(1);
 
-    const palmStem = new THREE.Mesh(palmStemGeo, palmStemMat);
-    palmStem.castShadow = true;
-    group.add(palmStem);
-
-    // 3. 4 young arching palm fronds (simple feather-like cards)
-    const frondCount = 5;
-    const apexPos = palmStemCurve.getPoint(1.0);
-
-    // Apical crown cap closing the stem tube
-    const palmCrownGeo = new THREE.SphereGeometry(0.042, 8, 8);
-    geometriesToDispose.push(palmCrownGeo);
-    const palmCrown = new THREE.Mesh(palmCrownGeo, palmStemMat);
-    palmCrown.position.copy(apexPos);
-    group.add(palmCrown);
-
-    for (let f = 0; f < frondCount; f++) {
-      const frondAngle = (f / frondCount) * Math.PI * 2 + (rnd() - 0.5) * 0.3;
-      const frondGroup = new THREE.Group();
-      frondGroup.position.copy(apexPos);
-      frondGroup.rotation.y = frondAngle;
-
-      // An arching curve for the young palm frond
-      const frondLen = 0.65 + rnd() * 0.2;
-      const frondCurve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(0, 0.12, frondLen * 0.35),
-        new THREE.Vector3(0, 0.08, frondLen * 0.7),
-        new THREE.Vector3(0, -0.08, frondLen),
-      ]);
-
-      const spineGeo = new THREE.TubeGeometry(frondCurve, 10, 0.012, 5, false);
-      geometriesToDispose.push(spineGeo);
-      const spineMesh = new THREE.Mesh(spineGeo, palmStemMat);
-      frondGroup.add(spineMesh);
-
-      // Frond leaflets (paired young blades)
-      const leafletGeo = createCurvedLeafGeometry(0.10, 0.26);
-      geometriesToDispose.push(leafletGeo);
-
-      for (let l = 1; l <= 6; l++) {
-        const t = l / 7.0;
-        const pt = frondCurve.getPoint(t);
-        const lScale = Math.sin(t * Math.PI) * 0.9 + 0.3;
-
-        // Left blade
-        const leafL = new THREE.Mesh(leafletGeo, leafMaterial);
-        leafL.position.copy(pt);
-        leafL.scale.set(lScale, lScale, lScale);
-        leafL.rotation.y = Math.PI / 2 + 0.3;
-        leafL.rotation.x = 0.4;
-        frondGroup.add(leafL);
-
-        // Right blade
-        const leafR = new THREE.Mesh(leafletGeo, leafMaterial);
-        leafR.position.copy(pt);
-        leafR.scale.set(lScale, lScale, lScale);
-        leafR.rotation.y = -Math.PI / 2 - 0.3;
-        leafR.rotation.x = 0.4;
-        frondGroup.add(leafR);
+    // Curved, folded ribbons, with UVs following each blade from base to tip.
+    const blade = (start: THREE.Vector3, end: THREE.Vector3, width: number) => {
+      const geo = new THREE.PlaneGeometry(width, 1, 2, 7);
+      const pos = geo.getAttribute('position'), uv = geo.getAttribute('uv');
+      const direction = end.clone().sub(start);
+      const across = new THREE.Vector3(direction.z, 0, -direction.x).normalize();
+      for (let i = 0; i < pos.count; i++) {
+        const t = uv.getY(i), x = (uv.getX(i) - 0.5) * width;
+        const p = start.clone().addScaledVector(direction, t).addScaledVector(across, x);
+        p.y += Math.sin(t * Math.PI) * direction.length() * 0.16;
+        p.y += (1 - Math.abs(x) / (width * 0.5)) * width * 0.13;
+        pos.setXYZ(i, p.x, p.y, p.z);
       }
+      geo.computeVertexNormals(); geometriesToDispose.push(geo);
+      const mesh = new THREE.Mesh(geo, leafMaterial);
+      mesh.name = 'PalmBlade'; mesh.castShadow = true;
+      return mesh;
+    };
 
-      group.add(frondGroup);
-      leafMeshes.push({
-        mesh: frondGroup,
-        baseRotation: frondGroup.rotation.clone(),
-        phase: f * 1.2,
-        amp: 0.08,
-      });
+    const rotation = rnd() * Math.PI * 2;
+    for (let f = 0; f < 5; f++) {
+      const frond = new THREE.Group(); frond.name = 'PalmFrond';
+      frond.position.copy(apex); frond.position.y -= f * 0.009;
+      frond.rotation.y = rotation + f * Math.PI * 2 / 5 + (rnd() - 0.5) * 0.24;
+      const length = saplingHeight * (0.77 + rnd() * 0.18);
+      const rise = f < 2 ? 0.36 : 0.21;
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(),
+        new THREE.Vector3(0, rise, length * 0.34),
+        new THREE.Vector3(0.02, rise * 0.72, length * 0.7),
+        new THREE.Vector3(0.03, -0.15 - rnd() * 0.09, length),
+      ]);
+      const spineGeo = createClosedTaperedBranchGeo(curve, 0.015, 0.003, 14, 5);
+      geometriesToDispose.push(spineGeo);
+      const spine = new THREE.Mesh(spineGeo, palmStemMat); spine.castShadow = true; frond.add(spine);
+      for (let l = 0; l < 8; l++) {
+        const t = 0.19 + l * 0.091;
+        for (const side of [-1, 1]) {
+          const start = curve.getPoint(t + (side === 1 ? 0.016 : 0));
+          const reach = length * (0.34 * Math.sin(t * Math.PI) + 0.035) * (0.94 + rnd() * 0.12);
+          const end = start.clone().add(new THREE.Vector3(side * reach, -reach * (0.25 + t * 0.45), reach * 0.48));
+          frond.add(blade(start, end, 0.057 + (1 - t) * 0.032));
+        }
+      }
+      frond.add(blade(curve.getPoint(0.84), curve.getPoint(1).add(new THREE.Vector3(0, -0.035, 0.12)), 0.055));
+      group.add(frond);
+      leafMeshes.push({mesh: frond, baseRotation: frond.rotation.clone(), phase: f * 1.7, amp: 0.045});
     }
+    const spear = new THREE.Group(); spear.name = 'PalmSpear'; spear.position.copy(apex);
+    spear.add(blade(new THREE.Vector3(), new THREE.Vector3(0.12, saplingHeight * 0.53, 0.07), 0.09));
+    spear.add(blade(new THREE.Vector3(), new THREE.Vector3(-0.06, saplingHeight * 0.42, -0.13), 0.075));
+    group.add(spear);
+    leafMeshes.push({mesh: spear, baseRotation: spear.rotation.clone(), phase: 2.3, amp: 0.025});
 
   } else if (isPine) {
     // =========================================================

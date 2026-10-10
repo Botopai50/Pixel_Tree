@@ -1,4 +1,5 @@
 import type {StructurePlan,V3,WallSpec,PieceSpec} from './types';
+import {Euler,Vector3} from 'three';
 
 function wallContact(w:WallSpec,p:V3){
  const dx=w.end[0]-w.start[0],dz=w.end[2]-w.start[2],length2=dx*dx+dz*dz;
@@ -51,10 +52,14 @@ export function collapseUnsupportedFraming(plan:StructurePlan,removed:Set<string
 /** Trace actual contact back to the ground; ownership is not a physical support. */
 export function collapseFloatingPieces(plan:StructurePlan,removed:Set<string>){
  const pieces=plan.pieces.filter(p=>!p.removed);
- const bounds=(p:PieceSpec)=>{
-  if(p.end)return {lo:p.position.map((v,i)=>Math.min(v,p.end![i])-p.size[0]/2) as V3,hi:p.position.map((v,i)=>Math.max(v,p.end![i])+p.size[0]/2) as V3};
-  return {lo:p.position.map((v,i)=>v-p.size[i]/2) as V3,hi:p.position.map((v,i)=>v+p.size[i]/2) as V3};
+ const computeBounds=(p:PieceSpec)=>{
+  if(p.end&&(p.kind==='beam'||p.kind==='stairs'))return {lo:p.position.map((v,i)=>Math.min(v,p.end![i])-p.size[0]/2) as V3,hi:p.position.map((v,i)=>Math.max(v,p.end![i])+p.size[0]/2) as V3};
+  const corners:V3[]=[];for(const x of [-1,1])for(const y of [-1,1])for(const z of [-1,1]){
+   const v=new Vector3(x*p.size[0]/2,y*p.size[1]/2,z*p.size[2]/2);if(p.rotation)v.applyEuler(new Euler(...p.rotation));corners.push(v.toArray().map((v,i)=>v+p.position[i]) as V3);
+  }
+  return {lo:[0,1,2].map(i=>Math.min(...corners.map(v=>v[i]))) as V3,hi:[0,1,2].map(i=>Math.max(...corners.map(v=>v[i]))) as V3};
  };
+ const boundCache=new Map(pieces.map(p=>[p.id,computeBounds(p)]));const bounds=(p:PieceSpec)=>boundCache.get(p.id)!;
  const grounded=new Set(pieces.filter(p=>bounds(p).lo[1]<=.35).map(p=>p.id));
  const contact=(point:V3,p:PieceSpec)=>{
   if(p.kind==='beam'&&p.end){
@@ -66,16 +71,64 @@ export function collapseFloatingPieces(plan:StructurePlan,removed:Set<string>){
   return point.every((v,i)=>v>=b.lo[i]-.12&&v<=b.hi[i]+.12);
  };
  const samples=(p:PieceSpec):V3[]=>{
-  if(p.end){const lower=p.position[1]<p.end[1]?p.position:p.end;return Math.abs(p.end[1]-p.position[1])>Math.hypot(p.end[0]-p.position[0],p.end[2]-p.position[2])?[lower]:[p.position,p.end];}
+  if(p.end&&(p.kind==='beam'||p.kind==='stairs')){const lower=p.position[1]<p.end[1]?p.position:p.end;return Math.abs(p.end[1]-p.position[1])>Math.hypot(p.end[0]-p.position[0],p.end[2]-p.position[2])?[lower]:[p.position,p.end];}
   const b=bounds(p),y=b.lo[1];
-  if(p.size[0]>.9||p.size[2]>.9)return [-1,1].flatMap(x=>[-1,1].map(z=>[p.position[0]+x*Math.max(0,p.size[0]/2-.16),y,p.position[2]+z*Math.max(0,p.size[2]/2-.16)] as V3));
+  if(p.size[0]>.9||p.size[2]>.9||/floor|deck|gallery|walkway|observation|truss|lintel|crown|cornice|platform/.test(p.role))return [-1,1].flatMap(x=>[-1,1].map(z=>[p.position[0]+x*Math.max(0,p.size[0]/2-.16),y,p.position[2]+z*Math.max(0,p.size[2]/2-.16)] as V3));
   return [[p.position[0],y,p.position[2]]];
  };
  let changed=true;
  while(changed){changed=false;for(const p of pieces){
   if(grounded.has(p.id))continue;
-  const points=samples(p),hits=points.filter(point=>plan.walls.some(w=>!w.removed&&wallContact(w,point))||pieces.some(s=>s.id!==p.id&&grounded.has(s.id)&&contact(point,s))).length;
-  if(hits>=Math.min(points.length,3)){grounded.add(p.id);changed=true;}
+  const points=samples(p),providers=new Map<string,V3[]>();
+  for(const point of points){
+   for(const w of plan.walls)if(!w.removed&&wallContact(w,point)){const hits=providers.get(w.id)??[];hits.push(point);providers.set(w.id,hits);}
+   for(const s of pieces)if(s.id!==p.id&&grounded.has(s.id)&&contact(point,s)){const hits=providers.get(s.id)??[];hits.push(point);providers.set(s.id,hits);}
+  }
+  const hitPoints=points.filter(point=>[...providers.values()].some(hits=>hits.includes(point)));
+  // A single narrow post must never masquerade as several supports because
+  // multiple sample points happen to touch its bounding box.
+  const span=points.length>1&&(/floor|deck|gallery|walkway|observation|truss|lintel|crown|cornice|platform/.test(p.role)||p.kind==='beam');
+  const continuousBearing=[...providers].some(([id,hits])=>{
+   const bearing=pieces.find(s=>s.id===id);
+   if(bearing&&(bearing.kind==='beam'||bearing.material==='wood'))return false;
+   return hits.some(a=>hits.some(b=>Math.hypot(a[0]-b[0],a[2]-b[2])>.45));
+  });
+  const enough=hitPoints.length>=Math.min(points.length,span?2:3)&&(!span||providers.size>=2||continuousBearing);
+  // Authored masonry spans comprise several touching blocks. Their two
+  // declared piers support the assembly, rather than each block separately.
+  const masonryAssembly=['ancient-lintel','ancient-arch-wedge','ancient-keystone'].includes(p.role);
+  const anchors=plan.supports.filter(s=>s.component===p.id);
+  const anchoredAssembly=masonryAssembly&&new Set(anchors.map(s=>s.on)).size>=2&&anchors.every(s=>grounded.has(s.on));
+  if(enough||anchoredAssembly){grounded.add(p.id);changed=true;}
  }}
  for(const p of pieces)if(!grounded.has(p.id)){p.removed=true;removed.add(p.id);}
+ // Roof ownership by a foundation does not make the roof load-bearing.
+ for(const roof of plan.roofs.filter(r=>!r.removed)){
+  const providers=new Set<string>();let contacts=0;
+  for(const x of [-1,1])for(const z of [-1,1]){
+   const point:V3=[roof.x+x*(roof.width/2-.10),roof.y,roof.z+z*(roof.depth/2-.10)];let hit=false;
+   for(const w of plan.walls)if(!w.removed&&wallContact(w,point)){providers.add(w.id);hit=true;}
+   for(const p of pieces)if(grounded.has(p.id)&&contact(point,p)){providers.add(p.id);hit=true;}
+   if(hit)contacts++;
+  }
+  if(contacts<2||providers.size<2){roof.removed=true;removed.add(roof.id);}
+ }
+}
+
+/** Re-run geometric and declared supports until the entire ruin is stable. */
+export function enforceRuinSupports(plan:StructurePlan,removed:Set<string>){
+ const items=[...plan.walls,...plan.roofs,...plan.pieces],byId=new Map(items.map(p=>[p.id,p]));
+ const dependencies=new Map<string,typeof plan.supports>();
+ for(const edge of plan.supports){const links=dependencies.get(edge.component)??[];links.push(edge);dependencies.set(edge.component,links);}
+ let previous=-1;
+ while(previous!==removed.size){
+  previous=removed.size;
+  for(const [id,links] of dependencies){
+   const item=byId.get(id);if(!item||item.removed)continue;
+   const surviving=new Set(links.filter(s=>s.on==='ground'||byId.has(s.on)&&!removed.has(s.on)&&!byId.get(s.on)!.removed).map(s=>s.on)).size;
+   if(surviving<(links[0].minimum??new Set(links.map(s=>s.on)).size)){item.removed=true;removed.add(id);}
+  }
+  collapseUnsupportedFraming(plan,removed);
+  collapseFloatingPieces(plan,removed);
+ }
 }

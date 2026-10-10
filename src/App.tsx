@@ -11,7 +11,10 @@ import { SpeciesBar } from './components/SpeciesBar';
 import { Sparkles } from 'lucide-react';
 
 export default function App() {
-  const [treeConfig, setTreeConfig] = useState<AssetConfig>(TREE_PRESETS.swamp_mangrove);
+  const [treeConfig, setTreeConfig] = useState<AssetConfig>(() => {
+    const asset = new URLSearchParams(window.location.search).get('asset') as AssetId | null;
+    return asset && ASSET_PRESETS[asset] ? ASSET_PRESETS[asset] : TREE_PRESETS.swamp_mangrove;
+  });
   const [envConfig, setEnvConfig] = useState<EnvironmentConfig>({
     timeOfDay: 'day',
     showGrass: true,

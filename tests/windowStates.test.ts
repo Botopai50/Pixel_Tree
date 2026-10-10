@@ -30,7 +30,7 @@ test('closed leaves meet at the center and partial leaves swing outside the wall
   const along=new THREE.Vector3(...w.end).sub(new THREE.Vector3(...w.start)).normalize();
   const outward=new THREE.Vector3(along.z,0,-along.x);
   const center=new THREE.Vector3(...w.start).add(new THREE.Vector3(...w.end)).multiplyScalar(.5).addScaledVector(along,o.offset);
-  const result=renderStructure(plan,{...source.structure,type:'underground'});
+  const result=renderStructure(plan,{...source.structure},{batch:false});
   try{
    const leaves=result.assetGroup.children.filter(p=>p.name===o.id+'_shutter') as THREE.Mesh[];
    assert.equal(leaves.length,2);

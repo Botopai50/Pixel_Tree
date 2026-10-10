@@ -55,16 +55,17 @@ export function ancientRuins(c:GrammarContext){
   }
  }
  // The rear gateway uses separate wedge-shaped voussoirs and a central keystone.
- const radius=Math.min(w*.235,h*.52),archZ=d*.32,spring=floor+h*.49,archDepth=.65,ring=.42;
+ const radius=Math.min(w*.235,h*.52),archZ=d*.32,spring=floor+h*.49,archDepth=.65,ring=.42;const archPiers:string[]=[];
  for(const side of [-1,1]){
   let support=stone([side*radius,floor+.18,archZ],[.88,.36,.91],'ancient-arch-foot');
   const count=Math.max(3,Math.ceil((spring-floor-.36)/.5)),height=(spring-floor-.36)/count;
   for(let i=0;i<count;i++)support=stone([side*radius,floor+.36+(i+.5)*height,archZ],[.66,height-.012,.66],'ancient-arch-pier',support);
-  stone([side*radius,spring-.08,archZ],[.98,.22,.92],'ancient-arch-capital',support);
+  archPiers.push(stone([side*radius,spring-.08,archZ],[.98,.22,.92],'ancient-arch-capital',support));
  }
  for(let i=0;i<13;i++){
   const angle=(i+.5)*Math.PI/13;
   const id=a.piece('arch',[0,spring,archZ],[radius,ring,archDepth],'stone',i===6?'ancient-keystone':'ancient-arch-wedge',base,[0,0,angle]);
+  a.depend(id,archPiers,2);
   if(i===3||i===8)ivy([Math.cos(angle)*(radius+.08),spring+Math.sin(angle)*(radius+.05),archZ-.36],1.3,id);
  }
  // Fallen masonry stays near the perimeter rather than blocking the open hall.

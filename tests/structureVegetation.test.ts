@@ -13,3 +13,9 @@ test('support tree shares native scene lighting and fog and cabin uses wooden ac
  assert.ok(plan.pieces.filter(p=>p.role==='foundation').every(p=>p.material==='wood'));
  asset.dispose();
 });
+test('destroyed treehouse does not retain flowers or ivy in mid-air',()=>{
+ const asset=createStructure(fixture('treehouse',42,{ruin:1,vegetation:1}));
+ const floating:string[]=[];
+ asset.group.traverse(o=>{if(o.name.startsWith('Treehouse'))floating.push(o.name);});
+ assert.deepEqual(floating,[]);asset.dispose();
+});

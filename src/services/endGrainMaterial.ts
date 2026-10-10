@@ -75,7 +75,7 @@ const FRAGMENT = /* glsl */ `
   float h1(float n) { return fract(sin(n * 12.9898 + 4.1) * 43758.5453); }
 
   void main() {
-    const float PI = 3.14159265;
+    const float GRAIN_PI = 3.14159265;
     float R = max(vGrainR, 0.03);
     float texel = 1.0 / uTexelsPerMetre;                   // metres per texel
     // a whole number of texels across the face, so the grid sits on the pith
@@ -100,9 +100,9 @@ const FRAGMENT = /* glsl */ `
     for (int k = 0; k < 3; k++) {
       float fk = float(k);
       if (fk > 1.0 && h1(uSeed + 5.0) < 0.5) break;
-      float ca = h1(uSeed + fk * 3.7) * 2.0 * PI;
+      float ca = h1(uSeed + fk * 3.7) * 2.0 * GRAIN_PI;
       float len = 0.35 + 0.45 * h1(uSeed + fk * 9.1);
-      float d = abs(mod(ang - ca + PI, 2.0 * PI) - PI) * rw;   // metres off the crack line
+      float d = abs(mod(ang - ca + GRAIN_PI, 2.0 * GRAIN_PI) - GRAIN_PI) * rw;   // metres off the crack line
       if (d < texel * 0.55 && rho < len && rw > texel * 1.5) idx = 0.0;
     }
 
