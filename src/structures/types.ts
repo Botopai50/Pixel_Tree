@@ -1,5 +1,5 @@
 import type { RockBiome } from '../types';
-export type StructureKind='house'|'largeHouse'|'cabin'|'abandonedHouse'|'ruinedHouse'|'farm'|'barn'|'stable'|'watchtower'|'ruinedTower'|'windmill'|'fortress'|'castle'|'ruinedCastle'|'ancientRuins'|'temple'|'bridge'|'wall'|'gate'|'camp'|'outpost'|'mansion'|'treehouse'|'desert'|'swamp'|'snowy'|'mine'|'dock'|'lighthouse';
+export type StructureKind='house'|'largeHouse'|'cabin'|'abandonedHouse'|'ruinedHouse'|'farm'|'barn'|'stable'|'watchtower'|'ruinedTower'|'windmill'|'fortress'|'castle'|'ruinedCastle'|'ancientRuins'|'temple'|'bridge'|'wall'|'gate'|'camp'|'outpost'|'mansion'|'treehouse'|'desert'|'swamp'|'snowy'|'mine'|'dock'|'lighthouse'|'stoneLantern';
 export type StructureId=`structure_${StructureKind}`;
 export type V3=[number,number,number];
 export type SurfaceMaterial='wood'|'stone'|'plaster'|'roof'|'thatch'|'metal'|'cloth'|'dark'|'earth'|'water';

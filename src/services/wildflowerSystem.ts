@@ -132,3 +132,6 @@ export function createWildflowerKit(config:TreeConfig,light:THREE.Vector3,texels
     return plant;
   }};
 }
+
+// Shared grid and palette used by other low plants, including aquatic leaves.
+export {paintedGrid as createPaintedPlantGrid, paletteMaterial as createPlantPaletteMaterial};

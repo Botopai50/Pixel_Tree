@@ -2226,6 +2226,30 @@ export const TREE_PRESETS: Record<string, TreeConfig> = {
     windStrength: 0.35,
   },
 
+  lilyPads: {
+    ...PLANT_BASE, id: 'lilyPads', species: 'lilyPads', name: 'Vitória-régia',
+    seed: 4721, trunkHeight: .6, branchCount: 0, windStrength: 0,
+    foliageColorTop: '#789844', foliageColorBottom: '#354e27',
+  },
+  duckweed: {
+    ...PLANT_BASE, id: 'duckweed', species: 'duckweed', name: "Lentilha-d'água",
+    seed: 4823, trunkHeight: .6, branchCount: 0, windStrength: 0,
+    foliageColorTop: '#7da34b', foliageColorBottom: '#3f622f',
+  },
+  pneumatophore_patch: {
+    ...PLANT_BASE,
+    id: 'pneumatophore_patch',
+    name: 'Pneumatóforos',
+    species: 'pneumatophore_patch',
+    seed: 4571,
+    trunkHeight: 0.7,
+    rootSpread: 1.15,
+    barkColor: '#776e5b',
+    foliageColorTop: '#6e8a42',
+    foliageColorBottom: '#32452c',
+    windStrength: 0,
+  },
+
   fern_plant: {
     ...PLANT_BASE,
     id: 'fern_plant',

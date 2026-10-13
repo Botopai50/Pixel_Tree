@@ -160,6 +160,9 @@ const SHRUB_BIOME: Record<string, string> = {
   maple_orange: 'maple',
   maple_yellow: 'maple',
   fern_plant: 'korok_ancient',
+  pneumatophore_patch: 'swamp_mangrove',
+  lilyPads: 'marsh',
+  duckweed: 'marsh',
   wildflower_patch: 'hyrule_oak',
   reed_clump: 'marsh',
   satori_shrub: 'satori_sakura',
@@ -1030,6 +1033,8 @@ function buildTree(config: TreeConfig): TreeInstance {
   const isSnowyGround = (config.snowCover ?? 0) > 0.05;
   const moundColor = isSnowyGround
     ? 0xe4edf6 // Hebra snowfield
+    : config.species === 'pneumatophore_patch'
+    ? 0x786e55 // Exposed damp sediment around breathing roots
     : biome.startsWith('desert_shrub')
     ? 0xd4a359 // Gerudo sand
     : biome.startsWith('savanna_acacia')

@@ -57,6 +57,9 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
   ({ treeConfig:assetConfig, envConfig, onFpsUpdate, viewInsetBottom = 0, viewInsetRight = 0 }, ref) => {
     const structureConfig=isStructure(assetConfig)?assetConfig:undefined;
     const treeConfig=isStructure(assetConfig)?undefined:assetConfig;
+    // The animation loop is created once; always read the selected item here.
+    const liveConfigRef = useRef({ treeConfig, envConfig });
+    liveConfigRef.current = { treeConfig, envConfig };
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const viewInsetRef = useRef(viewInsetBottom);
@@ -217,7 +220,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
 
         // Auto-rotation turntable
         if (controlsRef.current) {
-          controlsRef.current.autoRotate = envConfig.autoRotate;
+          controlsRef.current.autoRotate = liveConfigRef.current.envConfig.autoRotate;
           controlsRef.current.autoRotateSpeed = 1.2;
           controlsRef.current.update();
         }
@@ -228,8 +231,9 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         }
 
         // Update falling leaf particles
-        if (particleSystemRef.current) {
-          particleSystemRef.current.update(delta, treeConfig);
+        const currentTreeConfig = liveConfigRef.current.treeConfig;
+        if (particleSystemRef.current && currentTreeConfig) {
+          particleSystemRef.current.update(delta, currentTreeConfig);
         }
 
         renderer.render(scene, camera);

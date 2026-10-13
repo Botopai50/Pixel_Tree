@@ -1,7 +1,8 @@
+import {buildAquaticPatch} from './aquaticPlantGenerator';
 import * as THREE from 'three';
 import { TreeConfig } from '../types';
 import { createReedHeadResources, faceCameraHorizontally } from './reedHeadSprite';
-import { pixelTextureLightDir, resolvePixelTextureParams } from './pixelArtTextureSystem';
+import { createPixelSaplingStemMaterial, pixelTextureLightDir, resolvePixelTextureParams } from './pixelArtTextureSystem';
 import { flowerSprite } from './fruitSystem';
 import { makeSprite, spriteMaterial } from './pixelSprites';
 
@@ -27,10 +28,12 @@ import { makeSprite, spriteMaterial } from './pixelSprites';
  * panel; trunkHeight scales the plant.
  */
 
-type PlantKind = 'fern' | 'wildflowers' | 'reeds';
+type PlantKind = 'fern' | 'wildflowers' | 'reeds' | 'pneumatophores' | 'lilyPads' | 'duckweed';
 
 export function plantKindOf(config: TreeConfig): PlantKind {
   const s = config.species as string;
+  if(s==='lilyPads'||s==='duckweed')return s;
+  if (s.startsWith('pneumatophore')) return 'pneumatophores';
   if (s.startsWith('reed')) return 'reeds';
   if (s.startsWith('wildflower')) return 'wildflowers';
   return 'fern';
@@ -319,6 +322,7 @@ export function buildGroundPlant(
   sharedUniforms: Record<string, THREE.IUniform>,
   rnd: () => number
 ): GroundPlantResult {
+  if(config.species==='lilyPads'||config.species==='duckweed')return buildAquaticPatch(config,rnd);
   const kind = plantKindOf(config);
   const group = new THREE.Group();
   group.name = 'GroundPlant';
@@ -343,7 +347,54 @@ export function buildGroundPlant(
     return m;
   };
 
-  if (kind === 'fern') {
+  if (kind === 'pneumatophores') {
+    // Rounded woody fingers growing in loose clusters from buried roots.
+    const mat = createPixelSaplingStemMaterial(config, sharedUniforms);
+    mat.uniforms.uTexelsPerMetre.value = 44;
+    materials.push(mat);
+    spread = Math.max(0.45, config.rootSpread || 1.15);
+    const anchors: THREE.Vector2[] = [];
+    const clusters = Array.from({length: 4}, (_, i) => {
+      const angle = i * Math.PI * 0.5 + rnd() * 0.65;
+      return new THREE.Vector2(Math.cos(angle), Math.sin(angle)).multiplyScalar(spread * (0.32 + rnd() * 0.3));
+    });
+    const count = 20 + Math.floor(rnd() * 7);
+    for (let i = 0; i < count; i++) {
+      const centre = clusters[i % clusters.length];
+      let anchor = new THREE.Vector2();
+      for (let attempt = 0; attempt < 45; attempt++) {
+        const angle = rnd() * Math.PI * 2, distance = Math.sqrt(rnd()) * spread * 0.37;
+        anchor.set(centre.x + Math.cos(angle) * distance, centre.y + Math.sin(angle) * distance);
+        if (anchors.every(p => p.distanceTo(anchor) > 0.14)) break;
+      }
+      anchors.push(anchor.clone());
+      const height = size * (0.25 + Math.pow(rnd(), 0.65) * 0.45);
+      const radius = 0.036 + rnd() * 0.018;
+      const profile = [
+        new THREE.Vector2(0, -0.025),
+        new THREE.Vector2(radius * 1.35, -0.025),
+        new THREE.Vector2(radius * 1.10, height * 0.08),
+        new THREE.Vector2(radius, height * 0.35),
+        new THREE.Vector2(radius * 0.88, height * 0.67),
+        new THREE.Vector2(radius * 0.73, height - radius * 0.52),
+        new THREE.Vector2(radius * 0.52, height - radius * 0.15),
+        new THREE.Vector2(0, height),
+      ];
+      const geo = new THREE.LatheGeometry(profile, 8);
+      const positions = geo.getAttribute('position');
+      const bendX = (rnd() - 0.5) * height * 0.35;
+      const bendZ = (rnd() - 0.5) * height * 0.35;
+      for (let v = 0; v < positions.count; v++) {
+        const t = Math.max(0, positions.getY(v) / height);
+        positions.setXYZ(v, positions.getX(v) + bendX * t * t,
+          positions.getY(v), positions.getZ(v) + bendZ * t * t);
+      }
+      geo.computeVertexNormals(); geometries.push(geo);
+      const root = new THREE.Mesh(geo, mat);
+      root.name = 'Pneumatophore'; root.position.set(anchor.x, 0, anchor.y);
+      root.castShadow = true; root.receiveShadow = true; group.add(root);
+    }
+  } else if (kind === 'fern') {
     // ---- fronds arching out of one crown ---------------------------------
     const fronds = new RibbonBuffers();
     const count = 9 + Math.floor(rnd() * 6);
