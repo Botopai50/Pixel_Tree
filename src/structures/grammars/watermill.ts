@@ -1,4 +1,7 @@
 import {Architect} from '../blueprint';
+import {woodenBarrel} from './barrel';
+import {woodenCrate} from './crate';
+import {placeObject} from '../objectProps';
 import type {GrammarContext,V3,SurfaceMaterial} from '../types';
 
 export function watermill(c:GrammarContext){
@@ -15,6 +18,14 @@ export function watermill(c:GrammarContext){
  opening(3,'window',-house.depth*.28,house.height*.43,1.0*u,1.08*u);
  opening(1,'window',0,house.height*.40,1.0*u,1.08*u);
  const front=house.z-house.depth/2,back=house.z+house.depth/2,left=house.x-house.width/2;
+ const doorX=house.x-house.width*.22;
+ const stair=a.plan.pieces.find(piece=>piece.kind==='stairs');
+ const stairFrom:V3=[doorX,0,front-1.9*u],stairTo:V3=[doorX,base,front];
+ if(stair){
+  stair.position=stairFrom;stair.end=stairTo;stair.size=[1.55*u,base,1.9*u];
+  const access=a.plan.accesses.find(access=>access.role==='stairs')!;
+  access.from=stairFrom;access.to=stairTo;access.width=1.55*u;
+ }else a.stairs(stairFrom,stairTo,1.55*u);
  for(const z of [front-.10*u,back+.10*u]){
   a.beam([house.x,base,z],[house.x,eave+roof.rise,z],.22*u,'wood','watermill-gable-post');
   for(const side of [-1,1])a.beam([house.x,eave+.06*u,z],[house.x+side*house.width*.35,eave+roof.rise*.30,z],.17*u,'wood','watermill-gable-brace');
@@ -58,11 +69,8 @@ export function watermill(c:GrammarContext){
  a.piece('column',[wheelX,wheelY,wheelZ],[radius*.37,wheelWidth+.24*u,radius*.37],'wood','watermill-wheel-hub');
  box([pierX-.19*u,wheelY,wheelZ],[.07*u,.32*u,.32*u],'metal','watermill-bearing');
  nail([pierX-.235*u,wheelY,wheelZ],[0,-Math.PI/2,0],.095*u);
- const barrelX=house.x+house.width*.28,barrelZ=front-.45*u;
- a.piece('column',[barrelX,.34*u,barrelZ],[.42*u,.65*u,.42*u],'wood','barn-barrel');
- for(const y of [.12,.54])a.piece('column',[barrelX,y*u,barrelZ],[.41*u,.045*u,.41*u],'metal','barn-barrel-hoop');
- a.piece('column',[barrelX,.66*u,barrelZ],[.34*u,.02*u,.34*u],'wood','barn-barrel-lid');
- box([barrelX-.33*u,.14*u,barrelZ],[.32*u,.28*u,.30*u],'wood','watermill-crate');
- for(const side of [-1,1])box([barrelX-.33*u+side*.135*u,.14*u,barrelZ-.156*u],[.045*u,.30*u,.035*u],'wood','watermill-crate-frame');
+ const barrelX=house.x+house.width*.32;
+ placeObject(a.plan,woodenBarrel({...c,config:{...p,type:'woodenBarrel',width:.70*u,depth:.70*u,height:.94*u}}),'mill_barrel',[barrelX,0,front-.62*u]);
+ placeObject(a.plan,woodenCrate({...c,config:{...p,type:'woodenCrate',width:.78*u,depth:.68*u,height:.71*u}}),'mill_crate',[barrelX-.94*u,0,front-.62*u]);
  return a.finish();
 }

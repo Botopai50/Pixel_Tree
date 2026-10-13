@@ -53,11 +53,11 @@ export function renderStructure(plan:StructurePlan,c:StructureConfig,options:{ba
   const map=watermillWaterTexture(c.texelsPerMetre,plan.seed),water=new THREE.MeshStandardMaterial({map,roughness:.4});
   resources.textures.add(map);resources.materials.add(water);campMaterials.set('watermill-channel-water',water);
  }
- if(c.type==='woodenCrate'){
+ if(plan.pieces.some(piece=>piece.role==='crate-core')){
   const core=materials.wood.clone();core.color.setScalar(.48);core.onBeforeCompile=materials.wood.onBeforeCompile;core.customProgramCacheKey=materials.wood.customProgramCacheKey;
   resources.materials.add(core);campMaterials.set('crate-core',core);
  }
- if(c.type==='woodenBarrel'){
+ if(plan.pieces.some(piece=>piece.role==='barrel-core')){
   const wood=materials.wood;
   const staves=wood.clone();staves.vertexColors=true;staves.onBeforeCompile=wood.onBeforeCompile;staves.customProgramCacheKey=wood.customProgramCacheKey;
   const core=wood.clone();core.color.setScalar(.52);core.onBeforeCompile=wood.onBeforeCompile;core.customProgramCacheKey=wood.customProgramCacheKey;
