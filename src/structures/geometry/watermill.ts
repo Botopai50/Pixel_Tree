@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type {PieceSpec} from '../types';
 import {buildAncientPiece} from './ancientRuins';
 import {buildCratePiece} from './crate';
+import {box,merge} from './common';
 
 export function watermillWaterTexture(density:number,seed:number){
  const w=Math.max(32,Math.round(density*2)),h=Math.max(64,Math.round(density*4)),data=new Uint8Array(w*h*4);
@@ -15,6 +16,15 @@ export function watermillWaterTexture(density:number,seed:number){
 
 export function buildWatermillPiece(p:PieceSpec){
  if(!p.role.startsWith('watermill-'))return;
+ if(p.role==='watermill-channel-base'){
+  const [w,h,d]=p.size,bank=h*.60,floor=h*.30,inner=w-bank*2,parts:THREE.BufferGeometry[]=[box([0,-h/2+floor/2,0],[w,floor,d])];
+  for(const side of [-1,1]){
+   parts.push(box([side*(w/2-bank/2),floor/2,0],[bank,h-floor,d]));
+   parts.push(box([0,-h/2+floor+h*.10,side*(d/2-bank/2)],[inner,h*.20,bank]));
+  }
+  const g=merge(parts);g.translate(...p.position);return g;
+ }
+ if(p.role==='watermill-pier'){const g=new THREE.BoxGeometry(...p.size);g.translate(...p.position);return g;}
  if(p.role==='watermill-bolt')return buildCratePiece({...p,role:'crate-rivet'});
  if(p.role==='watermill-wheel-rim'){
   const outer=p.size[0]/2,inner=outer-p.size[1],depth=p.size[2],angle=p.rotation![0]+Math.PI/2,half=Math.PI/16-.002,shape=new THREE.Shape();

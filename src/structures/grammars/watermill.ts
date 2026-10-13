@@ -25,29 +25,15 @@ export function watermill(c:GrammarContext){
   box([x+side*.176,base+.24*u,z],[.035,.042,.042],'metal','watermill-bolt','ground',[0,side*Math.PI/2,0]);
  }
  const masonry=(position:V3,size:V3)=>box(position,size,'stone','watermill-masonry');
- // Staggered courses wrap the foundation and both channel banks.
- const course=(axis:'x'|'z',center:V3,length:number,thickness:number,row:number)=>{
-  const count=Math.max(2,Math.round(length/(.52*u))),step=length/count;
-  for(let i=-1;i<count+1;i++){
-   const lo=Math.max(-length/2,-length/2+(i+(row%2)*.5)*step),hi=Math.min(length/2,-length/2+(i+1+(row%2)*.5)*step);
-   if(hi-lo<.04*u)continue;
-   masonry([center[0]+(axis==='x'?(lo+hi)/2:0),center[1],center[2]+(axis==='z'?(lo+hi)/2:0)],axis==='x'?[hi-lo-.008*u,.20*u-.004*u,thickness]:[thickness,.20*u-.004*u,hi-lo-.008*u]);
-  }
- };
- for(let row=0;row<2;row++)for(const side of [-1,1]){
-  course('x',[house.x,(row+.5)*.20*u,house.z+side*(house.depth/2+.055*u)],house.width+.23*u,.24*u,row);
-  course('z',[house.x+side*(house.width/2+.055*u),(row+.5)*.20*u,house.z],house.depth-.20*u,.24*u,row);
- }
+ const foundation=a.plan.pieces.find(piece=>piece.role==='foundation')!;
+ foundation.size=[house.width+.35*u,base,house.depth+.35*u];
  const radius=Math.min(h*.29,d*.19),wheelWidth=radius*.62,wheelX=left-wheelWidth/2-.50*u,wheelZ=house.z-house.depth*.16,wheelY=radius+.14*u;
  const channelW=wheelWidth+.36*u,channelL=d*1.05;
- box([wheelX,.06*u,house.z],[channelW+.48*u,.12*u,channelL],'stone','watermill-channel-bed');
+ box([wheelX,.20*u,house.z],[channelW+.48*u,.40*u,channelL],'stone','watermill-channel-base');
  box([wheelX,.185*u,house.z],[channelW,.018*u,channelL-.24*u],'water','watermill-channel-water');
- for(let row=0;row<2;row++)for(const side of [-1,1])course('z',[wheelX+side*(channelW/2+.12*u),(row+.5)*.20*u,house.z],channelL,.24*u,row);
- for(const side of [-1,1])course('x',[wheelX,.10*u,house.z+side*(channelL/2-.12*u)],channelW,.24*u,0);
  const pierX=wheelX-wheelWidth/2-.34*u;
  masonry([pierX,.13*u,wheelZ],[.51*u,.26*u,.61*u]);
- const courses=Math.max(3,Math.ceil((wheelY-.26*u)/(.27*u))),height=(wheelY-.26*u)/courses;
- for(let i=0;i<courses;i++)masonry([pierX,.26*u+(i+.5)*height,wheelZ],[.34*u,height-.007*u,.46*u]);
+ box([pierX,(wheelY+.26*u)/2,wheelZ],[.34*u,wheelY-.26*u,.46*u],'stone','watermill-pier');
  masonry([pierX,wheelY+.055*u,wheelZ],[.43*u,.11*u,.54*u]);
  const axleLeft=pierX-.16*u,axleRight=left+.22*u;
  a.piece('column',[(axleLeft+axleRight)/2,wheelY,wheelZ],[.19*u,axleRight-axleLeft,.19*u],'metal','watermill-axle');
