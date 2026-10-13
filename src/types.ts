@@ -44,7 +44,6 @@ export type TreeSpecies =
   | 'arctic_willow'
   | 'lilyPads'
   | 'duckweed'
-  | 'pneumatophore_patch'
   | 'fern_plant'
   | 'wildflower_patch'
   | 'reed_clump'

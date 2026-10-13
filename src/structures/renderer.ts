@@ -1,3 +1,9 @@
+import {toolSpriteTexture} from './geometry/toolSprites';
+import {fountainStoneTexture} from './geometry/fountainStone';
+import {provisionFabricTexture,provisionRopeTexture} from './geometry/provisions';
+import {watermillWaterTexture} from './geometry/watermill';
+import {buildSceneryPiece,sceneryMossTexture} from './geometry/scenery';
+import {isSceneryType} from './sceneryTypes';
 import {buildStoneLanternPiece,stoneLanternGlassTexture} from './geometry/stoneLantern';
 import {buildGatePiece} from './geometry/gate';
 import {buildCurtainWallPiece} from './geometry/wall';
@@ -26,7 +32,7 @@ import {buildOpenShutter} from './geometry/shutters';
 import {paintWallSurface} from './wallPainting';
 
 import * as THREE from 'three';import type {StructurePlan,StructureConfig,PieceSpec,WallSpec} from './types';import {StructureResources,createStructureMaterials} from './materials';import {buildWall} from './geometry/walls';import {buildRoof,buildRidgeCap,buildEaveFascia,buildHipCover,buildHipFascia} from './geometry/roofs';import {buildBeam} from './geometry/beams';import {buildArch} from './geometry/arches';import {buildStairs} from './geometry/stairs';import {box,merge} from './geometry/common';
-function pieceGeometry(p:PieceSpec,plan:StructurePlan,c:StructureConfig){if(plan.type==='stoneLantern'){const g=buildStoneLanternPiece(p);if(g)return g;}if(plan.type==='gate'){const g=buildGatePiece(p);if(g)return g;}if(plan.type==='wall'){const g=buildCurtainWallPiece(p);if(g)return g;}if(plan.type==='temple'){const g=buildTemplePiece(p);if(g)return g;}if(plan.type==='ancientRuins'){const g=buildAncientPiece(p);if(g)return g;}if(plan.type==='farm'){const g=buildFarmPiece(p);if(g)return g;}if(plan.type==='stable'){const g=buildStablePiece(p);if(g)return g;}if(plan.type==='mine'){const g=buildMinePiece(p);if(g)return g;}if(plan.type==='snowy'){const g=buildSnowyPiece(p);if(g)return g;}if(plan.type==='swamp'){const g=buildSwampPiece(p);if(g)return g;}if(plan.type==='desert'){const g=buildDesertPiece(p);if(g)return g;}if(p.role==='camp-firewood'||p.role==='camp-firewood-end')return buildCampPiece(p)!;if(plan.type==='outpost'){const g=buildOutpostPiece(p);if(g)return g;}if((plan.type==='bridge'||plan.type==='dock')){const variant=buildBridgeVariantPiece(p);if(variant)return variant;}if(plan.type==='camp'){if(p.role==='camp-barrel')return buildFortressBarrel(p);const geometry=buildCampPiece(p);if(geometry)return geometry;}if(p.role==='lighthouse-finial'){const g=new THREE.ConeGeometry(p.size[0]/2,p.size[1],8);g.translate(...p.position);return g;}if(p.role==='lantern'&&plan.type==='lighthouse'){const g=new THREE.CylinderGeometry(p.size[0]/2,p.size[0]/2,p.size[1],8);g.rotateY(Math.PI/8);g.translate(...p.position);return g;}if(p.role==='temple-glyph')return buildTempleGlyph(p);if(p.role==='fortress-window-glow')return buildFortressWindow(p);if(['fortress-banner','fortress-tower-standard','castle-banner','castle-standard'].includes(p.role))return buildFortressBanner(p);if((p.role==='fortress-barrel'||p.role==='tower-barrel'||p.role==='barn-barrel'))return buildFortressBarrel(p);if(p.role==='fortress-well'||p.role==='fortress-well-rim')return buildFortressParapet(p);if(['fortress-barrel-hoop','fortress-barrel-lid','fortress-well-depth','tower-barrel-hoop','tower-barrel-lid','barn-barrel-hoop','barn-barrel-lid'].includes(p.role)){const g=new THREE.CylinderGeometry(p.size[0]/2,p.size[0]/2,p.size[1],12);g.translate(...p.position);return g;}if(p.role==='fortress-watch-roof')return buildMillCap(p);if(p.role==='fortress-tower')return buildFortressTower(p,plan.pieces.find(x=>x.role==='fortress-curtain')!.size[1]);if(p.role==='fortress-parapet'||p.role==='fortress-tower-timber-ring')return buildFortressParapet(p);if(p.role==='fortress-gate-wall')return buildFortressGateWall(p);if(p.role==='fortress-gate')return buildMillDoor(p);if(['fortress-tower-foot','fortress-tower-cornice','fortress-tower-band','fortress-watch-loft'].includes(p.role)){const sides=p.role==='fortress-watch-loft'?8:12;const g=new THREE.CylinderGeometry(p.size[0]/2,p.size[0]/2,p.size[1],sides);g.rotateY(Math.PI/sides);g.translate(...p.position);return g;}if(p.role==='mill-gallery'||p.role==='mill-entry-gallery')return buildMillGallery(p);if(p.role==='mill-door')return buildMillDoor(p);if(p.role==='mill-door-arch'){const g=buildArch(p.size[0],p.size[2],.64);g.translate(...p.position);return g;}if(p.role==='mill-cap-seam')return buildMillSeam(p,plan.pieces.find(x=>x.id===p.support)!);if(p.role==='mill-cap')return buildMillCap(p);if(p.role==='mill-eave')return buildMillEave(p,plan.pieces.find(x=>x.role==='mill-cap')!);if(p.role==='mill-peak')return buildMillPeak(p);if(p.role==='mill-body')return buildMillBody(p,plan.pieces.filter(x=>x.role==='mill-body').findIndex(x=>x.id===p.id));if(['mill-cap','mill-belt','mill-collar','mill-plinth'].includes(p.role)){const g=new THREE.CylinderGeometry(p.size[2]/2,p.size[0]/2,p.size[1],12);g.rotateY(Math.PI/12);g.translate(...p.position);return g;}if(p.role==='porch-cover'&&p.material==='thatch'){const g=buildThatchRoof({id:p.id,volume:p.support??'',x:0,z:0,y:.065,width:p.size[2]*2,depth:p.size[0],rise:0,eaves:0,kind:'thatch',material:'thatch'},true,.55);g.rotateY(-Math.PI/2);g.translate(0,0,p.size[2]/2);g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...p.rotation??[0,0,0])));g.translate(...p.position);return g;}if(p.role==='roof-fascia'||p.role==='eave-fascia'){const hip=plan.roofs.find(r=>r.id===p.support&&r.kind==='hip');if(hip)return buildHipFascia(hip,p.role==='roof-fascia'?(p.position[2]<hip.z?'front':'back'):(p.position[0]<hip.x?'left':'right'));}if(p.role==='hip-cap'||p.role==='hip-ridge-cap')return buildHipCover(plan.roofs.find(r=>r.id===p.support)!,p.position,p.end!);if(p.role==='chimney'||p.role==='chimney-cap')return buildChimney(p.position,p.size);const roof=(p.role==='ridge-cap'||p.role==='eave-fascia')?plan.roofs.find(r=>r.id===p.support&&(r.kind==='gable'||r.kind==='thatch')):undefined;if(roof)return p.role==='ridge-cap'?buildRidgeCap(roof):buildEaveFascia(roof,p.position[0]<roof.x);if(p.kind==='beam')return buildBeam(p.position,p.end!,p.size[0],0,p.cuts,(p.role==='bridge-stair-stringer'||p.role==='bridge-stair-handrail')?p.size[1]:p.size[0]);if(p.kind==='stairs')return buildStairs({id:p.id,from:p.position,to:p.end!,width:p.size[0],role:p.role});let g:THREE.BufferGeometry;
+function pieceGeometry(p:PieceSpec,plan:StructurePlan,c:StructureConfig){const sceneryGeometry=buildSceneryPiece(p,c);if(sceneryGeometry)return sceneryGeometry;if(plan.type==='stoneLantern'){const g=buildStoneLanternPiece(p);if(g)return g;}if(plan.type==='gate'){const g=buildGatePiece(p);if(g)return g;}if(plan.type==='wall'){const g=buildCurtainWallPiece(p);if(g)return g;}if(plan.type==='temple'){const g=buildTemplePiece(p);if(g)return g;}if(plan.type==='ancientRuins'){const g=buildAncientPiece(p);if(g)return g;}if(plan.type==='farm'){const g=buildFarmPiece(p);if(g)return g;}if(plan.type==='stable'){const g=buildStablePiece(p);if(g)return g;}if(plan.type==='mine'){const g=buildMinePiece(p);if(g)return g;}if(plan.type==='snowy'){const g=buildSnowyPiece(p);if(g)return g;}if(plan.type==='swamp'){const g=buildSwampPiece(p);if(g)return g;}if(plan.type==='desert'){const g=buildDesertPiece(p);if(g)return g;}if(p.role==='camp-firewood'||p.role==='camp-firewood-end')return buildCampPiece(p)!;if(plan.type==='outpost'){const g=buildOutpostPiece(p);if(g)return g;}if((plan.type==='bridge'||plan.type==='dock')){const variant=buildBridgeVariantPiece(p);if(variant)return variant;}if(plan.type==='camp'){if(p.role==='camp-barrel')return buildFortressBarrel(p);const geometry=buildCampPiece(p);if(geometry)return geometry;}if(p.role==='lighthouse-finial'){const g=new THREE.ConeGeometry(p.size[0]/2,p.size[1],8);g.translate(...p.position);return g;}if(p.role==='lantern'&&plan.type==='lighthouse'){const g=new THREE.CylinderGeometry(p.size[0]/2,p.size[0]/2,p.size[1],8);g.rotateY(Math.PI/8);g.translate(...p.position);return g;}if(p.role==='temple-glyph')return buildTempleGlyph(p);if(p.role==='fortress-window-glow')return buildFortressWindow(p);if(['fortress-banner','fortress-tower-standard','castle-banner','castle-standard'].includes(p.role))return buildFortressBanner(p);if((p.role==='fortress-barrel'||p.role==='tower-barrel'||p.role==='barn-barrel'))return buildFortressBarrel(p);if(p.role==='fortress-well'||p.role==='fortress-well-rim')return buildFortressParapet(p);if(['fortress-barrel-hoop','fortress-barrel-lid','fortress-well-depth','tower-barrel-hoop','tower-barrel-lid','barn-barrel-hoop','barn-barrel-lid'].includes(p.role)){const g=new THREE.CylinderGeometry(p.size[0]/2,p.size[0]/2,p.size[1],12);g.translate(...p.position);return g;}if(p.role==='fortress-watch-roof')return buildMillCap(p);if(p.role==='fortress-tower')return buildFortressTower(p,plan.pieces.find(x=>x.role==='fortress-curtain')!.size[1]);if(p.role==='fortress-parapet'||p.role==='fortress-tower-timber-ring')return buildFortressParapet(p);if(p.role==='fortress-gate-wall')return buildFortressGateWall(p);if(p.role==='fortress-gate')return buildMillDoor(p);if(['fortress-tower-foot','fortress-tower-cornice','fortress-tower-band','fortress-watch-loft'].includes(p.role)){const sides=p.role==='fortress-watch-loft'?8:12;const g=new THREE.CylinderGeometry(p.size[0]/2,p.size[0]/2,p.size[1],sides);g.rotateY(Math.PI/sides);g.translate(...p.position);return g;}if(p.role==='mill-gallery'||p.role==='mill-entry-gallery')return buildMillGallery(p);if(p.role==='mill-door')return buildMillDoor(p);if(p.role==='mill-door-arch'){const g=buildArch(p.size[0],p.size[2],.64);g.translate(...p.position);return g;}if(p.role==='mill-cap-seam')return buildMillSeam(p,plan.pieces.find(x=>x.id===p.support)!);if(p.role==='mill-cap')return buildMillCap(p);if(p.role==='mill-eave')return buildMillEave(p,plan.pieces.find(x=>x.role==='mill-cap')!);if(p.role==='mill-peak')return buildMillPeak(p);if(p.role==='mill-body')return buildMillBody(p,plan.pieces.filter(x=>x.role==='mill-body').findIndex(x=>x.id===p.id));if(['mill-cap','mill-belt','mill-collar','mill-plinth'].includes(p.role)){const g=new THREE.CylinderGeometry(p.size[2]/2,p.size[0]/2,p.size[1],12);g.rotateY(Math.PI/12);g.translate(...p.position);return g;}if(p.role==='porch-cover'&&p.material==='thatch'){const g=buildThatchRoof({id:p.id,volume:p.support??'',x:0,z:0,y:.065,width:p.size[2]*2,depth:p.size[0],rise:0,eaves:0,kind:'thatch',material:'thatch'},true,.55);g.rotateY(-Math.PI/2);g.translate(0,0,p.size[2]/2);g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...p.rotation??[0,0,0])));g.translate(...p.position);return g;}if(p.role==='roof-fascia'||p.role==='eave-fascia'){const hip=plan.roofs.find(r=>r.id===p.support&&r.kind==='hip');if(hip)return buildHipFascia(hip,p.role==='roof-fascia'?(p.position[2]<hip.z?'front':'back'):(p.position[0]<hip.x?'left':'right'));}if(p.role==='hip-cap'||p.role==='hip-ridge-cap')return buildHipCover(plan.roofs.find(r=>r.id===p.support)!,p.position,p.end!);if(p.role==='chimney'||p.role==='chimney-cap')return buildChimney(p.position,p.size);const roof=(p.role==='ridge-cap'||p.role==='eave-fascia')?plan.roofs.find(r=>r.id===p.support&&(r.kind==='gable'||r.kind==='thatch')):undefined;if(roof)return p.role==='ridge-cap'?buildRidgeCap(roof):buildEaveFascia(roof,p.position[0]<roof.x);if(p.kind==='beam')return buildBeam(p.position,p.end!,p.size[0],0,p.cuts,(p.role==='bridge-stair-stringer'||p.role==='bridge-stair-handrail')?p.size[1]:p.size[0]);if(p.kind==='stairs')return buildStairs({id:p.id,from:p.position,to:p.end!,width:p.size[0],role:p.role});let g:THREE.BufferGeometry;
  if(p.kind==='column'){g=new THREE.CylinderGeometry(p.size[0]*.45,p.size[0]*.55,p.size[1],8);g.translate(...p.position);}else if(p.kind==='arch'){g=buildArch(p.size[0],p.size[2]);g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...p.rotation??[0,0,0])));g.translate(...p.position);}else if(p.kind==='wheel'){g=new THREE.CylinderGeometry(p.size[0]/2,p.size[0]/2,p.size[2],12);g.rotateX(Math.PI/2);g.translate(...p.position);}else if(p.kind==='rock'){g=new THREE.IcosahedronGeometry(1,0);g.scale(...p.size);g.translate(...p.position);}else g=box(p.position,p.size,p.rotation);return g;}
 export function renderStructure(plan:StructurePlan,c:StructureConfig,options:{batch?:boolean}={}){const resources=new StructureResources(),materials=createStructureMaterials(c,resources,plan.seed),assetGroup=new THREE.Group();assetGroup.name='StructureAsset';const attach=(g:THREE.BufferGeometry,material: keyof typeof materials,name:string,grain?:THREE.Vector3):THREE.Mesh<THREE.BufferGeometry,THREE.Material>=>{g=paintUV(g,grain,material==='roof');if(material==='stone'&&(c.type==='castle'||c.type==='ruinedCastle')){const uv=g.getAttribute('uv');for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*.75,uv.getY(i)*.75);}if(material==='thatch'&&!g.getAttribute('thatchLayer'))g.setAttribute('thatchLayer',new THREE.Float32BufferAttribute(new Float32Array(g.getAttribute('position').count),1));if(material==='metal'&&!g.getAttribute('ironLocalPosition')){g.computeBoundingBox();const center=g.boundingBox!.getCenter(new THREE.Vector3()),extent=g.boundingBox!.getSize(new THREE.Vector3()).multiplyScalar(.5),position=g.getAttribute('position'),local=new Float32Array(position.count*3),half=new Float32Array(position.count*3);for(let i=0;i<position.count;i++){local.set([position.getX(i)-center.x,position.getY(i)-center.y,position.getZ(i)-center.z],i*3);half.set(extent.toArray(),i*3);}g.setAttribute('ironLocalPosition',new THREE.BufferAttribute(local,3));g.setAttribute('ironHalfSize',new THREE.BufferAttribute(half,3));}resources.geometries.add(g);const mesh=new THREE.Mesh(g,materials[material]);mesh.name=name;mesh.castShadow=material!=='water';mesh.receiveShadow=true;assetGroup.add(mesh);return mesh;};
  const supportTrees:ReturnType<typeof livingTree>[]=[];const desertPaving=c.type==='desert'?desertTerraceMaterial(c.texelsPerMetre,plan.seed,resources):undefined;
@@ -43,18 +49,110 @@ export function renderStructure(plan:StructurePlan,c:StructureConfig,options:{ba
  const snowMaterial=c.type==='snowy'?snowySnowMaterial(c,plan.seed,resources):undefined;
  const marshMaterials=c.type==='swamp'?swampMaterials(c,resources):new Map<string,THREE.Material>();
  const campMaterials=c.type==='farm'?farmMaterials(c,resources,plan.seed):new Map<string,THREE.Material>();
- if(c.type==='ancientRuins'||c.type==='temple'||c.type==='wall'||c.type==='gate'){const ivy=createIvyLeafSurface(12);ivy.geometry.dispose();ivy.material.name='AncientIvy';resources.materials.add(ivy.material);resources.textures.add(ivy.texture);campMaterials.set(c.type==='temple'?'temple-ivy':c.type==='wall'?'wall-ivy':c.type==='gate'?'gate-ivy':'ancient-ivy',ivy.material);}
+ if(c.type==='watermill'){
+  const map=watermillWaterTexture(c.texelsPerMetre,plan.seed),water=new THREE.MeshStandardMaterial({map,roughness:.4});
+  resources.textures.add(map);resources.materials.add(water);campMaterials.set('watermill-channel-water',water);
+ }
+ if(c.type==='woodenCrate'){
+  const core=materials.wood.clone();core.color.setScalar(.48);core.onBeforeCompile=materials.wood.onBeforeCompile;core.customProgramCacheKey=materials.wood.customProgramCacheKey;
+  resources.materials.add(core);campMaterials.set('crate-core',core);
+ }
+ if(c.type==='woodenBarrel'){
+  const wood=materials.wood;
+  const staves=wood.clone();staves.vertexColors=true;staves.onBeforeCompile=wood.onBeforeCompile;staves.customProgramCacheKey=wood.customProgramCacheKey;
+  const core=wood.clone();core.color.setScalar(.52);core.onBeforeCompile=wood.onBeforeCompile;core.customProgramCacheKey=wood.customProgramCacheKey;
+  const lidMap=paintSurface('wood',c.palette.wood,c.texelsPerMetre,plan.seed,c.finish,true),lid=wood.clone();
+  lid.map=lidMap;lid.onBeforeCompile=wood.onBeforeCompile;lid.customProgramCacheKey=wood.customProgramCacheKey;resources.textures.add(lidMap);
+  for(const mat of [staves,core,lid])resources.materials.add(mat);
+  campMaterials.set('barrel-stave',staves);campMaterials.set('barrel-core',core);campMaterials.set('barrel-lid-board',lid);campMaterials.set('barrel-lid-brace',lid);
+ }
+ if(c.type==='ancientRuins'||c.type==='temple'||c.type==='wall'||c.type==='gate'||c.type==='ivyPatch'){const ivy=createIvyLeafSurface(12);ivy.geometry.dispose();ivy.material.name='AncientIvy';resources.materials.add(ivy.material);resources.textures.add(ivy.texture);campMaterials.set(c.type==='temple'?'temple-ivy':c.type==='wall'?'wall-ivy':c.type==='gate'?'gate-ivy':c.type==='ivyPatch'?'scenery-ivy':'ancient-ivy',ivy.material);}
+ if(c.type==='supplySacks'){
+  const fabric=provisionFabricTexture(c,plan.seed),body=new THREE.MeshStandardMaterial({map:fabric,vertexColors:true,roughness:1});
+  const seam=body.clone();seam.color.setScalar(.57);
+  const thread=new THREE.MeshStandardMaterial({color:'#e2bc78',roughness:1});
+  const braid=provisionRopeTexture(),rope=new THREE.MeshStandardMaterial({map:braid,roughness:1});
+  for(const map of [fabric,braid])resources.textures.add(map);for(const mat of [body,seam,thread,rope])resources.materials.add(mat);
+  for(const role of ['provision-body','provision-mouth'])campMaterials.set(role,body);
+  campMaterials.set('provision-seam',seam);campMaterials.set('provision-stitch',thread);
+  for(const role of ['provision-rope-ring','provision-rope-tail','provision-rope-end','provision-knot'])campMaterials.set(role,rope);
+ }
+ if(c.type==='dirtPath'){
+ const map=paintSurface('earth',c.palette.plaster,c.texelsPerMetre,plan.seed,c.finish),mat=new THREE.MeshStandardMaterial({map,roughness:1});
+ resources.textures.add(map);resources.materials.add(mat);
+ campMaterials.set('scenery-path',mat);
+ }
+ if(c.type==='mossPatch'){
+ const map=sceneryMossTexture(c,plan.seed),mat=new THREE.MeshStandardMaterial({map,alphaTest:.5,roughness:1,side:THREE.DoubleSide});mat.name='SceneryMoss';resources.textures.add(map);resources.materials.add(mat);campMaterials.set('scenery-moss',mat);
+ }
+ if(c.type==='blacksmith'){const mat=new THREE.MeshBasicMaterial({color:'#ec7f30'});resources.materials.add(mat);campMaterials.set('smithy-embers',mat);}
+ if(c.type==='market')for(const [i,color] of ['#a6513a','#547763','#c2a665'].entries()){
+ const map=paintSurface('cloth',color,c.texelsPerMetre,plan.seed+i,c.finish),mat=new THREE.MeshStandardMaterial({map,roughness:1});resources.textures.add(map);resources.materials.add(mat);campMaterials.set('market-canopy-'+i,mat);
+ }
+ if(c.type==='woodFence'||c.type==='stoneWell'){
+ const map=paintSurface('cloth','#aa9164',c.texelsPerMetre,plan.seed,c.finish),mat=new THREE.MeshStandardMaterial({map,roughness:1});resources.textures.add(map);resources.materials.add(mat);campMaterials.set('scenery-fence-rope',mat);campMaterials.set('well-rope',mat);campMaterials.set('well-rope-coil',mat);
+ }
+ if(c.type==='toolRack')for(const kind of ['fork','shovel','hammer'] as const){
+ const map=toolSpriteTexture(kind,c,plan.seed),mat=new THREE.MeshStandardMaterial({map,alphaTest:.5,side:THREE.DoubleSide,roughness:1});resources.textures.add(map);resources.materials.add(mat);campMaterials.set('scenery-tool-sprite-'+kind,mat);
+ }
+ if(c.type==='stoneFountain'){
+  // The fountain is assembled from real blocks; its stone paint must not
+  // add an unrelated brick grid across columns, collars and curved rims.
+  const stoneMap=fountainStoneTexture(c,plan.seed);resources.textures.add(stoneMap);materials.stone.map=stoneMap;
+  const panel=materials.stone.clone(),stoneCompile=materials.stone.onBeforeCompile;
+  panel.onBeforeCompile=(shader,renderer)=>{
+   stoneCompile.call(panel,shader,renderer);
+   shader.vertexShader='attribute float fountainPanelFront;varying float vFountainPanelFront;varying vec2 vFountainPanelUV;\n'+shader.vertexShader;
+   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvFountainPanelFront=fountainPanelFront;vFountainPanelUV=uv;');
+   shader.fragmentShader='varying float vFountainPanelFront;varying vec2 vFountainPanelUV;\n'+shader.fragmentShader;
+   shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+    vec2 panelPixel=floor(vFountainPanelUV*32.);
+    if(vFountainPanelFront>.99&&panelPixel.x>=10.&&panelPixel.x<22.&&panelPixel.y>=7.&&panelPixel.y<21.){
+     float panelShade=.76;
+     if(panelPixel.x<11.||panelPixel.y>=20.)panelShade=.48;
+     else if(panelPixel.x>=21.||panelPixel.y<8.)panelShade=1.16;
+     diffuseColor.rgb*=panelShade;
+    }
+   `);
+  };
+  panel.customProgramCacheKey=()=>materials.stone.customProgramCacheKey()+'-fountain-flat-panel-v1';
+  resources.materials.add(panel);campMaterials.set('fountain-buttress',panel);
+  const size=64,data=new Uint8Array(size*size*4),palette=['#165e70','#197989','#238b97','#349da5','#4caeb5','#91d8d8'].map(color=>new THREE.Color(color).convertLinearToSRGB());
+  const random=(x:number,y:number)=>{const n=Math.sin(x*127.1+y*311.7+plan.seed)*43758.5453;return n-Math.floor(n);};
+  for(let y=0;y<size;y++)for(let x=0;x<size;x++){const noise=random(Math.floor(x/5),Math.floor(y/4)),glint=random(Math.floor(x/4),Math.floor(y/3));const level=glint>.975?5:noise<.15?1:noise>.80?4:noise>.50?3:2,color=palette[level];data.set([color.r*255,color.g*255,color.b*255,255],(y*size+x)*4);}
+  const map=new THREE.DataTexture(data,size,size);map.colorSpace=THREE.SRGBColorSpace;map.minFilter=map.magFilter=THREE.NearestFilter;map.generateMipmaps=false;map.needsUpdate=true;
+  const mat=new THREE.MeshStandardMaterial({map,roughness:.32});resources.textures.add(map);resources.materials.add(mat);campMaterials.set('fountain-water',mat);
+ }
+ if(c.type==='stoneWell'||c.type==='stoneFountain'){
+ const mat=materials.stone.clone();mat.vertexColors=true;
+ const stoneCompile=materials.stone.onBeforeCompile;
+ mat.onBeforeCompile=(shader,renderer)=>{
+  stoneCompile.call(mat,shader,renderer);
+  shader.vertexShader='attribute vec2 wellFacePosition,wellFaceHalf;varying vec2 vWellFace,vWellHalf;varying float vWellWall;\n'+shader.vertexShader;
+  shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvWellFace=wellFacePosition;vWellHalf=wellFaceHalf;vWellWall=1.-smoothstep(.3,.7,abs(normal.y));');
+  shader.fragmentShader='varying vec2 vWellFace,vWellHalf;varying float vWellWall;\n'+shader.fragmentShader;
+  shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+   vec2 wellDistances=max(vWellHalf-abs(vWellFace),vec2(0.));
+   float wellEdge=min(wellDistances.x,wellDistances.y)*${c.texelsPerMetre.toFixed(1)};
+   float wellShade=${c.type==='stoneFountain'?'1.':'wellEdge<.45?.52:wellEdge<1.0?.78:wellEdge<1.8?1.10:1.'};
+   diffuseColor.rgb*=mix(1.,wellShade,vWellWall);
+  `);
+ };
+ mat.customProgramCacheKey=()=>materials.stone.customProgramCacheKey()+'-well-block-joints-v1';
+ resources.materials.add(mat);campMaterials.set('well-core',mat);campMaterials.set('well-stone-block',mat);campMaterials.set('fountain-ring-block',mat);
+ if(c.type==='stoneFountain')for(const role of ['fountain-column','fountain-pedestal','fountain-moulding'])campMaterials.set(role,mat);
+ }
  const hayRoles=['stable-straw-bed','stable-yard-straw','stable-trough-hay'];
  if(plan.pieces.some(p=>hayRoles.includes(p.role))){
   const hay=looseHayMaterial(c.texelsPerMetre,plan.seed,materials.thatch.map!,c.hayAmount??.7),map=hay.map!;
   hay.name='LooseHayBedding';resources.textures.add(map);resources.materials.add(hay);for(const role of hayRoles)campMaterials.set(role,hay);
  }
  if(c.type==='mine'){const glass=new THREE.MeshStandardMaterial({color:'#ffce6a',emissive:'#ffb22d',emissiveIntensity:1.7,roughness:1});resources.materials.add(glass);campMaterials.set('mine-lamp-glass',glass);const darkness=new THREE.MeshBasicMaterial({color:'#070908'});resources.materials.add(darkness);campMaterials.set('mine-tunnel-darkness',darkness);}
- if(c.type==='outpost'){
+ if(c.type==='outpost'||c.type==='firewoodPile'){
   const treeWood=campCutWoodMaterial(c.texelsPerMetre,plan.seed,c.palette.wood);
   treeWood.textures.forEach(texture=>resources.textures.add(texture));
   resources.materials.add(treeWood.bark);resources.materials.add(treeWood.end);
-  campMaterials.set('camp-firewood',treeWood.bark);campMaterials.set('camp-firewood-end',treeWood.end);
+  campMaterials.set('camp-firewood',treeWood.bark);campMaterials.set('camp-firewood-end',treeWood.end);campMaterials.set('scenery-log',treeWood.bark);campMaterials.set('scenery-log-end',treeWood.end);
  }
  if(c.type==='camp'){
   const canvas=campCanvasTexture(c.texelsPerMetre,plan.seed);resources.textures.add(canvas);materials.cloth.map=canvas;
@@ -182,7 +280,7 @@ export function renderStructure(plan:StructurePlan,c:StructureConfig,options:{ba
  }
  }
  }
- let templePaving:THREE.MeshStandardMaterial|undefined;if(c.type==='temple'||c.type==='wall'){templePaving=materials.stone.clone();templePaving.onBeforeCompile=materials.stone.onBeforeCompile;templePaving.customProgramCacheKey=materials.stone.customProgramCacheKey;templePaving.map=createTemplePavingTexture(c.palette.stone,c.texelsPerMetre,plan.seed);resources.textures.add(templePaving.map);resources.materials.add(templePaving);}
+ let templePaving:THREE.MeshStandardMaterial|undefined;if(c.type==='temple'||c.type==='wall'||c.type==='stonePath'){templePaving=materials.stone.clone();templePaving.onBeforeCompile=materials.stone.onBeforeCompile;templePaving.customProgramCacheKey=materials.stone.customProgramCacheKey;templePaving.map=createTemplePavingTexture(c.palette.stone,c.texelsPerMetre,plan.seed);resources.textures.add(templePaving.map);resources.materials.add(templePaving);}
  for(const roof of plan.roofs)if(!roof.removed){const mesh=attach(roof.abutment?trimAtWall(buildRoof(roof),roof.abutment):buildRoof(roof),roof.material,roof.id);if(templePaving&&roof.material==='stone')mesh.material=templePaving;if(desertPaving)mesh.material=desertPaving;}
  const templeGlyphs=c.type==='temple'?Array.from({length:4},(_,i)=>{const map=createTempleGlyphTexture(c.palette.stone,i);resources.textures.add(map);const material=new THREE.MeshStandardMaterial({map,roughness:1,side:THREE.DoubleSide});resources.materials.add(material);return material;}):[];
  let castlePlinth:THREE.MeshStandardMaterial|undefined;

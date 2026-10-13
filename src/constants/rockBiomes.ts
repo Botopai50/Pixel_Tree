@@ -49,7 +49,7 @@ export function rockBiomeForSpecies(species: TreeSpecies): RockBiome {
   if (species.startsWith('akkala') || species.startsWith('maple')) return 'akkala';
   if (species.startsWith('faron')) return 'faron';
   if (species.startsWith('korok') || species === 'fern_plant') return 'korok';
-  if (species.startsWith('swamp') || species === 'reed_clump' || species === 'pneumatophore_patch' || species === 'lilyPads' || species === 'duckweed') return 'swamp';
+  if (species.startsWith('swamp') || species === 'reed_clump' || species === 'lilyPads' || species === 'duckweed') return 'swamp';
   if (species.startsWith('gerudo') || species === 'desert_shrub') return 'gerudo';
   if (species.startsWith('savanna')) return 'savanna';
   if (species.startsWith('dry_') || species === 'withered_shrub') return 'withered';

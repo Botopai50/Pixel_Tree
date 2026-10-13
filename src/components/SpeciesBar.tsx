@@ -26,7 +26,7 @@ interface SpeciesBarProps {
   onSelectPreset: (species: AssetId) => void;
 }
 
-type Stage = 'adult' | 'sapling' | 'shrub' | 'log' | 'plant' | 'rock' | 'ore' | 'gravel' | 'crystals' | 'leaves' | 'structure';
+type Stage = AssetCategory;
 
 interface PresetItem {
   id: string;
@@ -115,7 +115,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
 
   const structurePresets=presetsOf('structure');
   const displayedPresets =
-    activeTab==='structure'?structurePresets:
+    activeTab==='path'||activeTab==='object'?presetsOf(activeTab):activeTab==='structure'?structurePresets:
     activeTab === 'adult'
       ? adultPresets
       : activeTab === 'sapling'
@@ -155,7 +155,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
               <h3 className="font-serif font-bold text-stone-100 text-sm tracking-wide">
-                Catálogo de Natureza ({allPresets.length} Modelos)
+                Catálogo de modelos ({allPresets.length} Modelos)
               </h3>
             </div>
             <button
@@ -169,6 +169,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
           </div>
 
           <div className="space-y-4 pt-3 max-h-[50vh] overflow-y-auto pr-1">
+            {(['object'] as const).map(stage=><div key={stage}><div className="text-xs font-semibold text-sky-300 mb-2">{'Objetos de cenário'}</div><div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">{presetsOf(stage).map(item=><button key={item.id} onClick={()=>handleSelect(item.species)} className="p-2 rounded-xl text-left border text-xs cursor-pointer bg-stone-900 border-stone-800 text-stone-300 hover:bg-stone-800">{item.name}</button>)}</div></div>)}
             {/* Adult Trees */}
             <div>
               <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 mb-2">
@@ -465,7 +466,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
           {(['crystals','leaves'] as const).map(kind=><button key={kind} id={`tab-select-${kind}`} onClick={()=>{setActiveTab(kind);if(currentStage!==kind)handleSelect(`${rockBiomeForSpecies(currentSpecies as TreeSpecies)}_${kind}` as TreeSpecies);}} className={'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer '+(activeTab===kind?'bg-emerald-700 text-white':'text-stone-400 hover:text-stone-200')}>
             {kind==='crystals'?<Gem className="w-3.5 h-3.5"/>:<Leaf className="w-3.5 h-3.5"/>}<span>{PROP_LABELS[kind]}</span><span className="text-[10px] opacity-75">{presetsOf(kind).length}</span>
           </button>)}
-          <button id="tab-select-structure" onClick={()=>{setActiveTab('structure');if(currentStage!=='structure')handleSelect('structure_house');}} className={'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer '+(activeTab==='structure'?'bg-sky-700 text-white':'text-stone-400 hover:text-stone-200')}><Mountain className="w-3.5 h-3.5"/><span>Estruturas</span><span className="text-[10px] opacity-75">{structurePresets.length}</span></button>
+          {(['object'] as const).map(stage=><button key={stage} id={'tab-select-'+stage} onClick={()=>{setActiveTab(stage);if(currentStage!==stage)handleSelect('structure_woodenCrate');}} className={'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer '+(activeTab===stage?'bg-sky-700 text-white':'text-stone-400 hover:text-stone-200')}><LayoutGrid className="w-3.5 h-3.5"/><span>{'Objetos'}</span><span className="text-[10px] opacity-75">{presetsOf(stage).length}</span></button>)}<button id="tab-select-structure" onClick={()=>{setActiveTab('structure');if(currentStage!=='structure')handleSelect('structure_house');}} className={'flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer '+(activeTab==='structure'?'bg-sky-700 text-white':'text-stone-400 hover:text-stone-200')}><Mountain className="w-3.5 h-3.5"/><span>Estruturas</span><span className="text-[10px] opacity-75">{structurePresets.length}</span></button>
           </div>
           <button id="btn-scroll-categories-right" aria-label="Rolar categorias para direita" title="Rolar categorias para direita" disabled={!categoryEdges.right} onClick={() => scrollCategories(1)} className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-700 disabled:opacity-25 disabled:cursor-default cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
         </div>
@@ -632,5 +633,3 @@ function formatShortName(fullName: string, stage: Stage): string {
     .replace('Acácia da Savana', 'Acácia')
     .replace(/Bordo Outonal \((\w+)\)/, 'Bordo $1');
 }
-
-

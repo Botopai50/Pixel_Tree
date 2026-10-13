@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TreeConfig, EnvironmentConfig } from '../types';
@@ -55,6 +55,16 @@ interface Viewport3DProps {
 
 export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
   ({ treeConfig:assetConfig, envConfig, onFpsUpdate, viewInsetBottom = 0, viewInsetRight = 0 }, ref) => {
+    const [generatorRevision, setGeneratorRevision] = useState(0);
+    useEffect(() => {
+      const hot = import.meta.hot;
+      if (!hot) return;
+      // A Three.js instance outlives its generator module during React refresh.
+      // Rebuild it after source updates even when the selected config stays equal.
+      const rebuild = () => setGeneratorRevision(value => value + 1);
+      hot.on('vite:afterUpdate', rebuild);
+      return () => hot.off('vite:afterUpdate', rebuild);
+    }, []);
     const structureConfig=isStructure(assetConfig)?assetConfig:undefined;
     const treeConfig=isStructure(assetConfig)?undefined:assetConfig;
     // The animation loop is created once; always read the selected item here.
@@ -111,7 +121,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
       controls.minDistance = 0.6;
       controls.maxDistance = Math.max(38, distance * 2);
       controls.target.copy(center);
-      camera.position.copy(center).add(new THREE.Vector3(1, 0.7, structureConfig?-1.6:1.6).normalize().multiplyScalar(distance));
+      camera.position.copy(center).add(new THREE.Vector3(structureConfig?.structure.type==='watermill'?-1:1, 0.7, structureConfig?-1.6:1.6).normalize().multiplyScalar(distance));
       controls.update();
       if (dirLightRef.current) setShadowSpan(dirLightRef.current, Math.max(12, size.x, size.z));
     };
@@ -351,7 +361,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
           }
         }
       }
-    }, [assetConfig]);
+    }, [assetConfig, createAsset, generatorRevision]);
 
     // -------------------------------------------------------------
     // UPDATE ENVIRONMENT & ATMOSPHERE (TIME OF DAY)

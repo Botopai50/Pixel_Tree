@@ -2236,20 +2236,6 @@ export const TREE_PRESETS: Record<string, TreeConfig> = {
     seed: 4823, trunkHeight: .6, branchCount: 0, windStrength: 0,
     foliageColorTop: '#7da34b', foliageColorBottom: '#3f622f',
   },
-  pneumatophore_patch: {
-    ...PLANT_BASE,
-    id: 'pneumatophore_patch',
-    name: 'Pneumatóforos',
-    species: 'pneumatophore_patch',
-    seed: 4571,
-    trunkHeight: 0.7,
-    rootSpread: 1.15,
-    barkColor: '#776e5b',
-    foliageColorTop: '#6e8a42',
-    foliageColorBottom: '#32452c',
-    windStrength: 0,
-  },
-
   fern_plant: {
     ...PLANT_BASE,
     id: 'fern_plant',
