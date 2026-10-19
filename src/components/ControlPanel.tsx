@@ -1,5 +1,7 @@
 import { AssetId,isStructure } from '../assets/types';
 import { StructureControls,AssetPanelProps } from './StructureControls';
+import { SettlementControls } from './SettlementControls';
+import { isSettlementType } from '../settlements/kinds';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Sliders,
@@ -481,7 +483,7 @@ const NatureControlPanel: React.FC<ControlPanelProps> = ({
                     const isSapling = g === 'sapling' || treeConfig.species.endsWith('_sapling');
                     const [min, max, step, label] =
                       g === 'log'
-                        ? treeConfig.species === 'tree_stump'
+                        ? treeConfig.species.includes('stump')
                           ? [0.3, 2, 0.1, 'Altura do Toco']
                           : [2, 9, 0.1, 'Comprimento do Tronco']
                         : g === 'plant'
@@ -1996,4 +1998,4 @@ const NatureControlPanel: React.FC<ControlPanelProps> = ({
   );
 };
 
-export function ControlPanel(props:AssetPanelProps){if(isStructure(props.treeConfig))return <StructureControls {...props} treeConfig={props.treeConfig}/>;return <NatureControlPanel {...props} treeConfig={props.treeConfig} onUpdateTreeConfig={updater=>props.onUpdateTreeConfig(prev=>isStructure(prev)?prev:updater(prev))}/>;}
+export function ControlPanel(props:AssetPanelProps){if(isStructure(props.treeConfig)&&isSettlementType(props.treeConfig.structure.type))return <SettlementControls {...props} treeConfig={props.treeConfig}/>;if(isStructure(props.treeConfig))return <StructureControls {...props} treeConfig={props.treeConfig}/>;return <NatureControlPanel {...props} treeConfig={props.treeConfig} onUpdateTreeConfig={updater=>props.onUpdateTreeConfig(prev=>isStructure(prev)?prev:updater(prev))}/>;}

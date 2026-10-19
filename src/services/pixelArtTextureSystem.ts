@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TreeConfig } from '../types';
 import { pixelMossNoiseGLSL } from './mossStyle';
+import { rockSnowColors, ROCK_SNOW_PAINT_GLSL, ROCK_SNOW_COVERAGE_GLSL, ROCK_SNOW_RIM_GLSL } from './rockSnowStyle';
 
 // ============================================================================
 // PROCEDURAL PIXEL ART TEXTURE SYSTEM
@@ -1899,6 +1900,7 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
   uniform float uCrownRadiusY;
   // Snow lying on the upward-facing wood (0 = off): root flare, branch tops.
   uniform float uSnow;
+  uniform vec3 uSnowColors[4];
 
   varying vec3 vNormal;
   varying vec3 vWorldPos;
@@ -1914,6 +1916,11 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
   // Smooth value noise, for the moss: sampled only at texel centres, so its
   // blobs come out as clusters of whole texels with ragged pixel edges.
   ${pixelMossNoiseGLSL('uTextureSeed')}
+
+  // the same snow the rocks and roofs wear: patchy cover, a broken fringe, a contact shadow
+  ${ROCK_SNOW_PAINT_GLSL}
+  ${ROCK_SNOW_COVERAGE_GLSL}
+  ${ROCK_SNOW_RIM_GLSL}
 
   void main() {
     float N1 = uPaletteSteps - 1.0;
@@ -2219,12 +2226,12 @@ export const PIXEL_BARK_FRAGMENT_SHADER = /* glsl */ `
     // Snow: only where the wood faces the sky and the crown does not cover it,
     // with a ragged per-texel edge, in the shared snow ramp.
     if (uSnow > 0.001) {
-      float sf = N.y + (bhash2(snowTexel + uTextureSeed) - 0.5) * 0.35
-               - (1.0 - uSnow) * 0.6 - crownCover * 0.9;
-      if (sf > 0.42) {
-        float si = 2.0 + (ndl > 0.2 ? 1.0 : 0.0) - (sf < 0.6 ? 1.0 : 0.0);
-        col = snowRamp(si);
-      }
+      // world texels of 1/21.33 m, like the rocks
+      vec3 snowP = floor(vWorldPos * 21.33) + 0.5;
+      vec3 snowDown = vec3(0.0, -1.0, 0.0);
+      vec3 snowAcross = normalize(cross(N, snowDown) + vec3(0.0001));
+      float snowAmount = clamp(uSnow * (1.0 - crownCover * 0.9), 0.0, 1.0);
+      col = rockSnowSurface(col, snowP, N, snowDown, vec3(0.0), snowAcross, vec3(0.0), uTexLightDir, snowAmount, 1.0);
     }
     gl_FragColor = vec4(col, 1.0);
   }
@@ -3342,6 +3349,7 @@ export function createPixelBarkMaterial(
       uCrownCenterY: { value: 0 },
       uCrownRadiusY: { value: 1 },
       uSnow: { value: THREE.MathUtils.clamp(config.snowCover ?? 0, 0, 1) },
+      uSnowColors: { value: rockSnowColors() },
       uLitSign: { value: Math.cos((bark.params.lightAzimuth * Math.PI) / 180) >= 0 ? 1 : -1 },
     },
     vertexShader: PIXEL_BARK_VERTEX_SHADER,

@@ -105,6 +105,10 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
         growthStage: stage,
       }));
   const adultPresets = presetsOf('adult');
+  const logTreePresets = adultPresets.filter((item) => item.id !== 'gerudo_cactus');
+  const selectedLogTree = logTreePresets.find((item) =>
+    currentSpecies === item.species || String(currentSpecies).endsWith(`_${item.species}`)
+  )?.species ?? 'hyrule_oak';
   const saplingPresets = presetsOf('sapling');
   const shrubPresets = presetsOf('shrub');
   const logPresets = presetsOf('log');
@@ -123,7 +127,7 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
       : activeTab === 'shrub'
       ? shrubPresets
       : activeTab === 'log'
-      ? logPresets
+      ? logPresets.filter((item) => String(item.species).endsWith(`_${selectedLogTree}`))
       : activeTab === 'rock' ? rockPresets : activeTab === 'ore' ? orePresets : activeTab === 'gravel' ? gravelPresets : ['crystals','leaves'].includes(activeTab) ? presetsOf(activeTab) : plantPresets;
 
   const handleSelect = (species: AssetId) => {
@@ -471,6 +475,22 @@ export function SpeciesBar({ currentSpecies, onSelectPreset }: SpeciesBarProps) 
           <button id="btn-scroll-categories-right" aria-label="Rolar categorias para direita" title="Rolar categorias para direita" disabled={!categoryEdges.right} onClick={() => scrollCategories(1)} className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-700 disabled:opacity-25 disabled:cursor-default cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
         </div>
 
+        {activeTab === 'log' && (
+          <div className="col-span-4 flex items-center gap-2 px-1 text-xs text-amber-200">
+            <label htmlFor="log-tree-species" className="shrink-0">Madeira de</label>
+            <select
+              id="log-tree-species"
+              value={selectedLogTree}
+              onChange={(event) => handleSelect(`fallen_log_${event.target.value}` as TreeSpecies)}
+              className="min-w-0 flex-1 rounded-lg border border-amber-800/60 bg-stone-900 px-2 py-1.5 text-amber-100"
+            >
+              {logTreePresets.map((item) => (
+                <option key={item.id} value={item.species}>{item.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Scroll Left Button */}
         <button
           id="btn-scroll-species-left"
@@ -586,7 +606,7 @@ function formatShortName(fullName: string, stage: Stage): string {
   if (stage === 'rock') return fullName.replace('Pedra de ', '');
   if (stage === 'plant') return fullName;
   if (stage === 'log') {
-    return fullName.replace('Tronco com Raízes', 'Com Raízes');
+    return fullName.split(' · ')[0].replace('Tronco com Raízes', 'Com Raízes');
   }
   if (stage === 'shrub') {
     return fullName

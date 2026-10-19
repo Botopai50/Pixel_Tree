@@ -6,6 +6,8 @@ export const STRUCTURE_DESCRIPTORS:Record<StructureKind,StructureDescriptor>={
  fortress:d('Fortaleza pequena','Fortificações',16,14,6,3),castle:d('Castelo','Fortificações',22,19,9,4),ruinedCastle:d('Castelo em ruínas','Fortificações',22,19,9,4,{ruin:.40}),ancientRuins:d('Ruínas antigas','Ancestrais',12,9,4,1,{ruin:.40}),temple:d('Templo antigo','Ancestrais',13,15,7,2),
  bridge:d('Ponte','Infraestrutura',12,4,3,1,{depth:[2,8]}),wall:d('Muralha','Infraestrutura',15,4,5,1,{depth:[1,8]}),gate:d('Portão','Infraestrutura',10,5,6,2),dock:d('Doca','Infraestrutura',12,8,3,1),lighthouse:d('Farol','Infraestrutura',6,6,13,4),
  camp:d('Acampamento','Conjuntos',12,10,3,1),outpost:d('Posto avançado','Conjuntos',15,12,6,2),treehouse:d('Casa na árvore','Especiais',8,7,7,2),desert:d('Estrutura de deserto','Regionais',11,10,5,2,{biome:'gerudo'}),swamp:d('Estrutura de pântano','Regionais',9,8,4,1,{biome:'swamp'}),snowy:d('Estrutura nevada','Regionais',7,7,4,2,{biome:'hebra_snowy'}),mine:d('Mina','Especiais',10,10,5,1),
+ hamlet:d('Vila pequena','Assentamentos',10,10,6,1,{width:[8,40],depth:[8,40],height:[3,15]}),village:d('Vilarejo','Assentamentos',10,10,6,1,{width:[8,40],depth:[8,40],height:[3,15]}),town:d('Cidade','Assentamentos',10,10,6,1,{width:[8,40],depth:[8,40],height:[3,15]}),fortifiedTown:d('Cidade fortificada','Assentamentos',10,10,6,1,{width:[8,40],depth:[8,40],height:[3,15]}),
+ stoneTower:d('Torre de pedra','Fortificações',6,6,9,1,{width:[4,10],depth:[4,10],height:[5,16]}),
  woodFence:d('Cerca de madeira','Objetos',3,.3,1.1,1,{width:[1,8],depth:[.2,1],height:[.6,2]}),
  woodGate:d('Portão de cerca','Objetos',1.7,.3,1.2,1,{width:[.8,3],depth:[.2,1],height:[.6,2]}),
  woodenCart:d('Carroça','Objetos',1.4,2.0,1.4,1,{width:[1,2.5],depth:[1.2,3.5],height:[1,2]}),
@@ -46,7 +48,7 @@ Object.assign(STRUCTURE_PRESETS.structure_blacksmith.structure,{width:8,depth:7,
 Object.assign(STRUCTURE_PRESETS.structure_market.structure,{width:9,depth:6,height:2.6,vegetation:.15});
 Object.assign(STRUCTURE_PRESETS.structure_watermill.structure,{width:8,depth:8,height:5});
 
-STRUCTURE_PRESETS.structure_mossPatch.structure.palette.plaster='#567b32';
+STRUCTURE_PRESETS.structure_mossPatch.structure.palette.plaster='#567b32';Object.assign(STRUCTURE_PRESETS.structure_stoneTower.structure,{width:5.8,depth:4.8,height:9.5,vegetation:.35,annexes:false,balconies:false,ruin:0});
 
 
 Object.assign(STRUCTURE_PRESETS.structure_woodFence.structure,{width:4.8,depth:.36,height:1.3});

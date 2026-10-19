@@ -5,11 +5,24 @@ import {buildAncientPiece} from './ancientRuins';
 
 export function provisionFabricTexture(c:StructureConfig,seed:number){
  const size=Math.max(32,Math.round(c.texelsPerMetre*2)),data=new Uint8Array(size*size*4),base=new THREE.Color(c.palette.plaster).convertLinearToSRGB();
- const hash=(x:number,y:number)=>{const n=Math.sin(x*127.1+y*311.7+seed*.31)*43758.5453;return n-Math.floor(n);};
+ const hash=(x:number,y:number,salt=0)=>{const n=Math.sin(x*127.1+y*311.7+(seed+salt)*.31)*43758.5453;return n-Math.floor(n);};
+ const noise=(x:number,y:number,step:number,salt:number)=>{
+  const px=x/step,py=y/step,ix=Math.floor(px),iy=Math.floor(py);
+  const fx=px-ix,fy=py-iy,sx=fx*fx*(3-2*fx),sy=fy*fy*(3-2*fy);
+  const a=hash(ix,iy,salt)*(1-sx)+hash(ix+1,iy,salt)*sx;
+  const b=hash(ix,iy+1,salt)*(1-sx)+hash(ix+1,iy+1,salt)*sx;
+  return a*(1-sy)+b*sy;
+ };
+ // Quantized, irregular dyed patches and rare short fibres. Avoid a regular
+ // weave grid: it creates moiré when this small object is viewed at a distance.
+ const shades=[.90,.95,.985,1.015,1.045];
  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-  const patch=hash(Math.floor(x/7),Math.floor(y/8)),warp=(x%3===0&&y%3!==0)||(y%3===0&&x%3!==0);
-  const tone=(patch<.14?.91:patch>.84?1.06:1)*(warp?.97:1.025);
-  data.set([Math.min(255,base.r*255*tone),Math.min(255,base.g*255*tone),Math.min(255,base.b*255*tone),255],(y*size+x)*4);
+  const field=noise(x,y,8,0)*.72+noise(x,y,3,47)*.28;
+  let shade=field<.32?0:field<.43?1:field<.55?2:field<.69?3:4;
+  const fleck=hash(Math.floor(x/7),Math.floor(y/7),91);
+  if(fleck>.89&&x%7>=2&&x%7<=3&&y%7===Math.floor(fleck*13)%7)shade=Math.min(4,shade+1);
+  const tone=shades[shade];
+  data.set([Math.round(Math.min(255,base.r*255*tone)),Math.round(Math.min(255,base.g*255*tone)),Math.round(Math.min(255,base.b*255*tone)),255],(y*size+x)*4);
  }
  const map=new THREE.DataTexture(data,size,size);map.colorSpace=THREE.SRGBColorSpace;map.wrapS=map.wrapT=THREE.RepeatWrapping;map.repeat.set(1,1);map.minFilter=map.magFilter=THREE.NearestFilter;map.generateMipmaps=false;map.needsUpdate=true;return map;
 }

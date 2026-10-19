@@ -12,8 +12,8 @@ test('barn has centered double braced doors, straw ridge bindings and supplies c
   assert.ok(plan.pieces.some(p=>p.role==='barn-door-track'));
   assert.ok(plan.pieces.filter(p=>p.role==='barn-ridge-binding').length>=8);
   assert.ok(plan.pieces.some(p=>p.role==='barn-hay-bale'));
-  assert.ok(plan.pieces.some(p=>p.role==='barn-barrel'));
-  for(const prop of plan.pieces.filter(p=>['barn-hay-bale','barn-barrel','barn-supply-crate'].includes(p.role))){
+  assert.ok(plan.pieces.some(p=>p.role==='barrel-core'));
+  for(const prop of plan.pieces.filter(p=>['barn-hay-bale','barrel-core','crate-core'].includes(p.role))){
    if(prop.position[2]<volume.z-volume.depth/2)assert.ok(Math.abs(prop.position[0])-prop.size[0]/2>door.width/2+.3);
   }
   assert.deepEqual(plan,buildStructurePlan(fixture('barn',seed)));

@@ -1,23 +1,13 @@
 import {Architect} from '../blueprint';import type {GrammarContext,V3,SurfaceMaterial} from '../types';
 import {watermill} from './watermill';
+import {market} from './market';
 
 export function workshops(c:GrammarContext){
  if(c.config.type==='watermill')return watermill(c);
+ if(c.config.type==='market')return market(c);
  const a=new Architect(c),p=c.config,w=p.width,d=p.depth,h=p.height;
  const box=(at:V3,size:V3,mat:SurfaceMaterial,role:string,support='ground',rotation?:V3)=>a.piece('box',at,size,mat,role,support,rotation);
- if(p.type==='market'){
-  for(let i=0;i<3;i++){
-   const x=(i-1)*w*.32,span=w*.28,depth=d*.55,z=i===1?d*.08:0;
-   const base=box([x,.10,z],[span,.20,depth],'wood','market-floor');
-   for(const side of [-1,1])for(const end of [-1,1])a.beam([x+side*span*.44,.20,z+end*depth*.44],[x+side*span*.44,h,z+end*depth*.44],.13,'wood','market-post',base);
-   box([x,h,z],[span+.32,.10,depth+.25],'cloth','market-canopy-'+i,base,[-.08,0,0]);
-   box([x,h-.16,z-depth/2-.08],[span+.32,.25,.025],'cloth','market-canopy-'+i,base);
-   box([x,h*.40,z-depth*.30],[span,.18,.50],'wood','market-counter',base);
-   for(let j=0;j<3;j++)box([x+(j-1)*span*.29,h*.40+.18,z-depth*.30],[span*.25,.22,.35],'wood','market-crate',base);
-   a.piece('column',[x+span*.25,.52,z+depth*.25],[.65,1.04,.65],'wood','barn-barrel',base);
-   for(const level of [.2,.8])a.piece('column',[x+span*.25,level,z+depth*.25],[.64,.07,.64],'metal','barn-barrel-hoop',base);
-  }
- }else{
+ {
   const forge=p.type==='blacksmith',house=a.building(forge?-w*.12:-w*.10,d*.12,w*.63,d*.65,h*.70,1,{base:.28,material:forge?'stone':'plaster',roof:p.roof==='auto'?'gable':p.roof,role:forge?'smithy':'mill-house'});
   if(forge){
    a.chimney(house);

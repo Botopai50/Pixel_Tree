@@ -27,6 +27,19 @@ test('wall stair is one closed stepped solid with perfectly planar side faces',(
  g.computeBoundingBox();assert.ok(Math.abs(g.boundingBox!.max.y-p.accesses[0].to[1])<1e-5);g.dispose();
 });
 
+test('wall without stairs keeps its masonry and walkable top within the segment',()=>{
+ const p=buildStructurePlan(fixture('wall',42,{wallStairs:false,width:15}));
+ assert.deepEqual(validateStructurePlan(p),[]);
+ assert.ok(p.pieces.some(x=>x.role==='muralha'));
+ assert.ok(p.pieces.some(x=>x.role==='wall-paver'));
+ assert.ok(p.pieces.some(x=>x.role==='battlement'));
+ assert.equal(p.pieces.filter(x=>x.role==='wall-stair-block').length,0);
+ assert.equal(p.accesses.filter(x=>x.role==='stairs').length,0);
+ const a=createStructure(fixture('wall',42,{wallStairs:false,width:15}));
+ assert.ok(!a.bounds.isEmpty());
+ a.dispose();
+});
+
 test('wall masonry and ivy create finite meshes and release their resources once',()=>{
  const a=createStructure(fixture('wall')),counts=new Map<object,number>();let ivy=false;
  a.group.traverse(o=>{if(o instanceof THREE.Mesh){const pos=o.geometry.getAttribute('position');for(let i=0;i<pos.count;i++)assert.ok(Number.isFinite(pos.getX(i)+pos.getY(i)+pos.getZ(i)));const mats=Array.isArray(o.material)?o.material:[o.material];ivy ||= mats.some(m=>m.name==='AncientIvy');for(const r of [o.geometry,...mats])if(!counts.has(r)){counts.set(r,0);r.addEventListener('dispose',()=>counts.set(r,counts.get(r)!+1));}}});

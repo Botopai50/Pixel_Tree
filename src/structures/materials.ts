@@ -48,7 +48,8 @@ export function createStructureMaterials(c:StructureConfig,resources:StructureRe
      diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.28,.34,.38),ironWear);
     `);
    }
-   shader.uniforms.uPixelDensity={value:c.texelsPerMetre};shader.uniforms.uStructureMoss={value:c.vegetation*mossAffinity};
+   shader.uniforms.uPixelDensity={value:c.texelsPerMetre};// a curve, not a straight line: a low slider gives a light dusting, only the top of it covers stone
+   shader.uniforms.uStructureMoss={value:Math.pow(c.vegetation,1.9)*mossAffinity};
    shader.uniforms.uStructureMossHeight={value:mossHeight};
    shader.uniforms.uStructureMossPalette={value:mossPalette};
    shader.uniforms.uStructureSnow={value:kind==='water'?0:c.snow};shader.uniforms.uStructureSeed={value:seed};
@@ -71,7 +72,7 @@ export function createStructureMaterials(c:StructureConfig,resources:StructureRe
     float weather=1.-smoothstep(.15,uStructureMossHeight,vStructurePos.y);
     float groove=1.-smoothstep(.015,.12,abs(mnoise3(cell/8.+57.)-.5));
     float mossGroove=.35+groove*.65;
-    float mossWant=min(.5,((.1+damp*.45+up*.3)*1.6+groove*.15)*uStructureMoss*weather)
+    float mossWant=min(.5,((.1+damp*.45+up*.2)*1.6+groove*.15)*uStructureMoss*weather)
       *(.55+mossGroove*.9);
     if(mossWant>.04&&mossField(cell)<mossWant){
      float N1=5.,qs=N1/5.;

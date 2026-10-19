@@ -5,6 +5,7 @@ import {buildBarrelPiece} from './barrel';
 import {buildCratePiece} from './crate';
 import {buildProvisionPiece} from './provisions';
 import {buildWatermillPiece} from './watermill';
+import {buildMarketPiece} from './market';
 import {merge,box} from './common';
 
 export function sceneryMossTexture(c:StructureConfig,seed:number){
@@ -62,6 +63,7 @@ function fountainBoxUV(g:THREE.BufferGeometry,p:PieceSpec){
 }
 
 export function buildSceneryPiece(p:PieceSpec,c:StructureConfig){
+ const market=buildMarketPiece(p);if(market)return market;
  const barrel=buildBarrelPiece(p);if(barrel)return barrel;
  const crate=buildCratePiece(p);if(crate)return crate;
  const provision=buildProvisionPiece(p);if(provision)return provision;

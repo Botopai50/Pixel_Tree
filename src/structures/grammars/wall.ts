@@ -1,7 +1,7 @@
 import {Architect} from '../blueprint';
 import type {GrammarContext,V3} from '../types';
 
-/** A thick, walkable curtain wall with a solid stair built into its right end. */
+/** A thick, walkable curtain wall with an optional stair at its right end. */
 export function wall(c:GrammarContext){
  const a=new Architect(c),p=c.config,w=a.value(p.width,.025),h=a.value(p.height,.025),u=h/5,d=Math.max(.95*u,Math.min(3.2*u,p.depth*.50));
  const stone=(at:V3,size:V3,role:string,support='ground')=>a.piece('box',at,size,'stone',role,support);
@@ -37,10 +37,22 @@ export function wall(c:GrammarContext){
    a.piece('cloth',[x+offset,start,side*(d/2+.16*u)],[(.22+ivyRnd()*.13)*u,h*(.18+ivyRnd()*.30),.30*u],'cloth','wall-ivy',body,[0,side<0?Math.PI:0,0]);
   }
  }
- // One closed stepped solid keeps both sides planar, without masonry bevels.
- const run=h*1.02,stairWidth=d+.26*u,end=w/2;
- stone([end+run/2,pavingTop/2,0],[run,pavingTop,stairWidth],'wall-stair-block');
- a.plan.accesses.push({id:'wall-stair-access',from:[end+run,0,0],to:[end,pavingTop,0],width:stairWidth,role:'stairs'});
+ if (p.wallStairs !== false) {
+  // The standalone wall keeps its original access stair.
+  const run=h*1.02,end=w/2;
+  if (p.wallStairSide) {
+   // The wall's own stair, laid along one face of the wall: it climbs from the ground near this
+   // end up to the walkway, and the wall itself carries on unbroken.
+   const side=p.wallStairSide,stairWidth=1.7*u,x=end-run/2-.2*u,z=side*(d/2+stairWidth/2);
+   stone([x,pavingTop/2,z],[run,pavingTop,stairWidth],'wall-stair-block');
+   a.plan.accesses.push({id:'wall-stair-access',from:[end-.2*u,0,z],to:[end-run-.2*u,pavingTop,z],width:stairWidth,role:'stairs'});
+  } else {
+   // The standalone wall keeps its original access stair at the right end.
+   const stairWidth=d+.26*u;
+   stone([end+run/2,pavingTop/2,0],[run,pavingTop,stairWidth],'wall-stair-block');
+   a.plan.accesses.push({id:'wall-stair-access',from:[end+run,0,0],to:[end,pavingTop,0],width:stairWidth,role:'stairs'});
+  }
+ }
  for(const side of [-1,1])a.plan.propZones.push({id:'wall-garden-'+side,x:0,z:side*(d/2+.75*u),width:w+1.3*u,depth:1.30*u,y:0,kind:'garden'});
  return a.finish();
 }

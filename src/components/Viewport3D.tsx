@@ -297,7 +297,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
       }
 
       // Adjust controls target height and camera distance based on growth stage
-      if(structureConfig){const key=JSON.stringify([structureConfig.species,structureConfig.seed,structureConfig.structure.width,structureConfig.structure.height,structureConfig.structure.depth,structureConfig.structure.floors,structureConfig.structure.scale,structureConfig.structure.ruin]);if(key!==rockFrameRef.current)frameRock(newTree.group);rockFrameRef.current=key;} else if (treeConfig && (treeConfig.growthStage === 'rock' || treeConfig.prop)) {
+      if(structureConfig){const key=JSON.stringify([structureConfig.species,structureConfig.seed,structureConfig.structure.width,structureConfig.structure.height,structureConfig.structure.depth,structureConfig.structure.floors,structureConfig.structure.scale,structureConfig.structure.ruin]);if(key!==rockFrameRef.current || ['hamlet','village','town','fortifiedTown'].includes(structureConfig.structure.type))frameRock(newTree.group);rockFrameRef.current=key;} else if (treeConfig && (treeConfig.growthStage === 'rock' || treeConfig.prop)) {
         const rock = treeConfig.rock!;
         const frameKey = treeConfig.prop ? [treeConfig.species,treeConfig.prop.count,treeConfig.prop.size,treeConfig.prop.spread].join('|') : [treeConfig.species, rock.width, rock.height, rock.depth, rock.count, rock.spread, rock.shape].join('|');
         if (frameKey !== rockFrameRef.current) frameRock(newTree.group);
@@ -309,7 +309,7 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         // (a ground plant is framed like a bush)
         const isShrub = treeConfig.growthStage === 'shrub' || treeConfig.growthStage === 'plant';
         const isLog = treeConfig.growthStage === 'log';
-        const isStump = isLog && treeConfig.species === 'tree_stump';
+        const isStump = isLog && treeConfig.species.includes('stump');
         const targetX = isFallen && treeConfig.showBrokenStump !== false ? (treeConfig.trunkHeight || 9.0) * 0.35 : 0;
         const targetY = isLog
           ? isStump ? Math.max(0.35, treeConfig.trunkHeight * 0.45) : Math.max(0.4, treeConfig.trunkRadiusBase * 0.9)
@@ -323,9 +323,11 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         if (isLog) {
           // logs lie low and long: frame the whole length from a little above
           controlsRef.current.minDistance = 1.2;
-          const want = isStump ? 6 : Math.max(8, treeConfig.trunkHeight * 1.9);
+          const want = isStump
+            ? Math.max(6, treeConfig.trunkRadiusBase * (2.5 + treeConfig.rootSpread * 2.2))
+            : Math.max(8, treeConfig.trunkHeight * 1.9);
           const currentDist = cameraRef.current.position.distanceTo(controlsRef.current.target);
-          if (currentDist < want * 0.6 || currentDist > want * 1.6) {
+          if (currentDist < want * 0.75 || currentDist > want * 1.3) {
             const dir = cameraRef.current.position.clone().sub(controlsRef.current.target).normalize();
             cameraRef.current.position.copy(controlsRef.current.target).addScaledVector(dir, want * portraitDistanceScale(cameraRef.current.aspect));
           }
@@ -465,8 +467,10 @@ export const Viewport3D = forwardRef<Viewport3DHandle, Viewport3DProps>(
         const isFallen = treeConfig.growthStage === 'fallen' || treeConfig.species.endsWith('_fallen');
         const isSapling = treeConfig.growthStage === 'sapling' || treeConfig.species.endsWith('_sapling');
         if (treeConfig.growthStage === 'log') {
-          const isStump = treeConfig.species === 'tree_stump';
-          const d = isStump ? 6 : Math.max(8, treeConfig.trunkHeight * 1.9);
+          const isStump = treeConfig.species.includes('stump');
+          const d = isStump
+            ? Math.max(6, treeConfig.trunkRadiusBase * (2.5 + treeConfig.rootSpread * 2.2))
+            : Math.max(8, treeConfig.trunkHeight * 1.9);
           cameraRef.current.position.set(0, d * 0.45, d * 0.9);
           controlsRef.current.target.set(0, isStump ? Math.max(0.35, treeConfig.trunkHeight * 0.45) : 0.5, 0);
         } else if (isFallen) {
